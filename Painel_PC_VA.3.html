@@ -223,20 +223,28 @@
   .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 
   /* ===== Dashboard ===== */
-  /* --- Área de Trabalho (08/07): grade de ícones tipo desktop, agrupada por cliente/projeto --- */
+  /* --- Área de Trabalho (rev. 08/07): lista compacta agrupada por cliente/projeto (era grade de
+     ícones tipo desktop — trocado por lista pra ficar mais legível e caber ação de apagar PC) --- */
   .trabalho-client-group { margin-bottom: 30px; }
   .trabalho-client-title { font-family: 'DM Sans', sans-serif; font-weight: 800; font-size: 17px; color: var(--ink); margin-bottom: 14px; }
-  .trabalho-project-group { margin-bottom: 22px; }
-  .trabalho-project-title { font-size: 12.5px; font-weight: 700; color: var(--ink2); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 12px; }
+  .trabalho-project-group { margin-bottom: 18px; }
+  .trabalho-project-title { font-size: 12.5px; font-weight: 700; color: var(--ink2); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 8px; }
   .trabalho-project-executor { font-size: 11px; font-weight: 500; color: var(--ink3); text-transform: none; letter-spacing: normal; margin-left: 8px; }
-  .trabalho-icon-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(88px, 1fr)); gap: 6px; max-width: 720px; }
-  .pc-icon-card { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 12px 6px; border-radius: 10px; cursor: pointer; transition: background 0.12s; }
-  .pc-icon-card:hover { background: var(--surface2); }
-  .pc-icon-card.disabled { opacity: 0.4; cursor: not-allowed; }
-  .pc-icon-glyph { position: relative; width: 34px; height: 34px; color: var(--accent); }
-  .pc-icon-glyph svg { width: 100%; height: 100%; }
-  .pc-icon-dot { position: absolute; bottom: -1px; right: -3px; width: 11px; height: 11px; border-radius: 50%; box-shadow: 0 0 0 2px var(--bg); }
-  .pc-icon-label { font-size: 11.5px; font-weight: 700; color: var(--ink); text-align: center; }
+  .trabalho-list { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; max-width: 720px; }
+  .trabalho-pc-row { display: flex; align-items: center; gap: 12px; padding: 10px 14px; cursor: pointer; border-bottom: 1px solid var(--surface2); transition: background 0.12s; }
+  .trabalho-pc-row:last-child { border-bottom: none; }
+  .trabalho-pc-row:hover { background: var(--surface2); }
+  .trabalho-pc-row.disabled { cursor: not-allowed; opacity: 0.45; }
+  .trabalho-pc-icon { position: relative; width: 28px; height: 28px; color: var(--accent); flex-shrink: 0; }
+  .trabalho-pc-icon svg { width: 100%; height: 100%; }
+  .trabalho-pc-dot { position: absolute; bottom: -1px; right: -2px; width: 10px; height: 10px; border-radius: 50%; box-shadow: 0 0 0 2px var(--surface); }
+  .trabalho-pc-label { font-size: 13px; font-weight: 700; color: var(--ink); flex-shrink: 0; min-width: 56px; }
+  .trabalho-pc-spacer { flex: 1; }
+  .trabalho-pc-delete { display: flex; align-items: center; justify-content: center; width: 27px; height: 27px; border-radius: 7px; color: var(--ink3); background: none; border: none; cursor: pointer; flex-shrink: 0; transition: all 0.12s; }
+  .trabalho-pc-delete:hover { background: var(--red-light); color: var(--red); }
+  .trabalho-pc-delete svg { width: 15px; height: 15px; }
+  .trabalho-pc-chevron { color: var(--ink3); flex-shrink: 0; display: flex; }
+  .trabalho-pc-chevron svg { width: 16px; height: 16px; }
 
   .dashboard-section { margin-bottom: 28px; }
   .dashboard-section-title { font-family: 'DM Sans', sans-serif; font-weight: 800; font-size: 17px; color: var(--ink); margin: 0 0 4px; }
@@ -711,6 +719,9 @@ async function graphCreateItem(listId, fields) {
 async function graphUpdateItem(listId, itemId, fields) {
   await graphFetch(`/sites/${SITE_ID}/lists/${listId}/items/${itemId}/fields`, { method: 'PATCH', body: JSON.stringify(fields) });
 }
+async function graphDeleteItem(listId, itemId) {
+  await graphFetch(`/sites/${SITE_ID}/lists/${listId}/items/${itemId}`, { method: 'DELETE' });
+}
 async function graphBatch(requests) {
   if (!requests.length) return [];
   const token = await getGraphToken();
@@ -1148,10 +1159,11 @@ function handlePcClick(ci, pi, pci) {
   setView('workspace');
 }
 
-/* ===== Área de Trabalho (08/07): "área de trabalho" no sentido literal — igual a uma área de
-   trabalho do Windows, com um ícone por PC, agrupados por cliente e projeto. Clicar num ícone
-   abre a PC direto na Área de Análise (mesma ação de handlePcClick). É uma tela própria, separada
-   do Dashboard (que continua existindo como tabela — visões diferentes, mesmo dado). ===== */
+/* ===== Área de Trabalho (rev. 08/07): lista de PCs agrupadas por cliente e projeto (era grade
+   de ícones tipo desktop — trocado por lista pra ficar mais legível e caber a ação de apagar).
+   Clicar numa linha abre a PC direto na Área de Análise (mesma ação de handlePcClick). É uma tela
+   própria, separada do Dashboard (que continua existindo como tabela — visões diferentes, mesmo
+   dado). ===== */
 function renderAreaTrabalho() {
   const el = document.getElementById('trabalhoContent');
   let html = '';
@@ -1161,19 +1173,30 @@ function renderAreaTrabalho() {
     client.projects.forEach((p, pi) => {
       html += `<div class="trabalho-project-group">
         <div class="trabalho-project-title">Projeto ${escapeHtml(p.name)} <span class="trabalho-project-executor">${escapeHtml(p.executor)}</span></div>
-        <div class="trabalho-icon-grid">`;
+        <div class="trabalho-list">`;
       p.pcs.forEach((pc, pci) => {
         const ultimoStatus = pc.real
           ? pc.data.meta.ciclos[pc.data.meta.ciclos.length - 1].status
           : pc.ciclos[pc.ciclos.length - 1].status;
         const concluida = pc.real ? pc.data.meta.concluida : pc.concluida;
         const corDot = concluida ? 'verde' : (ultimoStatus === 'COM_EXECUTOR' ? 'outline' : (ultimoStatus === 'ENCERRADO' ? 'cinza' : 'ambar'));
-        html += `<div class="pc-icon-card${pc.real ? '' : ' disabled'}" onclick="handlePcClick(${ci},${pi},${pci})" title="${pc.real ? 'Abrir na Área de Análise' : 'Dado fictício — protótipo ainda não modela essa PC'}">
-          <div class="pc-icon-glyph">
+        const statusBadge = !pc.real
+          ? `<span class="badge badge-slate">Fictícia</span>`
+          : concluida
+            ? `<span class="badge badge-green">Concluída</span>`
+            : `<span class="badge ${cicloBadgeClass(ultimoStatus)}">${escapeHtml(CICLO_STATUS_LABELS[ultimoStatus] || ultimoStatus)}</span>`;
+        html += `<div class="trabalho-pc-row${pc.real ? '' : ' disabled'}" ${pc.real ? `onclick="handlePcClick(${ci},${pi},${pci})"` : ''} title="${pc.real ? 'Abrir na Área de Análise' : 'Dado fictício — protótipo ainda não modela essa PC'}">
+          <div class="trabalho-pc-icon">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M14 3v4a1 1 0 001 1h4"/><path d="M17 21H7a2 2 0 01-2-2V5a2 2 0 012-2h7l5 5v11a2 2 0 01-2 2z"/></svg>
-            <span class="pc-icon-dot dot-${corDot}"></span>
+            <span class="trabalho-pc-dot dot-${corDot}"></span>
           </div>
-          <span class="pc-icon-label">${escapeHtml(pc.label)}</span>
+          <span class="trabalho-pc-label">${escapeHtml(pc.label)}</span>
+          ${statusBadge}
+          <span class="trabalho-pc-spacer"></span>
+          ${pc.real ? `<button class="trabalho-pc-delete" onclick="event.stopPropagation(); deletePC(${ci},${pi},${pci})" title="Apagar ${escapeHtml(pc.label)}">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg>
+          </button>` : ''}
+          ${pc.real ? `<span class="trabalho-pc-chevron"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg></span>` : ''}
         </div>`;
       });
       html += `</div></div>`;
@@ -1181,6 +1204,58 @@ function renderAreaTrabalho() {
     html += `</div>`;
   });
   el.innerHTML = html || '<div class="empty-msg">Nenhum cliente ainda.</div>';
+}
+
+/* ===== Apagar PC (08/07: pra dar suporte aos testes de importação/ciclos — sem isso, uma PC
+   importada errada ficava presa pra sempre no STORE). Remove local (STORE + localStorage) na
+   hora, sem depender de rede; se a PC estiver sincronizada com o SharePoint, tenta apagar em
+   cascata (Itens/Checks/Revisões/Ciclos/PC) em segundo plano — falha na cascata não desfaz a
+   remoção local, só avisa, porque o dado de verdade daqui pra frente é o STORE local. ===== */
+function isRealGid(id) { return !!id && !String(id).startsWith('tmp-'); }
+
+async function graphDeletePCCascade(pc) {
+  for (const cat of pc.data.categories) {
+    for (const item of cat.items) {
+      for (const rev of (item.ciclosStatus || [])) {
+        if (isRealGid(rev._gid)) await graphDeleteItem(LIST_IDS.RevisoesPorCiclo, rev._gid).catch(e => console.warn('Falha ao apagar revisão', e));
+      }
+      for (const docKey in (item._checksGid || {})) {
+        const gid = item._checksGid[docKey];
+        if (isRealGid(gid)) await graphDeleteItem(LIST_IDS.ChecksDocumento, gid).catch(e => console.warn('Falha ao apagar check', e));
+      }
+      if (isRealGid(item.id)) await graphDeleteItem(LIST_IDS.Itens, item.id).catch(e => console.warn('Falha ao apagar item', e));
+    }
+  }
+  for (const ciclo of pc.data.meta.ciclos) {
+    if (isRealGid(ciclo._gid)) await graphDeleteItem(LIST_IDS.Ciclos, ciclo._gid).catch(e => console.warn('Falha ao apagar ciclo', e));
+  }
+  await graphDeleteItem(LIST_IDS.PCs, pc._gid);
+}
+
+function deletePC(ci, pi, pci) {
+  const project = STORE.clients[ci].projects[pi];
+  const pc = project.pcs[pci];
+  if (!pc) return;
+  if (!confirm(`Apagar ${pc.label} definitivamente? Isso remove a PC e todo o histórico de análise (ciclos, itens, comentários). Não tem como desfazer.`)) return;
+
+  const eraAAtual = currentPC && currentPC.ci === ci && currentPC.pi === pi && currentPC.pci === pci;
+  if (eraAAtual) { currentPC = null; DATA = null; selectedItemId = null; }
+
+  project.pcs.splice(pci, 1);
+  saveStore();
+  renderTree();
+  if (eraAAtual && currentView === 'workspace') { setView('trabalho'); }
+  else if (currentView === 'trabalho') renderAreaTrabalho();
+  else if (currentView === 'dashboard') renderDashboard();
+  else if (currentView === 'fila') renderFila();
+  showToast(`${pc.label} apagada.`);
+
+  if (msalAccount && pc.real && isRealGid(pc._gid)) {
+    graphDeletePCCascade(pc).catch(e => {
+      console.warn('Falha ao apagar PC no SharePoint', e);
+      showToast(`${pc.label} foi apagada aqui, mas houve erro ao apagar no SharePoint — confira manualmente.`);
+    });
+  }
 }
 
 /* ===== View switching ===== */
@@ -1423,6 +1498,10 @@ function renderCicloCards() {
       Concluir PC
     </button>`;
   }
+  actions.innerHTML += `<button class="btn btn-ghost" onclick="deletePC(currentPC.ci, currentPC.pi, currentPC.pci)" title="Apagar esta PC (pra testes)">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg>
+    Apagar PC
+  </button>`;
 }
 
 function selectCiclo(idx) {
@@ -1987,6 +2066,16 @@ function renderImportStep2() {
       <button class="btn btn-primary" onclick="confirmImport()">Importar selecionadas</button>
     </div>
   `;
+
+  /* 08/07: quando não há nenhum cliente cadastrado, "+ Novo cliente…" é a única <option> e já
+     nasce selecionada — mas o onchange que mostra o campo de texto só dispara numa troca de
+     valor, que nunca acontece nesse caso. Sem isso o campo ficava escondido pra sempre e não
+     dava pra digitar o nome do primeiro cliente. Sincroniza a visibilidade manualmente logo
+     após montar o HTML, cobrindo esse estado inicial. */
+  const impClientEl = document.getElementById('impClient');
+  const impClientNovoEl = document.getElementById('impClientNovo');
+  impClientNovoEl.classList.toggle('hidden', impClientEl.value !== 'novo');
+  if (impClientEl.value === 'novo') impClientNovoEl.focus();
 }
 
 async function confirmImport() {
@@ -2148,24 +2237,24 @@ document.getElementById('searchInput').addEventListener('input', (e) => {
 });
 
 async function initApp() {
-  /* 08/07: tela de login é o gate — o app só aparece depois de autenticado (mesmo padrão
-     dos outros apps de Ricardo, Controle HH e gestão de projetos). Sem sessão em cache,
-     fica só o login-screen visível; #app permanece com display:none o tempo todo até lá. */
+  /* 08/07: tela de login e o gate - o app so aparece depois de autenticado (mesmo padrao
+     dos outros apps de Ricardo, Controle HH e gestao de projetos). Sem sessao em cache,
+     fica so o login-screen visivel; #app permanece com display:none o tempo todo ate la. */
   try {
     initMsal();
     await msalApp.handleRedirectPromise();
     const accounts = msalApp.getAllAccounts();
     if (accounts.length > 0) msalAccount = accounts[0];
   } catch (e) {
-    console.warn('Falha ao iniciar MSAL — login com Microsoft ficará indisponível', e);
+    console.warn('Falha ao iniciar MSAL - login com Microsoft ficara indisponivel', e);
   }
 
   if (!msalAccount) {
-    // sem sessão restaurável — fica no login-screen, aguardando clique em "Entrar com Microsoft"
+    // sem sessao restauravel - fica no login-screen, aguardando clique em "Entrar com Microsoft"
     return;
   }
 
-  showLoadingGate('Restaurando sessão…');
+  showLoadingGate('Restaurando sessao...');
   try {
     renderAuthUI();
     await loadStore();
@@ -2173,7 +2262,7 @@ async function initApp() {
     showApp();
     setView('trabalho');
   } catch (e) {
-    console.warn('Falha ao restaurar sessão', e);
+    console.warn('Falha ao restaurar sessao', e);
     msalAccount = null;
     renderAuthUI();
   } finally {
