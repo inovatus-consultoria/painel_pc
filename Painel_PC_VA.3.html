@@ -215,6 +215,8 @@
   .slash-item-preview { font-size: 11px; color: var(--ink3); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
   .status-select { font-family: 'DM Sans', sans-serif; font-size: 12px; font-weight: 600; padding: 6px 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface); color: var(--ink); cursor: pointer; }
+  .analista-input { font-family: 'DM Sans', sans-serif; font-size: 12px; font-weight: 600; padding: 6px 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface); color: var(--ink); width: 130px; }
+  .analista-input::placeholder { font-weight: 500; color: var(--ink3); }
 
   .ciclo-add-btn { display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 500; color: var(--accent); background: none; border: 1px dashed var(--border); border-radius: 8px; padding: 9px; width: 100%; cursor: pointer; justify-content: center; margin-top: 4px; }
   .ciclo-add-btn:hover { background: var(--green-light); border-color: var(--accent2); }
@@ -534,6 +536,10 @@
         <label>Status</label>
         <span id="cicloSelectedStatusWrap"></span>
       </div>
+      <div class="pc-status-field">
+        <label>Analista</label>
+        <span id="cicloAnalistaWrap"></span>
+      </div>
       <span class="badge" id="pcStatusBadge">Em andamento</span>
       <div class="ciclo-cards-row" id="cicloCardsRow"></div>
       <div class="pc-status-progress">
@@ -791,7 +797,7 @@ async function loadStoreFromGraph() {
   ciclosRaw.forEach(c => {
     const pcId = String(c.PCId);
     if (!ciclosByPc.has(pcId)) ciclosByPc.set(pcId, []);
-    ciclosByPc.get(pcId).push({ _gid: c.id, numero: Number(c.CycleNumber) || 1, status: choiceToCicloStatus(c.Status) });
+    ciclosByPc.get(pcId).push({ _gid: c.id, numero: Number(c.CycleNumber) || 1, status: choiceToCicloStatus(c.Status), analista: c.AnalystName || '' });
   });
   ciclosByPc.forEach(list => list.sort((a, b) => a.numero - b.numero));
 
@@ -799,7 +805,7 @@ async function loadStoreFromGraph() {
   pcsRaw.forEach(p => {
     const proj = projByGid.get(String(p.ProjetoId));
     if (!proj) return;
-    const ciclos = ciclosByPc.get(p.id) || [{ _gid: null, numero: 1, status: 'AGUARDANDO_ANALISE' }];
+    const ciclos = ciclosByPc.get(p.id) || [{ _gid: null, numero: 1, status: 'AGUARDANDO_ANALISE', analista: '' }];
     const pc = {
       label: p.PCNumber ? `PC${p.PCNumber}` : (p.Title || 'PC'),
       real: true,
@@ -807,7 +813,7 @@ async function loadStoreFromGraph() {
       data: {
         meta: {
           cliente: '', projeto: proj.name, pc: p.PCNumber ? `PC${p.PCNumber}` : '', executor: proj.executor,
-          periodo: '', ciclos: ciclos.map(c => ({ numero: c.numero, status: c.status, _gid: c._gid })),
+          periodo: '', ciclos: ciclos.map(c => ({ numero: c.numero, status: c.status, _gid: c._gid, analista: c.analista || '' })),
           concluida: !!p.Concluded,
         },
         categories: [],
@@ -1464,7 +1470,8 @@ function renderCicloCards() {
   row.innerHTML = DATA.meta.ciclos.map((c, idx) => {
     const cor = cicloCardColor(c.status, idx);
     const sel = idx === selectedCicloIdx ? ' selected' : '';
-    return `<div class="ciclo-card-mini cor-${cor}${sel}" onclick="selectCiclo(${idx})" title="${escapeHtml(cicloLabel(c.numero))} — ${escapeHtml(CICLO_STATUS_LABELS[c.status])}">${escapeHtml(cicloShortLabel(c.numero))}</div>`;
+    const tituloAnalista = c.analista ? ` — Analista: ${escapeHtml(c.analista)}` : '';
+    return `<div class="ciclo-card-mini cor-${cor}${sel}" onclick="selectCiclo(${idx})" title="${escapeHtml(cicloLabel(c.numero))} — ${escapeHtml(CICLO_STATUS_LABELS[c.status])}${tituloAnalista}">${escapeHtml(cicloShortLabel(c.numero))}</div>`;
   }).join('');
 
   const podeAdicionar = ultimoCiclo().status === 'COM_EXECUTOR' && !DATA.meta.concluida;
@@ -1482,6 +1489,8 @@ function renderCicloCards() {
   } else {
     wrap.innerHTML = `<span class="badge ${cicloBadgeClass(sel.status)}">${CICLO_STATUS_LABELS[sel.status]} <span style="opacity:.6; font-weight:500;">(${escapeHtml(cicloLabel(sel.numero))}, somente leitura)</span></span>`;
   }
+
+  document.getElementById('cicloAnalistaWrap').innerHTML = `<input type="text" class="analista-input" value="${escapeHtml(sel.analista || '')}" placeholder="Nome do analista" oninput="updateCicloAnalista(this.value)">`;
 
   document.getElementById('pcStatusBadge').className = 'badge ' + (DATA.meta.concluida ? 'badge-green' : 'badge-slate');
   document.getElementById('pcStatusBadge').textContent = DATA.meta.concluida ? 'Concluída' : 'Em andamento';
@@ -1526,6 +1535,26 @@ async function updateCicloStatus(newStatus) {
   }
 }
 
+/* ===== Analista responsável pelo ciclo/retorno (08/07): seleção manual, não é o usuário logado —
+   às vezes uma pessoa mexe no sistema em nome de outra, e o analista pode mudar de retorno pra
+   retorno da mesma PC. Mesmo padrão de debounce dos comentários (updateComentario/syncComentario),
+   pra não disparar um PATCH a cada tecla digitada. ===== */
+const _analistaSyncTimers = {};
+function updateCicloAnalista(value) {
+  const idx = selectedCicloIdx;
+  const ciclo = DATA.meta.ciclos[idx];
+  ciclo.analista = value;
+  saveStore();
+  const key = currentPC ? `${currentPC.ci}:${currentPC.pi}:${currentPC.pci}:${idx}` : String(idx);
+  clearTimeout(_analistaSyncTimers[key]);
+  _analistaSyncTimers[key] = setTimeout(() => syncCicloAnalista(ciclo, value.trim()), 700);
+}
+async function syncCicloAnalista(ciclo, value) {
+  if (!ciclo._gid) return;
+  try { await graphUpdateItem(LIST_IDS.Ciclos, ciclo._gid, { AnalystName: value }); }
+  catch (e) { console.warn(e); showToast('Não consegui sincronizar o analista com o SharePoint.'); }
+}
+
 /* ===== Lógica de exclusão entre retornos (03/07):
    Só itens ABERTO (ou ainda AGUARDANDO_ANALISE) no retorno anterior voltam pra AGUARDANDO_ANALISE.
    Itens FECHADO herdam automaticamente um novo registro FECHADO no retorno novo — continuam
@@ -1536,7 +1565,7 @@ async function adicionarCiclo() {
   const pc = currentPC ? pcAt(currentPC.ci, currentPC.pi, currentPC.pci) : null;
   u.status = 'ENCERRADO';
   const novoNumero = u.numero + 1;
-  const novoCiclo = { numero: novoNumero, status: 'AGUARDANDO_ANALISE', _gid: null };
+  const novoCiclo = { numero: novoNumero, status: 'AGUARDANDO_ANALISE', _gid: null, analista: '' };
   DATA.meta.ciclos.push(novoCiclo);
   const pendentes = [];
   DATA.categories.forEach(cat => {
@@ -2144,7 +2173,7 @@ async function confirmImport() {
       itemsFlat.push(item);
     });
     const pcData = {
-      meta: { cliente: client.client, projeto: projetoNum, pc: pcLabel, executor: executorNome, periodo: '', ciclos: [{ numero: 1, status: 'EM_ANALISE', _gid: null }], concluida: false },
+      meta: { cliente: client.client, projeto: projetoNum, pc: pcLabel, executor: executorNome, periodo: '', ciclos: [{ numero: 1, status: 'EM_ANALISE', _gid: null, analista: '' }], concluida: false },
       categories: Object.values(categoriesById),
     };
     const pc = { label: pcLabel, real: true, data: pcData, _gid: null };
@@ -2212,7 +2241,7 @@ async function confirmImport() {
   closeImportModal();
   renderTree();
   filaOrder = null;
-  showToast(`${importados} PC(s) importada(s)${pulados ? `, ${pulados} pulada(s) por já existir` : ''}.`);
+  showToast(`${importados} PC(s) importada(s)${pulados ? `, ${pulados} pulada(s) por ja existir` : ''}.`);
   if (primeiroImportado) {
     handlePcClick(primeiroImportado.ci, primeiroImportado.pi, primeiroImportado.pci);
   } else if (currentView === 'dashboard') {
@@ -2220,7 +2249,7 @@ async function confirmImport() {
   }
 }
 
-/* ===== Sidebar retrátil (03/07) ===== */
+/* ===== Sidebar retratil (03/07) ===== */
 function toggleSidebar() {
   const el = document.getElementById('sidebarEl');
   const collapsed = el.classList.toggle('collapsed');
@@ -2237,9 +2266,6 @@ document.getElementById('searchInput').addEventListener('input', (e) => {
 });
 
 async function initApp() {
-  /* 08/07: tela de login e o gate - o app so aparece depois de autenticado (mesmo padrao
-     dos outros apps de Ricardo, Controle HH e gestao de projetos). Sem sessao em cache,
-     fica so o login-screen visivel; #app permanece com display:none o tempo todo ate la. */
   try {
     initMsal();
     await msalApp.handleRedirectPromise();
@@ -2250,7 +2276,6 @@ async function initApp() {
   }
 
   if (!msalAccount) {
-    // sem sessao restauravel - fica no login-screen, aguardando clique em "Entrar com Microsoft"
     return;
   }
 
