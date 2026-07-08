@@ -1,0 +1,2086 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Painel PC — VA.3 (SharePoint Lists)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #F4F6F5; --surface: #FFFFFF; --surface2: #EAF0EE;
+    --ink: #1A2420; --ink2: #4A6058; --ink3: #8AA09A;
+    --accent: #2D5C4E; --accent2: #3A8C7A; --accent-hover: #1E4035;
+    --gold: #B8963C;
+    --green: #2D5C4E; --green-light: #E8F2EF;
+    --red: #C83A3A; --red-light: #FBF0EF;
+    --amber: #B8963C; --amber-light: #FBF5E8;
+    --slate: #6B7A76; --slate-light: #EEF1F0;
+    --border: #D0DDD8;
+    --radius: 12px;
+    --shadow: 0 2px 16px rgba(26,36,32,0.08);
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--ink); font-size: 14px; -webkit-font-smoothing: antialiased; }
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 99px; }
+
+  .shell { display: flex; min-height: 100vh; }
+
+  /* ===== Sidebar (árvore Cliente > Projetos > PCs) ===== */
+  .sidebar { width: 240px; flex-shrink: 0; background: var(--ink); color: #fff; padding: 16px 12px 22px; display: flex; flex-direction: column; gap: 14px; transition: width 0.18s ease; overflow: hidden; }
+  .sidebar.collapsed { width: 60px; }
+  .sidebar-top { display: flex; justify-content: flex-end; }
+  .sidebar.collapsed .sidebar-top { justify-content: center; }
+  .sidebar-toggle { background: none; border: none; color: rgba(255,255,255,0.5); cursor: pointer; padding: 6px; border-radius: 6px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .sidebar-toggle:hover { background: rgba(255,255,255,0.08); color: #fff; }
+  .sidebar-toggle svg { width: 13px; height: 13px; transition: transform 0.18s ease; }
+  .sidebar.collapsed .sidebar-toggle svg { transform: rotate(180deg); }
+  .brand-logo { padding: 0 14px 4px; display: flex; flex-direction: column; align-items: center; }
+  .sidebar.collapsed .brand-logo { padding: 0 0 4px; }
+  .brand-logo img { width: 100%; max-width: 140px; height: auto; display: block; filter: brightness(0) invert(1); }
+  .sidebar.collapsed .brand-logo img { max-width: 26px; }
+  .brand-logo small { display: block; font-family: 'DM Sans', sans-serif; font-size: 10.5px; color: rgba(255,255,255,0.45); font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; margin-top: 8px; text-align: center; }
+  .sidebar.collapsed .brand-logo small,
+  .sidebar.collapsed .tree-section-label,
+  .sidebar.collapsed .tree,
+  .sidebar.collapsed .sidebar-foot,
+  .sidebar.collapsed .view-nav-item .nav-label { display: none; }
+  .sidebar.collapsed .view-nav-item { justify-content: center; padding: 8px; }
+
+  .view-nav { display: flex; flex-direction: column; gap: 2px; }
+  .view-nav-item { display: flex; align-items: center; gap: 9px; padding: 8px 10px; border-radius: 8px; font-size: 13px; color: rgba(255,255,255,0.75); cursor: pointer; transition: background 0.15s; }
+  .view-nav-item svg { width: 15px; height: 15px; flex-shrink: 0; opacity: 0.85; }
+  .view-nav-item:hover { background: rgba(255,255,255,0.06); }
+  .view-nav-item.active { background: var(--accent); color: #fff; }
+  .view-nav-item.disabled { opacity: 0.45; }
+
+  .tree { display: flex; flex-direction: column; gap: 1px; overflow-y: auto; }
+  .tree-section-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em; color: rgba(255,255,255,0.35); padding: 10px 10px 4px; font-weight: 700; }
+  .tree-node { display: flex; align-items: center; gap: 7px; padding: 7px 10px; border-radius: 7px; font-size: 12.5px; cursor: pointer; color: rgba(255,255,255,0.8); user-select: none; }
+  .tree-node:hover { background: rgba(255,255,255,0.06); }
+  .tree-node.lvl-client { font-weight: 700; font-size: 13px; color: #fff; }
+  .tree-node.lvl-project { padding-left: 24px; color: rgba(255,255,255,0.68); }
+  .tree-node.lvl-pc { padding-left: 38px; font-size: 12px; }
+  .tree-node.active { background: var(--accent); color: #fff; }
+  .tree-chevron { width: 6px; height: 6px; border-right: 1.4px solid currentColor; border-bottom: 1.4px solid currentColor; transform: rotate(45deg); transition: transform 0.15s; flex-shrink: 0; opacity: 0.7; }
+  .tree-node.collapsed .tree-chevron { transform: rotate(-45deg); }
+  .tree-children { display: flex; flex-direction: column; }
+  .tree-children.hidden { display: none; }
+  .hidden { display: none !important; }
+  .tree-badge { margin-left: auto; font-size: 9px; font-weight: 700; padding: 1px 6px; border-radius: 99px; background: rgba(255,255,255,0.1); color: rgba(255,255,255,0.55); }
+  .tree-badge.real { background: var(--accent2); color: #fff; }
+  .tree-node.disabled { cursor: default; opacity: 0.55; }
+
+  .sidebar-foot { margin-top: auto; padding-top: 14px; border-top: 1px solid rgba(255,255,255,0.08); font-size: 10.5px; color: rgba(255,255,255,0.32); padding-left: 10px; line-height: 1.5; }
+
+  /* ===== Main ===== */
+  .main { flex: 1; min-width: 0; padding: 28px 32px 40px; }
+
+  .topbar { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 20px; gap: 20px; }
+  .page-title { font-family: 'DM Sans', sans-serif; font-weight: 800; font-size: 24px; color: var(--ink); margin: 0 0 6px; letter-spacing: -0.01em; }
+  .meta-row { display: flex; flex-wrap: wrap; gap: 4px 16px; font-size: 12.5px; color: var(--ink3); }
+  .meta-row b { color: var(--ink2); font-weight: 600; }
+  .meta-row .sep { color: var(--border); }
+
+  .topbar-actions { display: flex; gap: 8px; flex-shrink: 0; }
+  .btn { display: inline-flex; align-items: center; gap: 7px; padding: 9px 16px; border-radius: 8px; font-family: 'DM Sans', sans-serif; font-size: 12.5px; font-weight: 500; border: none; cursor: pointer; transition: all 0.15s; white-space: nowrap; }
+  .btn svg { width: 14px; height: 14px; }
+  .btn-primary { background: var(--accent); color: #fff; }
+  .btn-primary:hover { background: var(--accent-hover); }
+  .btn-ghost { background: transparent; color: var(--ink2); border: 1px solid var(--border); }
+  .btn-ghost:hover { background: var(--surface2); }
+
+  /* ===== Progresso global (agora embutido na pc-status-bar, ver seção abaixo) ===== */
+  .progress-num { font-family: 'DM Sans', sans-serif; font-weight: 700; font-size: 14px; color: var(--accent); white-space: nowrap; }
+  .progress-bar-track { height: 7px; width: 90px; background: var(--surface2); border-radius: 99px; overflow: hidden; }
+  .progress-bar-fill { height: 100%; background: var(--accent2); border-radius: 99px; transition: width 0.4s ease; }
+
+  /* ===== Search ===== */
+  .search-bar { display: flex; align-items: center; gap: 10px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 10px 14px; margin-bottom: 18px; }
+  .search-bar svg { width: 15px; height: 15px; color: var(--ink3); flex-shrink: 0; }
+  .search-bar input { border: none; outline: none; flex: 1; font-family: 'DM Sans', sans-serif; font-size: 13.5px; color: var(--ink); background: transparent; }
+  .search-bar input::placeholder { color: var(--ink3); }
+  .search-count { font-size: 11.5px; color: var(--ink3); white-space: nowrap; }
+  .filtro-duvida-toggle { flex-shrink: 0; font-family: 'DM Sans', sans-serif; font-size: 11.5px; font-weight: 700; padding: 5px 10px; border-radius: 7px; border: 1px solid var(--border); background: var(--surface2); color: var(--ink2); cursor: pointer; }
+  .filtro-duvida-toggle.active { background: #EAF1FB; color: #2E5C99; border-color: #B8D0EF; }
+
+  .workspace { display: grid; grid-template-columns: 380px 1fr; gap: 18px; align-items: start; }
+
+  /* --- List column --- */
+  .list-col { max-height: calc(100vh - 250px); overflow-y: auto; padding-right: 4px; }
+  .cat-group { margin-bottom: 6px; }
+  .cat-header { display: flex; align-items: center; justify-content: space-between; padding: 10px 10px; cursor: pointer; user-select: none; border-radius: 8px; gap: 10px; }
+  .cat-header:hover { background: var(--surface2); }
+  .cat-header-left { display: flex; align-items: center; gap: 8px; min-width: 0; }
+  .cat-chevron { width: 8px; height: 8px; border-right: 1.6px solid var(--ink3); border-bottom: 1.6px solid var(--ink3); transform: rotate(45deg); transition: transform 0.15s; flex-shrink: 0; }
+  .cat-group.collapsed .cat-chevron { transform: rotate(-45deg); }
+  .cat-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .cat-header-right { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+  .cat-pct { font-size: 10.5px; font-weight: 700; color: var(--accent2); }
+  .cat-count { font-size: 10.5px; color: var(--ink3); background: var(--surface2); border-radius: 99px; padding: 2px 7px; font-weight: 600; }
+  .cat-mini-bar { width: 46px; height: 4px; background: var(--surface2); border-radius: 99px; overflow: hidden; }
+  .cat-mini-fill { height: 100%; background: var(--accent2); }
+  .cat-items { display: flex; flex-direction: column; gap: 6px; padding: 2px 0 10px; }
+  .cat-group.collapsed .cat-items { display: none; }
+
+  .item-card { display: flex; align-items: center; gap: 10px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 11px 12px; cursor: pointer; transition: border-color 0.15s, box-shadow 0.15s; }
+  .item-card:hover { border-color: var(--accent2); }
+  .item-card.selected { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); background: var(--green-light); }
+  .item-status-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .dot-aberto { background: var(--red); }
+  .dot-fechado { background: var(--green); }
+  .dot-aguardando { background: var(--slate); }
+  .dot-verde { background: var(--green); }
+  .dot-ambar { background: var(--amber); }
+  .dot-cinza { background: var(--slate); }
+  .dot-outline { background: var(--surface); border: 1.5px solid var(--ink3); }
+
+  .item-card-body { min-width: 0; flex: 1; }
+  .item-card-title { font-size: 13px; font-weight: 600; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .item-card-sub { font-size: 11.5px; color: var(--ink3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 1px; }
+  .item-card-badges { display: flex; gap: 4px; flex-shrink: 0; align-items: center; }
+
+  .badge { display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; border-radius: 99px; font-size: 9.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; white-space: nowrap; }
+  .badge-green { background: var(--green-light); color: var(--green); }
+  .badge-red { background: var(--red-light); color: var(--red); }
+  .badge-amber { background: var(--amber-light); color: var(--amber); }
+  .badge-slate { background: var(--slate-light); color: var(--slate); }
+  .badge-teal { background: var(--green-light); color: var(--accent2); border: 1px solid #BEE0D6; }
+  .badge-outline { background: var(--surface2); color: var(--ink2); border: 1px solid var(--border); }
+  .badge-removido { background: #F4E8D8; color: #8A6010; border: 1px solid #E8C86A; cursor: help; }
+  .badge-duvida { background: #EAF1FB; color: #2E5C99; border: 1px solid #B8D0EF; cursor: help; }
+
+  .empty-msg { font-size: 12.5px; color: var(--ink3); padding: 14px 10px; }
+
+  /* --- Detail column --- */
+  .detail-col { position: sticky; top: 28px; }
+  .detail-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); padding: 24px 26px; max-height: calc(100vh - 250px); overflow-y: auto; }
+  .detail-placeholder { display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 70px 30px; color: var(--ink3); }
+  .detail-placeholder svg { width: 34px; height: 34px; margin-bottom: 14px; opacity: 0.5; }
+  .detail-placeholder p { font-size: 13px; margin: 0; }
+
+  .detail-header { display: flex; justify-content: space-between; gap: 14px; margin-bottom: 4px; }
+  .detail-title { font-size: 17px; font-weight: 700; color: var(--ink); line-height: 1.3; }
+  .detail-sub { font-size: 12.5px; color: var(--ink3); margin-top: 4px; line-height: 1.5; }
+  .detail-tipo { display: inline-block; margin-top: 6px; font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--accent); background: var(--green-light); padding: 3px 9px; border-radius: 99px; }
+  .detail-valor { font-family: 'DM Sans', sans-serif; font-weight: 700; font-size: 17px; color: var(--accent); white-space: nowrap; }
+
+  .removido-alert { display: flex; align-items: flex-start; gap: 10px; background: var(--amber-light); border: 1px solid #E8C86A; color: #8A6010; border-radius: 10px; padding: 12px 14px; font-size: 12.5px; margin-top: 16px; line-height: 1.5; }
+  .removido-alert svg { width: 15px; height: 15px; flex-shrink: 0; margin-top: 1px; }
+
+  .section-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em; color: var(--ink3); margin: 22px 0 10px; display: flex; align-items: center; gap: 8px; }
+  .section-note { font-size: 10.5px; font-weight: 500; text-transform: none; letter-spacing: 0; color: var(--ink3); }
+
+  /* --- Document chips: editable, full-card color, OK/PND only --- */
+  .doc-grid { display: flex; flex-wrap: wrap; gap: 8px; }
+  .doc-chip { display: flex; align-items: center; gap: 8px; border-radius: 9px; padding: 9px 13px; font-size: 12.5px; font-weight: 600; cursor: pointer; border: 1.5px solid transparent; transition: filter 0.12s; user-select: none; }
+  .doc-chip:hover { filter: brightness(0.97); }
+  .doc-chip.chip-ok { background: var(--green-light); color: var(--green); border-color: #BEE0D6; }
+  .doc-chip.chip-pnd { background: var(--amber-light); color: #8A6010; border-color: #E8C86A; }
+  .doc-chip-icon { width: 15px; height: 15px; flex-shrink: 0; }
+
+  .ciclo-card { border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; margin-bottom: 10px; background: var(--surface); }
+  .ciclo-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 10px; }
+  .duvida-toggle-btn { font-family: 'DM Sans', sans-serif; font-size: 11.5px; font-weight: 700; padding: 6px 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface); color: var(--ink2); cursor: pointer; white-space: nowrap; }
+  .duvida-toggle-btn.active { background: #EAF1FB; color: #2E5C99; border-color: #B8D0EF; }
+  .ciclo-num { font-size: 12px; font-weight: 700; color: var(--ink2); }
+  .field-block { margin-bottom: 12px; }
+  .field-label { font-size: 11px; font-weight: 600; color: var(--ink3); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 5px; display: flex; align-items: center; gap: 6px; }
+  .field-label .lock { font-size: 9.5px; color: var(--ink3); font-weight: 500; text-transform: none; letter-spacing: 0; }
+  .field-text { font-size: 13px; line-height: 1.55; color: var(--ink); white-space: pre-line; }
+  .field-text.empty { color: var(--ink3); font-style: italic; }
+
+  .editor { width: 100%; min-height: 70px; border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; font-family: 'DM Sans', sans-serif; font-size: 13px; color: var(--ink); background: var(--bg); outline: none; resize: vertical; line-height: 1.5; transition: border-color 0.15s, background 0.15s; }
+  .editor:focus { border-color: var(--accent); background: var(--surface); }
+  .editor-internal { background: var(--surface2); }
+  .editor-internal:focus { background: var(--surface2); border-color: var(--gold); }
+  .editor-hint { font-size: 10.5px; color: var(--ink3); margin-top: 5px; }
+  .editor-hint kbd { background: var(--surface2); border: 1px solid var(--border); border-radius: 4px; padding: 1px 5px; font-family: inherit; font-size: 10px; }
+
+  .comment-editor-wrap { position: relative; }
+
+  /* inline suggestion strip (auto, while typing) */
+  .suggest-strip { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 7px; }
+  .suggest-pill { display: flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 500; color: var(--accent); background: var(--green-light); border: 1px solid #BEE0D6; border-radius: 99px; padding: 5px 10px; cursor: pointer; }
+  .suggest-pill:hover { background: #DCEEE8; }
+  .suggest-pill svg { width: 11px; height: 11px; }
+
+  .slash-menu { position: absolute; z-index: 20; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; box-shadow: 0 12px 32px rgba(26,36,32,0.16); width: 320px; max-height: 220px; overflow-y: auto; padding: 6px; }
+  .slash-menu-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink3); padding: 6px 8px 4px; }
+  .slash-item { padding: 8px 9px; border-radius: 7px; cursor: pointer; }
+  .slash-item:hover { background: var(--green-light); }
+  .slash-item-title { font-size: 12.5px; font-weight: 600; color: var(--ink); }
+  .slash-item-preview { font-size: 11px; color: var(--ink3); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+  .status-select { font-family: 'DM Sans', sans-serif; font-size: 12px; font-weight: 600; padding: 6px 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface); color: var(--ink); cursor: pointer; }
+
+  .ciclo-add-btn { display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 500; color: var(--accent); background: none; border: 1px dashed var(--border); border-radius: 8px; padding: 9px; width: 100%; cursor: pointer; justify-content: center; margin-top: 4px; }
+  .ciclo-add-btn:hover { background: var(--green-light); border-color: var(--accent2); }
+
+  .toast { position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%) translateY(20px); background: var(--ink); color: #fff; font-size: 12.5px; padding: 10px 18px; border-radius: 99px; box-shadow: 0 12px 32px rgba(0,0,0,0.25); opacity: 0; pointer-events: none; transition: all 0.25s; z-index: 100; }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  /* ===== Dashboard ===== */
+  /* --- Área de Trabalho (08/07): grade de ícones tipo desktop, agrupada por cliente/projeto --- */
+  .trabalho-client-group { margin-bottom: 30px; }
+  .trabalho-client-title { font-family: 'DM Sans', sans-serif; font-weight: 800; font-size: 17px; color: var(--ink); margin-bottom: 14px; }
+  .trabalho-project-group { margin-bottom: 22px; }
+  .trabalho-project-title { font-size: 12.5px; font-weight: 700; color: var(--ink2); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 12px; }
+  .trabalho-project-executor { font-size: 11px; font-weight: 500; color: var(--ink3); text-transform: none; letter-spacing: normal; margin-left: 8px; }
+  .trabalho-icon-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(88px, 1fr)); gap: 6px; max-width: 720px; }
+  .pc-icon-card { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 12px 6px; border-radius: 10px; cursor: pointer; transition: background 0.12s; }
+  .pc-icon-card:hover { background: var(--surface2); }
+  .pc-icon-card.disabled { opacity: 0.4; cursor: not-allowed; }
+  .pc-icon-glyph { position: relative; width: 34px; height: 34px; color: var(--accent); }
+  .pc-icon-glyph svg { width: 100%; height: 100%; }
+  .pc-icon-dot { position: absolute; bottom: -1px; right: -3px; width: 11px; height: 11px; border-radius: 50%; box-shadow: 0 0 0 2px var(--bg); }
+  .pc-icon-label { font-size: 11.5px; font-weight: 700; color: var(--ink); text-align: center; }
+
+  .dashboard-section { margin-bottom: 28px; }
+  .dashboard-section-title { font-family: 'DM Sans', sans-serif; font-weight: 800; font-size: 17px; color: var(--ink); margin: 0 0 4px; }
+  .dashboard-section-sub { font-size: 12.5px; color: var(--ink3); margin-bottom: 16px; }
+
+  .project-block { margin-bottom: 22px; }
+  .project-header { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+  .project-name { font-size: 12.5px; font-weight: 700; color: var(--ink2); text-transform: uppercase; letter-spacing: 0.05em; }
+  .project-meta { font-size: 11px; color: var(--ink3); }
+  .project-header-line { flex: 1; height: 1px; background: var(--border); }
+
+  /* --- Tabela compacta de PCs, seguindo guia de identidade (seção 9) --- */
+  .pc-table-wrap { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+  .pc-table { width: 100%; border-collapse: collapse; }
+  .pc-table thead th {
+    font-family: 'DM Sans', sans-serif; font-size: 10px; font-weight: 600; color: var(--ink3);
+    text-transform: uppercase; letter-spacing: 0.06em; text-align: left;
+    background: var(--bg); border-bottom: 1px solid var(--border);
+    padding: 9px 14px; white-space: nowrap;
+  }
+  .pc-table tbody tr {
+    border-bottom: 1px solid var(--surface2);
+    cursor: pointer; transition: background 0.12s;
+  }
+  .pc-table tbody tr:last-child { border-bottom: none; }
+  .pc-table tbody tr:hover { background: var(--surface2); }
+  .pc-table tbody tr.row-fake:hover { background: var(--bg); }
+  .pc-table td { padding: 8px 14px; font-size: 12.5px; color: var(--ink); vertical-align: middle; white-space: nowrap; }
+
+  .pc-cell-id { display: flex; align-items: center; gap: 7px; font-weight: 700; }
+  .pc-real-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent2); flex-shrink: 0; }
+  .pc-cell-muted { color: var(--ink3); }
+
+  .cell-pct-row { display: flex; align-items: center; gap: 8px; }
+  .cell-pct-bar-track { width: 64px; height: 5px; background: var(--surface2); border-radius: 99px; overflow: hidden; flex-shrink: 0; }
+  .cell-pct-bar-fill { height: 100%; border-radius: 99px; }
+  .cell-pct-num { font-size: 11.5px; font-weight: 700; color: var(--ink2); width: 32px; text-align: right; flex-shrink: 0; }
+
+  .cell-rubrica-wrap { display: flex; align-items: center; gap: 3px; flex-wrap: nowrap; }
+  .rubrica-chip { display: inline-flex; align-items: center; justify-content: center; min-width: 19px; height: 17px; padding: 0 4px; border-radius: 4px; font-size: 10px; font-weight: 700; color: #fff; }
+  .rubrica-chip-empty { background: transparent !important; }
+
+  .placeholder-view { display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 100px 30px; color: var(--ink3); }
+  .placeholder-view svg { width: 34px; height: 34px; margin-bottom: 14px; opacity: 0.5; }
+
+  /* ===== Controle de status/ciclo da PC (Workspace) — compacto, 1 linha (revisado 03/07) ===== */
+  .pc-status-bar { display: flex; align-items: center; gap: 12px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 8px 14px; margin-bottom: 14px; box-shadow: var(--shadow); flex-wrap: wrap; }
+  .pc-status-field { display: flex; align-items: center; gap: 8px; }
+  .pc-status-field label { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink3); white-space: nowrap; }
+  .pc-status-progress { display: flex; align-items: center; gap: 7px; }
+  .pc-status-progress-label { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink3); white-space: nowrap; }
+  .pc-status-spacer { flex: 1; }
+  .pc-status-actions { display: flex; gap: 8px; }
+
+  .ciclo-cards-row { display: flex; gap: 4px; flex-wrap: wrap; }
+  .ciclo-card-mini {
+    display: flex; align-items: center; justify-content: center;
+    min-width: 34px; height: 24px; padding: 0 7px; border-radius: 6px; cursor: pointer;
+    border: 1.5px solid transparent; transition: transform 0.12s;
+    font-family: 'DM Sans', sans-serif; font-weight: 700; font-size: 10.5px; white-space: nowrap;
+  }
+  .ciclo-card-mini:hover { transform: translateY(-1px); }
+  .ciclo-card-mini.selected { border-color: var(--ink); }
+  .ciclo-card-mini.cor-cinza { background: var(--slate-light); color: var(--slate); }
+  .ciclo-card-mini.cor-verde { background: var(--green-light); color: var(--green); }
+  .ciclo-card-mini.cor-ambar { background: var(--amber-light); color: var(--amber); }
+  .ciclo-card-mini.cor-outline { background: var(--surface2); color: var(--ink2); border-color: var(--border); }
+
+  .ciclo-add-card {
+    display: flex; align-items: center; justify-content: center;
+    min-width: 24px; height: 24px; border-radius: 6px; border: 1px dashed var(--border);
+    color: var(--ink3); cursor: pointer; background: none;
+  }
+  .ciclo-add-card:hover:not(:disabled) { background: var(--surface2); color: var(--accent); border-color: var(--accent2); }
+  .ciclo-add-card:disabled { opacity: 0.35; cursor: not-allowed; }
+  .ciclo-add-card svg { width: 14px; height: 14px; }
+
+  /* ===== Fila de Trabalho ===== */
+  .fila-status-block { margin-bottom: 22px; }
+  .fila-status-header { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+  .fila-status-title { font-size: 12.5px; font-weight: 700; color: var(--ink2); text-transform: uppercase; letter-spacing: 0.05em; }
+  .fila-status-count { font-size: 10.5px; color: var(--ink3); background: var(--surface2); border-radius: 99px; padding: 2px 8px; font-weight: 600; }
+  .fila-status-line { flex: 1; height: 1px; background: var(--border); }
+  .fila-empty { font-size: 12px; color: var(--ink3); padding: 10px 14px; background: var(--surface); border: 1px dashed var(--border); border-radius: 10px; }
+
+  .fila-row { display: flex; align-items: center; gap: 12px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 10px 14px; margin-bottom: 6px; cursor: pointer; transition: border-color 0.15s; }
+  .fila-row:hover { border-color: var(--accent2); }
+  .fila-row.row-fake { cursor: default; }
+  .fila-priority-controls { display: flex; flex-direction: column; gap: 1px; flex-shrink: 0; }
+  .fila-arrow-btn { width: 18px; height: 14px; display: flex; align-items: center; justify-content: center; border: none; background: var(--surface2); color: var(--ink3); cursor: pointer; border-radius: 3px; padding: 0; }
+  .fila-arrow-btn:hover { background: var(--border); color: var(--ink); }
+  .fila-arrow-btn svg { width: 10px; height: 10px; }
+  .fila-pc-id { font-weight: 700; font-size: 13px; color: var(--ink); display: flex; align-items: center; gap: 6px; width: 60px; flex-shrink: 0; }
+  .fila-proj { font-size: 11.5px; color: var(--ink3); width: 90px; flex-shrink: 0; }
+  .fila-executor { font-size: 12px; color: var(--ink2); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .fila-ciclo { font-size: 11px; color: var(--ink3); width: 56px; flex-shrink: 0; }
+  .fila-pct-wrap { display: flex; align-items: center; gap: 6px; width: 110px; flex-shrink: 0; }
+  .fila-time { font-size: 11px; color: var(--ink3); width: 90px; flex-shrink: 0; text-align: right; }
+
+
+  /* ===== Modal de importação (VA.0) ===== */
+  .modal-overlay { position: fixed; inset: 0; background: rgba(26,36,32,0.45); display: flex; align-items: center; justify-content: center; z-index: 200; }
+  .modal-overlay.hidden { display: none; }
+  .modal-box { background: var(--surface); border-radius: var(--radius); width: 560px; max-width: 92vw; max-height: 86vh; overflow-y: auto; box-shadow: 0 24px 64px rgba(0,0,0,0.28); }
+  .modal-header { display:flex; align-items:center; justify-content:space-between; padding: 18px 22px; border-bottom: 1px solid var(--border); }
+  .modal-header h2 { font-family:'DM Sans',sans-serif; font-weight:800; font-size:17px; margin:0; color:var(--ink); }
+  .modal-close { border:none; background:none; font-size:22px; cursor:pointer; color:var(--ink3); line-height:1; padding: 0 4px; }
+  .modal-close:hover { color: var(--ink); }
+  .modal-body { padding: 20px 22px 24px; }
+  .modal-hint { font-size:12.5px; color:var(--ink2); line-height:1.5; margin: 0 0 14px; }
+  .modal-field { margin-bottom: 14px; }
+  .modal-field label { display:block; font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.06em; color:var(--ink3); margin-bottom:5px; }
+  .modal-field input[type=text], .modal-field select { width:100%; padding:8px 10px; border:1px solid var(--border); border-radius:8px; font-family:'DM Sans',sans-serif; font-size:13px; color:var(--ink); background:var(--bg); box-sizing: border-box; }
+  #impPcList { max-height: 220px; overflow-y: auto; border: 1px solid var(--border); border-radius: 8px; padding: 4px 10px; }
+  .pc-check-row { display:flex; align-items:center; gap:8px; padding:7px 4px; font-size:13px; border-bottom:1px solid var(--surface2); }
+  .pc-check-row:last-child { border-bottom: none; }
+  .pc-check-row small { color:var(--ink3); margin-left:auto; }
+  .import-summary { font-size:11.5px; color:var(--ink2); line-height:1.5; background:var(--surface2); border-radius:8px; padding:9px 11px; margin-top:10px; }
+  .modal-actions { display:flex; justify-content:flex-end; gap:8px; margin-top:18px; }
+
+  @media (max-width: 900px) {
+    .workspace { grid-template-columns: 1fr; }
+    .detail-col { position: static; }
+  }
+
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://alcdn.msauth.net/browser/2.38.1/js/msal-browser.min.js"></script>
+</head>
+<body>
+
+<div class="shell">
+  <aside class="sidebar" id="sidebarEl">
+    <div class="sidebar-top">
+      <button class="sidebar-toggle" onclick="toggleSidebar()" title="Recolher/expandir menu">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg>
+      </button>
+    </div>
+    <div class="brand-logo">
+      <img src="data:image/png;base64,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" alt="Inovatus Consultoria">
+      <small>Checklist PC</small>
+    </div>
+    <div class="view-nav">
+      <div class="view-nav-item" id="navTrabalho" onclick="setView('trabalho')" title="Área de Trabalho">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
+        <span class="nav-label">Área de Trabalho</span>
+      </div>
+      <div class="view-nav-item" id="navDashboard" onclick="setView('dashboard')" title="Dashboard">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg>
+        <span class="nav-label">Dashboard</span>
+      </div>
+      <div class="view-nav-item" id="navFila" onclick="setView('fila')" title="Fila de Trabalho">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>
+        <span class="nav-label">Fila de Trabalho</span>
+      </div>
+      <div class="view-nav-item" id="navWorkspace" onclick="setView('workspace')" title="Área de Análise">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 12h6M9 16h6M9 8h6M5 3h14a2 2 0 012 2v14a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2z"/></svg>
+        <span class="nav-label">Área de Análise</span>
+      </div>
+    </div>
+    <div class="tree-section-label">Clientes</div>
+    <div class="tree" id="treeCol"></div>
+    <div class="sidebar-foot">
+      <div id="authStatus" style="margin-bottom:8px;"></div>
+      VA.3 · dado em SharePoint Lists (Microsoft Graph)<br>importe o Excel do Prompt pra trazer PCs novas
+    </div>
+  </aside>
+
+  <main class="main">
+    <div id="trabalhoView" class="hidden">
+      <div class="topbar">
+        <div>
+          <h1 class="page-title">Área de Trabalho</h1>
+          <div class="meta-row"><span>Todas as PCs, separadas por cliente e projeto — clique numa para entrar na Área de Análise</span></div>
+        </div>
+      </div>
+      <div id="trabalhoContent"></div>
+    </div>
+
+    <div id="dashboardView" class="hidden">
+      <div class="topbar">
+        <div>
+          <h1 class="page-title">Dashboard</h1>
+          <div class="meta-row"><span>Visão consolidada de todas as PCs por cliente/projeto</span></div>
+        </div>
+        <div class="topbar-actions">
+          <button class="btn btn-ghost" onclick="resetStore()" title="Recarrega os dados direto do SharePoint (ou reseta o exemplo local, se ainda não conectado)">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 109-9 9.75 9.75 0 00-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+            Recarregar do SharePoint
+          </button>
+          <button class="btn btn-primary" onclick="openImportModal()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 21V9m0 0l-5 5m5-5l5 5M4 3h16"/></svg>
+            Importar Excel do Prompt
+          </button>
+        </div>
+      </div>
+      <div id="dashboardContent"></div>
+    </div>
+
+    <div id="filaView" class="hidden">
+      <div class="topbar">
+        <div>
+          <h1 class="page-title">Fila de Trabalho</h1>
+          <div class="meta-row"><span>PCs organizadas por status — fila operacional de execução, análise e revisão</span></div>
+        </div>
+      </div>
+      <div id="filaContent"></div>
+    </div>
+
+    <div id="workspaceView" class="hidden">
+    <div class="topbar">
+      <div>
+        <h1 class="page-title">Área de Análise</h1>
+        <div class="meta-row" id="metaRow"></div>
+      </div>
+      <div class="topbar-actions">
+        <button class="btn btn-ghost">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18"/></svg>
+          Ver capa
+        </button>
+        <button class="btn btn-primary">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v14m0 0l-5-5m5 5l5-5M4 21h16"/></svg>
+          Exportar
+        </button>
+      </div>
+
+    </div>
+
+    <div class="pc-status-bar">
+      <div class="pc-status-field">
+        <label>Status</label>
+        <span id="cicloSelectedStatusWrap"></span>
+      </div>
+      <span class="badge" id="pcStatusBadge">Em andamento</span>
+      <div class="ciclo-cards-row" id="cicloCardsRow"></div>
+      <div class="pc-status-progress">
+        <span class="pc-status-progress-label">Analisada</span>
+        <div class="progress-bar-track"><div class="progress-bar-fill" id="progressFill" style="width:0%"></div></div>
+        <span class="progress-num" id="progressNum">0%</span>
+        <span id="progressCount" class="pc-status-progress-label">0/0</span>
+      </div>
+      <div class="pc-status-spacer"></div>
+      <div class="pc-status-actions" id="pcStatusActions"></div>
+    </div>
+
+    <div class="search-bar">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg>
+      <input id="searchInput" type="text" placeholder="Buscar por nome, documento, comentário ou executor…">
+      <button class="filtro-duvida-toggle" id="filtroDuvidaBtn" onclick="toggleFiltroDuvida()" title="Mostrar só itens marcados com dúvida, pendentes de revisão">Só dúvida</button>
+      <span class="search-count" id="searchCount"></span>
+    </div>
+
+    <div class="workspace">
+      <div class="list-col" id="listCol"></div>
+      <div class="detail-col">
+        <div class="detail-card" id="detailCard">
+          <div class="detail-placeholder">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M9 12h6M9 16h6M9 8h6M5 3h14a2 2 0 012 2v14a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2z"/></svg>
+            <p>Selecione um item na lista à esquerda<br>para ver os detalhes.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+    </div>
+  </main>
+</div>
+
+<div class="modal-overlay hidden" id="importOverlay">
+  <div class="modal-box">
+    <div class="modal-header">
+      <h2>Importar Relatório Prompt</h2>
+      <button class="modal-close" onclick="closeImportModal()">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div class="import-step" id="importStep1">
+        <p class="modal-hint">Selecione o arquivo .xlsx exportado do Prompt (precisa ter as abas "Parâmetros" e "Todas as Despesas"). O relatório traz o histórico completo do projeto — você escolhe quais PCs importar na próxima tela.</p>
+        <input type="file" id="importFileInput" accept=".xlsx" onchange="handleImportFile(event)">
+      </div>
+      <div class="import-step hidden" id="importStep2"></div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast">Feito</div>
+
+
+<script>
+
+/* ===== Config SharePoint Lists + Microsoft Graph (integração 08/07 — ver MEMORY_v3.md) =====
+   Reaproveita o App Registration "Inovatus" (mesmo do Controle HH / gestão de projetos).
+   Site "Ferramentas" e as 11 listas já existem em produção (docs/Guia_Configuracao_SharePoint.md). */
+const MSAL_CONFIG = {
+  auth: {
+    clientId: 'd86f175d-2548-4d9f-b33a-57cda630412a',
+    authority: 'https://login.microsoftonline.com/254da802-695f-450f-bace-5187b3ed5459',
+    redirectUri: 'https://inovatus-consultoria.github.io/painel_pc/',
+  },
+  cache: { cacheLocation: 'localStorage' },
+};
+const GRAPH_SCOPES = ['Sites.ReadWrite.All'];
+const SITE_ID = 'inovatusconsultoria.sharepoint.com,40222e26-dea3-4e2a-a230-6073aeeee345,ed7dc09e-46cc-4774-8516-2aeed4ea4967';
+const LIST_IDS = {
+  Clientes: '4ab3e507-ba11-4562-8192-e8aef2c718d6',
+  Projetos: '97512046-0e79-4a95-a498-bf1d93e9e39f',
+  PCs: '32402919-acd5-4322-9599-cfb5c13ba4ce',
+  Ciclos: '04f1a834-3d94-4a56-9817-801627c3dd19',
+  Itens: 'd352c696-251e-4353-820a-4263e373924c',
+  ChecksDocumento: 'd9569c49-e6fa-418d-aa41-eec564952be3',
+  RevisoesPorCiclo: 'e08e7d37-adc0-497d-95e0-4d32d4d1a845',
+  ModelosComentario: '8fe5cb5b-75f0-4ab9-9f3a-75c64fddc60c',
+  SchemaDocumentos: '863a0c39-2213-4304-b33d-c9f6d1b0778e',
+  ImportacoesLote: 'd49a41b5-768d-4298-a0e4-131e75df7478',
+  LogAtividade: 'ab898d85-6be3-4417-8d58-3854b1fa9934',
+};
+
+let msalApp = null;
+let msalAccount = null;
+
+function initMsal() {
+  msalApp = new msal.PublicClientApplication(MSAL_CONFIG);
+}
+
+async function doLogin() {
+  try {
+    const resp = await msalApp.loginPopup({ scopes: GRAPH_SCOPES });
+    msalAccount = resp.account;
+    renderAuthUI();
+    showToast('Conectado — carregando dados do SharePoint…');
+    await loadStore();
+    renderTree();
+    setView(currentView || 'trabalho');
+  } catch (e) {
+    console.warn('Falha no login MSAL', e);
+    showToast('Não consegui entrar com a Microsoft. Tenta de novo.');
+  }
+}
+function doLogout() {
+  const account = msalAccount;
+  msalAccount = null;
+  renderAuthUI();
+  msalApp.logoutPopup({ account }).catch(() => {});
+}
+function renderAuthUI() {
+  const el = document.getElementById('authStatus');
+  if (!el) return;
+  if (msalAccount) {
+    el.innerHTML = `Conectado como ${escapeHtml(msalAccount.name || msalAccount.username)} · <a href="#" onclick="doLogout();return false;" style="color:inherit;text-decoration:underline;">sair</a>`;
+  } else {
+    el.innerHTML = `<button class="btn btn-ghost" style="width:100%;justify-content:center;" onclick="doLogin()">Entrar com Microsoft</button>`;
+  }
+}
+
+async function getGraphToken() {
+  const req = { scopes: GRAPH_SCOPES, account: msalAccount };
+  try {
+    const resp = await msalApp.acquireTokenSilent(req);
+    return resp.accessToken;
+  } catch (e) {
+    const resp = await msalApp.acquireTokenPopup(req);
+    return resp.accessToken;
+  }
+}
+async function graphFetch(path, options = {}) {
+  const token = await getGraphToken();
+  const resp = await fetch(`https://graph.microsoft.com/v1.0${path}`, {
+    ...options,
+    headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json', ...(options.headers || {}) },
+  });
+  if (!resp.ok) {
+    const text = await resp.text().catch(() => '');
+    throw new Error(`Graph ${options.method || 'GET'} ${path} falhou: ${resp.status} ${text}`);
+  }
+  if (resp.status === 204) return null;
+  return resp.json();
+}
+async function graphGetAllItems(listId) {
+  let path = `/sites/${SITE_ID}/lists/${listId}/items?expand=fields&$top=200`;
+  let out = [];
+  while (path) {
+    const data = await graphFetch(path);
+    out = out.concat(data.value || []);
+    path = data['@odata.nextLink'] ? data['@odata.nextLink'].replace('https://graph.microsoft.com/v1.0', '') : null;
+  }
+  return out.map(it => ({ id: it.id, ...it.fields }));
+}
+async function graphCreateItem(listId, fields) {
+  const data = await graphFetch(`/sites/${SITE_ID}/lists/${listId}/items`, { method: 'POST', body: JSON.stringify({ fields }) });
+  return data.id;
+}
+async function graphUpdateItem(listId, itemId, fields) {
+  await graphFetch(`/sites/${SITE_ID}/lists/${listId}/items/${itemId}/fields`, { method: 'PATCH', body: JSON.stringify(fields) });
+}
+async function graphBatch(requests) {
+  if (!requests.length) return [];
+  const token = await getGraphToken();
+  const chunks = [];
+  for (let i = 0; i < requests.length; i += 20) chunks.push(requests.slice(i, i + 20));
+  const results = [];
+  for (const chunk of chunks) {
+    const resp = await fetch('https://graph.microsoft.com/v1.0/$batch', {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ requests: chunk }),
+    });
+    const data = await resp.json();
+    results.push(...(data.responses || []));
+  }
+  return results;
+}
+
+/* ===== Vocabulário: escolha (SharePoint, em PT) <-> código interno do app ===== */
+function choiceToCicloStatus(v) {
+  const map = { 'Aguardando análise': 'AGUARDANDO_ANALISE', 'Em análise': 'EM_ANALISE', 'Em revisão': 'EM_REVISAO', 'Com o executor': 'COM_EXECUTOR', 'Encerrado': 'ENCERRADO' };
+  return map[v] || 'AGUARDANDO_ANALISE';
+}
+function cicloStatusToChoice(v) {
+  const map = { AGUARDANDO_ANALISE: 'Aguardando análise', EM_ANALISE: 'Em análise', EM_REVISAO: 'Em revisão', COM_EXECUTOR: 'Com o executor', ENCERRADO: 'Encerrado' };
+  return map[v] || 'Aguardando análise';
+}
+function choiceToItemStatus(v) {
+  const map = { 'Aguardando análise': 'AGUARDANDO_ANALISE', 'Aberto': 'ABERTO', 'Fechado': 'FECHADO' };
+  return map[v] || 'AGUARDANDO_ANALISE';
+}
+function itemStatusToChoice(v) {
+  const map = { AGUARDANDO_ANALISE: 'Aguardando análise', ABERTO: 'Aberto', FECHADO: 'Fechado' };
+  return map[v] || 'Aguardando análise';
+}
+function categoriaInfoById(id) {
+  const found = Object.values(CATEGORIA_MAP).find(v => v.id === id);
+  return found || { id, label: id, docsFixed: ['Comprovante'] };
+}
+
+/* ===== Carrega STORE inteiro a partir das 11 listas do SharePoint, fazendo o "join" (por
+   <Entidade>Id) no código — não existe coluna de Pesquisa nativa, ver docs/Guia_Configuracao_SharePoint.md ===== */
+async function loadStoreFromGraph() {
+  const [clientesRaw, projetosRaw, pcsRaw, ciclosRaw, itensRaw, checksRaw, revisoesRaw] = await Promise.all([
+    graphGetAllItems(LIST_IDS.Clientes),
+    graphGetAllItems(LIST_IDS.Projetos),
+    graphGetAllItems(LIST_IDS.PCs),
+    graphGetAllItems(LIST_IDS.Ciclos),
+    graphGetAllItems(LIST_IDS.Itens),
+    graphGetAllItems(LIST_IDS.ChecksDocumento),
+    graphGetAllItems(LIST_IDS.RevisoesPorCiclo),
+  ]);
+
+  const clients = clientesRaw.map(c => ({ _gid: c.id, client: c.Title || c.ShortName || '(sem nome)', code: c.ShortName || '', projects: [] }));
+  const clientByGid = new Map(clients.map(c => [c._gid, c]));
+
+  const projByGid = new Map();
+  projetosRaw.forEach(p => {
+    const cliente = clientByGid.get(String(p.ClienteId));
+    if (!cliente) return;
+    const proj = { _gid: p.id, name: p.ProjectCode || p.Title || '', executor: p.ExecutorName || '', pcs: [] };
+    cliente.projects.push(proj);
+    projByGid.set(proj._gid, proj);
+  });
+
+  const ciclosByPc = new Map();
+  ciclosRaw.forEach(c => {
+    const pcId = String(c.PCId);
+    if (!ciclosByPc.has(pcId)) ciclosByPc.set(pcId, []);
+    ciclosByPc.get(pcId).push({ _gid: c.id, numero: Number(c.CycleNumber) || 1, status: choiceToCicloStatus(c.Status) });
+  });
+  ciclosByPc.forEach(list => list.sort((a, b) => a.numero - b.numero));
+
+  const pcByGid = new Map();
+  pcsRaw.forEach(p => {
+    const proj = projByGid.get(String(p.ProjetoId));
+    if (!proj) return;
+    const ciclos = ciclosByPc.get(p.id) || [{ _gid: null, numero: 1, status: 'AGUARDANDO_ANALISE' }];
+    const pc = {
+      label: p.PCNumber ? `PC${p.PCNumber}` : (p.Title || 'PC'),
+      real: true,
+      _gid: p.id,
+      data: {
+        meta: {
+          cliente: '', projeto: proj.name, pc: p.PCNumber ? `PC${p.PCNumber}` : '', executor: proj.executor,
+          periodo: '', ciclos: ciclos.map(c => ({ numero: c.numero, status: c.status, _gid: c._gid })),
+          concluida: !!p.Concluded,
+        },
+        categories: [],
+      },
+    };
+    proj.pcs.push(pc);
+    pcByGid.set(p.id, pc);
+  });
+  clients.forEach(cl => cl.projects.forEach(pr => pr.pcs.forEach(pc => { pc.data.meta.cliente = cl.client; })));
+
+  const checksByItem = new Map();
+  checksRaw.forEach(ch => {
+    const itemId = String(ch.ItemId);
+    if (!checksByItem.has(itemId)) checksByItem.set(itemId, []);
+    checksByItem.get(itemId).push(ch);
+  });
+  const revisoesByItem = new Map();
+  revisoesRaw.forEach(r => {
+    const itemId = String(r.ItemId);
+    if (!revisoesByItem.has(itemId)) revisoesByItem.set(itemId, []);
+    revisoesByItem.get(itemId).push(r);
+  });
+  const cicloNumeroByGid = new Map();
+  ciclosRaw.forEach(c => cicloNumeroByGid.set(c.id, Number(c.CycleNumber) || 1));
+
+  const categoriesByPc = new Map();
+  itensRaw.forEach(it => {
+    const pc = pcByGid.get(String(it.PCId));
+    if (!pc) return;
+    const catId = it.CategoryId || 'outros';
+    if (!categoriesByPc.has(pc._gid)) categoriesByPc.set(pc._gid, {});
+    const catsMap = categoriesByPc.get(pc._gid);
+    if (!catsMap[catId]) {
+      const info = categoriaInfoById(catId);
+      catsMap[catId] = { id: catId, label: info.label, docsFixed: info.docsFixed, items: [] };
+    }
+    const numCiclos = pc.data.meta.ciclos.length;
+    const ciclosStatus = new Array(numCiclos);
+    (revisoesByItem.get(it.id) || []).forEach(r => {
+      const numero = cicloNumeroByGid.get(String(r.CicloId)) || 1;
+      ciclosStatus[numero - 1] = {
+        _gid: r.id, numero,
+        status: choiceToItemStatus(r.ReviewStatus),
+        comentarioAnalista: r.InternalComment || '',
+        comentarioExecutor: r.ExecutorComment || '',
+        duvida: !!r.HasDoubt,
+      };
+    });
+    for (let i = 0; i < numCiclos; i++) {
+      if (!ciclosStatus[i]) ciclosStatus[i] = { numero: i + 1, status: 'AGUARDANDO_ANALISE', comentarioAnalista: '', comentarioExecutor: '', duvida: false, _gid: null };
+    }
+    const checks = {}, checksGid = {};
+    (checksByItem.get(it.id) || []).forEach(ch => {
+      checks[ch.DocumentTypeId] = ch.Status || 'PND';
+      checksGid[ch.DocumentTypeId] = ch.id;
+    });
+    catsMap[catId].items.push({
+      id: it.id,
+      title: it.BudgetItem || it.Description || 'Item sem descrição',
+      subtitle: it.Description || '',
+      tipoLabel: it.BudgetItem || null,
+      valor: (it.Amount !== undefined && it.Amount !== null && it.Amount !== '') ? String(it.Amount) : null,
+      checks, _checksGid: checksGid,
+      ciclosStatus,
+      possivelRemovido: !!it.PossibleRemoved,
+      importado: {
+        dataPagamento: it.PaymentDate ? new Date(it.PaymentDate).toLocaleDateString('pt-BR') : '',
+        dataDocumento: it.DocumentDate ? new Date(it.DocumentDate).toLocaleDateString('pt-BR') : '',
+        rendimentos: it.IncomeAmount != null ? String(it.IncomeAmount) : null,
+      },
+    });
+  });
+  categoriesByPc.forEach((catsMap, pcGid) => { pcByGid.get(pcGid).data.categories = Object.values(catsMap); });
+
+  return { clients };
+}
+
+
+
+/* biblioteca segmentada por categoria (fake, ilustrativo) */
+/* biblioteca de modelos de comentário — pendente de integração com a lista ModelosComentario
+   do SharePoint (ver docs/Guia_Configuracao_SharePoint.md); vazia até essa integração ser feita,
+   dado fake removido em 08/07 */
+const TEMPLATES_BY_CAT = {};
+
+/* ===== Persistência local (localStorage) — sem backend/banco nesta fase, é só pra testar ===== */
+const STORAGE_KEY = 'painelPC_store_v1';
+let STORE = null;
+
+async function loadStore() {
+  if (msalAccount) {
+    try {
+      STORE = await loadStoreFromGraph();
+      saveStore();
+      return;
+    } catch (e) {
+      console.warn('Falha ao carregar do SharePoint, usando cache local', e);
+      showToast('Não consegui carregar do SharePoint agora — mostrando a última cópia salva neste navegador.');
+    }
+  }
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) { STORE = JSON.parse(raw); return; }
+  } catch (e) { console.warn('Falha ao ler localStorage, recarregando dado padrão', e); }
+  /* 08/07: dado fake removido — sem login e sem cache local, começa vazio (pede login) */
+  STORE = { clients: [] };
+  saveStore();
+}
+function saveStore() {
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(STORE)); }
+  catch (e) {
+    console.warn('Falha ao salvar no localStorage', e);
+    showToast('Aviso: não consegui salvar localmente (localStorage cheio ou bloqueado pelo navegador)');
+  }
+}
+function resetStore() {
+  if (msalAccount) {
+    if (!confirm('Isso descarta qualquer alteração não sincronizada nesta aba e recarrega os dados direto do SharePoint. Confirma?')) return;
+    currentPC = null; DATA = null; selectedItemId = null;
+    loadStore().then(() => {
+      renderTree();
+      setView('trabalho');
+      showToast('Dados recarregados do SharePoint.');
+    });
+    return;
+  }
+  if (!confirm('Isso apaga tudo que foi importado/editado neste navegador (sem login, não há SharePoint pra recarregar). Confirma?')) return;
+  localStorage.removeItem(STORAGE_KEY);
+  loadStore();
+  currentPC = null; DATA = null; selectedItemId = null;
+  renderTree();
+  setView('trabalho');
+  showToast('Dado local resetado — faça login com a Microsoft pra carregar do SharePoint.');
+}
+
+let selectedItemId = null;
+let searchTerm = null;
+let filtroDuvida = false; /* 08/07: filtro do responsável regulatório — só itens marcados com dúvida */
+
+/* ===== Nomenclatura do ciclo (03/07): Ciclo 1 = "1ª análise", Ciclo N (N>=2) = "(N-1)º retorno".
+   É só rótulo de exibição — o eixo de status do ciclo (Aguardando análise/Em análise/.../Encerrado) não muda de nome. ===== */
+function cicloLabel(numero) {
+  return numero === 1 ? '1ª análise' : `${numero - 1}º retorno`;
+}
+function cicloShortLabel(numero) {
+  /* 08/07: "1ª"/"1º" sozinhos confundiam (mesmo dígito, sufixo só). Mantém o sufixo ordinal
+     (análise=ª, retorno=º) e acrescenta a letra do tipo, sem crescer muito: "1ª A", "1º R". */
+  return numero === 1 ? '1ª A' : `${numero - 1}º R`;
+}
+
+const STATUS_LABELS = { AGUARDANDO_ANALISE: 'Aguardando análise', ABERTO: 'Aberto', FECHADO: 'Fechado' };
+function statusBadgeClass(status) {
+  if (status === 'ABERTO') return 'badge-red';
+  if (status === 'FECHADO') return 'badge-green';
+  return 'badge-slate';
+}
+function dotClass(status) {
+  if (status === 'ABERTO') return 'dot-aberto';
+  if (status === 'FECHADO') return 'dot-fechado';
+  return 'dot-aguardando';
+}
+function escapeHtml(str) {
+  if (str === null || str === undefined) return '';
+  return String(str).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+}
+function fmtValor(v) {
+  if (v === null || v === undefined || v === '') return null;
+  const n = parseFloat(String(v).replace(',', '.'));
+  if (isNaN(n)) return v;
+  return n.toLocaleString('pt-BR', {style:'currency', currency:'BRL'});
+}
+
+function findItem(id) {
+  for (const cat of DATA.categories) {
+    const it = cat.items.find(i => i.id === id);
+    if (it) return {item: it, cat};
+  }
+  return null;
+}
+
+/* ===== Ponteiro pra PC ativa no Workspace: STORE.clients[ci].projects[pi].pcs[pci] ===== */
+let currentPC = null; // { ci, pi, pci }
+let DATA = null; // referência direta a pcAt(...).data — reatribuída ao entrar no Workspace
+let selectedCicloIdx = 0;
+
+function pcAt(ci, pi, pci) { return STORE.clients[ci].projects[pi].pcs[pci]; }
+
+function ultimoCiclo() { return DATA.meta.ciclos[DATA.meta.ciclos.length - 1]; }
+function cicloAtivo() { const u = ultimoCiclo(); return u.status !== 'ENCERRADO' ? u : null; }
+function isCicloEditavel(idx) { return true; } // 03/07: analista tem autonomia total — nenhum ciclo/retorno é somente-leitura (ver MEMORY_v3.md)
+
+function itemCicloStatus(item, idx) {
+  const entry = item.ciclosStatus[idx];
+  return entry ? entry.status : 'AGUARDANDO_ANALISE';
+}
+function itemStatus(item) { return itemCicloStatus(item, selectedCicloIdx); }
+function isAnalyzed(item) { const s = itemStatus(item); return s === 'ABERTO' || s === 'FECHADO'; }
+
+/* 08/07: dúvida — eixo independente do status (aberto/fechado/aguardando análise). Marca item
+   específico (não documento) que o analista quer que o responsável regulatório revise.
+   Reseta a cada ciclo novo (ver adicionarCiclo). */
+function itemTemDuvida(item, idx) {
+  const entry = item.ciclosStatus[idx];
+  return !!(entry && entry.duvida);
+}
+async function toggleDuvida(itemId) {
+  const found = findItem(itemId);
+  if (!found) return;
+  const entry = found.item.ciclosStatus[selectedCicloIdx];
+  if (!entry) return;
+  entry.duvida = !entry.duvida;
+  saveStore();
+  renderList();
+  renderDetail();
+  if (entry._gid) {
+    try { await graphUpdateItem(LIST_IDS.RevisoesPorCiclo, entry._gid, { HasDoubt: entry.duvida }); }
+    catch (e) { console.warn(e); showToast('Não consegui sincronizar a dúvida com o SharePoint.'); }
+  }
+}
+
+function catProgress(cat) {
+  const total = cat.items.length;
+  const done = cat.items.filter(isAnalyzed).length;
+  return { total, done, pct: total ? Math.round(done / total * 100) : 0 };
+}
+function globalProgress() {
+  let total = 0, done = 0;
+  DATA.categories.forEach(c => { total += c.items.length; done += c.items.filter(isAnalyzed).length; });
+  return { total, done, pct: total ? Math.round(done / total * 100) : 0 };
+}
+
+function docsForItem(item, cat) {
+  return cat.docsFixed ? cat.docsFixed : Object.keys(item.checks);
+}
+
+function matchesSearch(item, cat, term) {
+  if (!term) return true;
+  const t = term.toLowerCase();
+  const historicoTexto = item.ciclosStatus.map(c => (c.comentarioAnalista||'') + ' ' + (c.comentarioExecutor||'')).join(' ');
+  const haystack = [
+    item.title, item.subtitle, cat.label, item.tipoLabel, historicoTexto,
+    ...Object.keys(item.checks)
+  ].join(' ').toLowerCase();
+  return haystack.includes(t);
+}
+
+/* ===== Pendência ativa num ciclo: pelo menos 1 item com comentário ao executor preenchido ===== */
+function cicloTemPendencia(idx) {
+  return DATA.categories.some(c => c.items.some(it => {
+    const entry = it.ciclosStatus[idx];
+    return entry && entry.comentarioExecutor && entry.comentarioExecutor.trim().length > 0;
+  }));
+}
+function cicloCardColor(status, idx) {
+  if (status === 'ENCERRADO') return 'cinza';
+  if (status === 'COM_EXECUTOR') return 'outline';
+  return cicloTemPendencia(idx) ? 'ambar' : 'verde';
+}
+
+/* 08/07: rubrica padronizada — ordem, cor e posição fixas (subcoluna) por categoria, independente da PC.
+   Categoria sem itens simplesmente não aparece (espaço em branco), mas a posição das outras nunca desloca. */
+const RUBRICA_SCHEMA = [
+  { id: 'equipe',            label: 'Equipe',               color: '#2D5C4E' },
+  { id: 'servicos',          label: 'Serviços',              color: '#3A8C7A' },
+  { id: 'outras_despesas',   label: 'Outras Despesas',       color: '#B8963C' },
+  { id: 'equipamento',       label: 'Equipamento',           color: '#6B7A76' },
+  { id: 'material_consumo',  label: 'Material de Consumo',   color: '#8AA09A' },
+  { id: 'diaria',            label: 'Diária',                color: '#4A6058' },
+  { id: 'passagens',         label: 'Passagens',             color: '#1E4035' },
+  { id: 'prototipo',         label: 'Protótipo',             color: '#5B8A99' },
+];
+/* categorias que são variações de uma rubrica canônica (ex.: Equipe-CLT/Equipe-Bolsa contam como "Equipe") */
+const RUBRICA_ALIAS = { equipe_clt: 'equipe', equipe_bolsa: 'equipe' };
+function rubricaIdOf(categoryId) { return RUBRICA_ALIAS[categoryId] || categoryId; }
+
+/* Status de CICLO (eixo de workflow — não confundir com o rótulo "1ª análise / Nº retorno") */
+const CICLO_STATUS_LABELS = {
+  AGUARDANDO_ANALISE: 'Aguardando análise',
+  EM_ANALISE: 'Em análise',
+  EM_REVISAO: 'Em revisão',
+  COM_EXECUTOR: 'Com o executor',
+  ENCERRADO: 'Encerrado',
+};
+const CICLO_STATUS_ORDER = ['AGUARDANDO_ANALISE', 'EM_ANALISE', 'EM_REVISAO', 'COM_EXECUTOR'];
+function cicloBadgeClass(status) {
+  if (status === 'ENCERRADO') return 'badge-slate';
+  if (status === 'EM_ANALISE') return 'badge-amber';
+  if (status === 'EM_REVISAO') return 'badge-teal';
+  if (status === 'COM_EXECUTOR') return 'badge-outline';
+  return 'badge-slate';
+}
+
+/* métricas de qualquer PC real (generaliza a antiga realPC5Metrics(), que só olhava a PC5 fixa) */
+function realMetrics(pc) {
+  const d = pc.data;
+  const qtdPorRubrica = {};
+  d.categories.forEach(c => {
+    const rid = rubricaIdOf(c.id);
+    qtdPorRubrica[rid] = (qtdPorRubrica[rid] || 0) + c.items.length;
+  });
+  const rubricas = RUBRICA_SCHEMA.map(r => ({ id: r.id, nome: r.label, qtd: qtdPorRubrica[r.id] || 0 }));
+  const savedData = DATA, savedSel = selectedCicloIdx;
+  DATA = d;
+  const ciclos = d.meta.ciclos.map((c, idx) => {
+    selectedCicloIdx = idx;
+    const g = globalProgress();
+    return { numero: c.numero, status: c.status, pct: g.pct, total: g.total, analisados: g.done,
+      data: c.dataUltimaAtualizacao || '—', rubricas };
+  });
+  DATA = savedData; selectedCicloIdx = savedSel;
+  return { label: pc.label, real: true, executor: d.meta.executor, concluida: d.meta.concluida, ciclos };
+}
+
+/* ===== Sidebar tree (Cliente > Projetos > PCs) ===== */
+function renderTree() {
+  let html = '';
+  STORE.clients.forEach((c, ci) => {
+    html += `<div class="tree-node lvl-client" onclick="toggleTree('c${ci}')">
+      <span class="tree-chevron"></span>${escapeHtml(c.client)}
+    </div>
+    <div class="tree-children hidden" id="c${ci}">`;
+    c.projects.forEach((p, pi) => {
+      html += `<div class="tree-node lvl-project" onclick="toggleTree('c${ci}p${pi}')">
+        <span class="tree-chevron"></span>${escapeHtml(p.name)}
+      </div>
+      <div class="tree-children hidden" id="c${ci}p${pi}">`;
+      p.pcs.forEach((pc, pci) => {
+        html += `<div class="tree-node lvl-pc ${pc.real ? 'active' : 'disabled'}" onclick="handlePcClick(${ci},${pi},${pci})">
+          ${escapeHtml(pc.label)}
+          <span class="tree-badge ${pc.real ? 'real' : ''}">${pc.real ? 'real' : '—'}</span>
+        </div>`;
+      });
+      html += `</div>`;
+    });
+    html += `</div>`;
+  });
+  document.getElementById('treeCol').innerHTML = html || '<div class="empty-msg">Nenhum cliente ainda.</div>';
+}
+function toggleTree(id) {
+  document.getElementById(id).classList.toggle('hidden');
+}
+function handlePcClick(ci, pi, pci) {
+  const pc = pcAt(ci, pi, pci);
+  if (!pc.real) { showToast(`${pc.label} — dado fictício, protótipo ainda não modela essa PC`); return; }
+  currentPC = { ci, pi, pci };
+  DATA = pc.data;
+  selectedItemId = null;
+  selectedCicloIdx = DATA.meta.ciclos.length - 1;
+  setView('workspace');
+}
+
+/* ===== Área de Trabalho (08/07): "área de trabalho" no sentido literal — igual a uma área de
+   trabalho do Windows, com um ícone por PC, agrupados por cliente e projeto. Clicar num ícone
+   abre a PC direto na Área de Análise (mesma ação de handlePcClick). É uma tela própria, separada
+   do Dashboard (que continua existindo como tabela — visões diferentes, mesmo dado). ===== */
+function renderAreaTrabalho() {
+  const el = document.getElementById('trabalhoContent');
+  let html = '';
+  STORE.clients.forEach((client, ci) => {
+    html += `<div class="trabalho-client-group">
+      <div class="trabalho-client-title">${escapeHtml(client.client)}</div>`;
+    client.projects.forEach((p, pi) => {
+      html += `<div class="trabalho-project-group">
+        <div class="trabalho-project-title">Projeto ${escapeHtml(p.name)} <span class="trabalho-project-executor">${escapeHtml(p.executor)}</span></div>
+        <div class="trabalho-icon-grid">`;
+      p.pcs.forEach((pc, pci) => {
+        const ultimoStatus = pc.real
+          ? pc.data.meta.ciclos[pc.data.meta.ciclos.length - 1].status
+          : pc.ciclos[pc.ciclos.length - 1].status;
+        const concluida = pc.real ? pc.data.meta.concluida : pc.concluida;
+        const corDot = concluida ? 'verde' : (ultimoStatus === 'COM_EXECUTOR' ? 'outline' : (ultimoStatus === 'ENCERRADO' ? 'cinza' : 'ambar'));
+        html += `<div class="pc-icon-card${pc.real ? '' : ' disabled'}" onclick="handlePcClick(${ci},${pi},${pci})" title="${pc.real ? 'Abrir na Área de Análise' : 'Dado fictício — protótipo ainda não modela essa PC'}">
+          <div class="pc-icon-glyph">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M14 3v4a1 1 0 001 1h4"/><path d="M17 21H7a2 2 0 01-2-2V5a2 2 0 012-2h7l5 5v11a2 2 0 01-2 2z"/></svg>
+            <span class="pc-icon-dot dot-${corDot}"></span>
+          </div>
+          <span class="pc-icon-label">${escapeHtml(pc.label)}</span>
+        </div>`;
+      });
+      html += `</div></div>`;
+    });
+    html += `</div>`;
+  });
+  el.innerHTML = html || '<div class="empty-msg">Nenhum cliente ainda.</div>';
+}
+
+/* ===== View switching ===== */
+let currentView = 'trabalho';
+function setView(view) {
+  currentView = view;
+  document.getElementById('trabalhoView').classList.toggle('hidden', view !== 'trabalho');
+  document.getElementById('dashboardView').classList.toggle('hidden', view !== 'dashboard');
+  document.getElementById('filaView').classList.toggle('hidden', view !== 'fila');
+  document.getElementById('workspaceView').classList.toggle('hidden', view !== 'workspace');
+  document.getElementById('navTrabalho').classList.toggle('active', view === 'trabalho');
+  document.getElementById('navDashboard').classList.toggle('active', view === 'dashboard');
+  document.getElementById('navFila').classList.toggle('active', view === 'fila');
+  document.getElementById('navWorkspace').classList.toggle('active', view === 'workspace');
+  if (view === 'workspace' && !DATA) { showToast('Selecione uma PC real na árvore à esquerda primeiro.'); currentView = 'trabalho'; return setView('trabalho'); }
+  if (view === 'trabalho') renderAreaTrabalho();
+  if (view === 'dashboard') renderDashboard();
+  if (view === 'fila') renderFila();
+  if (view === 'workspace') { renderMeta(); renderCicloCards(); renderList(); renderDetail(); renderProgress(); }
+}
+
+function renderCicloRow(pc, ciclo, isFirstOfPc, ci, pi, pci) {
+  const badgeCls = cicloBadgeClass(ciclo.status);
+  /* 08/07: posição, cor e ordem da rubrica são fixas (RUBRICA_SCHEMA) — categoria sem item nesta
+     PC/ciclo fica em branco na mesma subcoluna, nunca desloca as demais (equipe sempre embaixo de
+     equipe, consumo embaixo de consumo etc.). */
+  const rubricaById = {};
+  (ciclo.rubricas || []).forEach(r => { rubricaById[r.id] = r; });
+  const chips = RUBRICA_SCHEMA.map(schema => {
+    const r = rubricaById[schema.id];
+    if (!r || !r.qtd) return `<span class="rubrica-chip rubrica-chip-empty"></span>`;
+    return `<span class="rubrica-chip" style="background:${schema.color}" title="${escapeHtml(schema.label)}: ${r.qtd} itens">${r.qtd}</span>`;
+  }).join('');
+  const barColor = ciclo.status === 'ENCERRADO' ? 'var(--accent2)' : (ciclo.status === 'EM_ANALISE' ? 'var(--gold)' : 'var(--ink3)');
+
+  return `<tr class="${pc.real ? '' : 'row-fake'}" onclick="handlePcClick(${ci},${pi},${pci})">
+    <td><div class="pc-cell-id">${isFirstOfPc ? (pc.real ? '<span class="pc-real-dot" title="dado real"></span>' : '') + escapeHtml(pc.label) : ''}</div></td>
+    <td class="pc-cell-muted">${cicloLabel(ciclo.numero)}</td>
+    <td><span class="badge ${badgeCls}">${CICLO_STATUS_LABELS[ciclo.status]}</span></td>
+    <td class="pc-cell-muted">${ciclo.total}</td>
+    <td class="pc-cell-muted">${ciclo.analisados}</td>
+    <td>
+      <div class="cell-pct-row">
+        <div class="cell-pct-bar-track"><div class="cell-pct-bar-fill" style="width:${ciclo.pct}%;background:${barColor}"></div></div>
+        <span class="cell-pct-num">${ciclo.pct}%</span>
+      </div>
+    </td>
+    <td><div class="cell-rubrica-wrap">${chips}</div></td>
+    <td class="pc-cell-muted">${ciclo.data || '—'}</td>
+  </tr>`;
+}
+
+function renderDashboard() {
+  const el = document.getElementById('dashboardContent');
+  let html = '';
+  STORE.clients.forEach((client, ci) => {
+    html += `<div class="dashboard-section">
+      <div class="dashboard-section-title">${escapeHtml(client.client)}</div>
+      <div class="dashboard-section-sub">Visão consolidada em 3 níveis — Projeto → PC → Ciclo. Clique numa linha pra abrir a PC.</div>`;
+    client.projects.forEach((p, pi) => {
+      html += `<div class="project-block">
+        <div class="project-header">
+          <span class="project-name">Projeto ${escapeHtml(p.name)}</span>
+          <span class="project-meta">${escapeHtml(p.executor)}</span>
+          <div class="project-header-line"></div>
+        </div>
+        <div class="pc-table-wrap">
+        <table class="pc-table">
+          <thead><tr>
+            <th>PC</th><th>Ciclo</th><th>Status</th><th>Total</th><th>Analisados</th><th>% Analisado</th><th>Itens/Rubrica</th><th>Últ. análise</th>
+          </tr></thead>
+          <tbody>`;
+      p.pcs.forEach((pc, pci) => {
+        const data = pc.real ? realMetrics(pc) : { ...pc, executor: p.executor };
+        data.ciclos.forEach((ciclo, i) => {
+          html += renderCicloRow(data, ciclo, i === 0, ci, pi, pci);
+        });
+      });
+      html += `</tbody></table></div></div>`;
+    });
+    html += `</div>`;
+  });
+  el.innerHTML = html || `<div class="placeholder-view">Nenhum cliente cadastrado ainda. Clique em "Importar Excel do Prompt" pra começar.</div>`;
+}
+
+/* ===== Fila de Trabalho =====
+   Cada entrada da fila é um par (PC, Ciclo) — não uma PC inteira, porque o status vive no ciclo.
+   Ciclos ENCERRADOS não entram na fila operacional: vão pra uma seção "Concluídos" separada, sem priorização. */
+let filaOrder = null;
+
+function allCiclosFlat() {
+  const out = [];
+  STORE.clients.forEach((client, ci) => {
+    client.projects.forEach((p, pi) => {
+      p.pcs.forEach((pc, pci) => {
+        const data = pc.real ? realMetrics(pc) : { ...pc, executor: p.executor };
+        data.ciclos.forEach(ciclo => {
+          out.push({
+            pcLabel: data.label, real: data.real, executor: data.executor, projeto: p.name,
+            key: `${ci}|${pi}|${pci}|${ciclo.numero}`, ci, pi, pci, ...ciclo,
+          });
+        });
+      });
+    });
+  });
+  return out;
+}
+
+function ensureFilaOrder() {
+  if (filaOrder) return;
+  filaOrder = allCiclosFlat().map(c => c.key);
+}
+
+function renderFila() {
+  ensureFilaOrder();
+  const el = document.getElementById('filaContent');
+  const flat = allCiclosFlat();
+  const byKey = Object.fromEntries(flat.map(c => [c.key, c]));
+  // garante que ciclos novos (recém-importados) entrem na fila
+  flat.forEach(c => { if (!filaOrder.includes(c.key)) filaOrder.push(c.key); });
+
+  let html = `<div class="dashboard-section">`;
+  CICLO_STATUS_ORDER.forEach(status => {
+    const keysInStatus = filaOrder.filter(k => byKey[k] && byKey[k].status === status);
+    html += `<div class="fila-status-block">
+      <div class="fila-status-header">
+        <span class="fila-status-title">${CICLO_STATUS_LABELS[status]}</span>
+        <span class="fila-status-count">${keysInStatus.length}</span>
+        <div class="fila-status-line"></div>
+      </div>`;
+    if (keysInStatus.length === 0) {
+      html += `<div class="fila-empty">Nenhum ciclo neste status.</div>`;
+    }
+    keysInStatus.forEach(key => html += renderFilaRow(byKey[key], true));
+    html += `</div>`;
+  });
+
+  const encerrados = flat.filter(c => c.status === 'ENCERRADO');
+  html += `<div class="fila-status-block">
+    <div class="fila-status-header">
+      <span class="fila-status-title">Concluídos</span>
+      <span class="fila-status-count">${encerrados.length}</span>
+      <div class="fila-status-line"></div>
+    </div>`;
+  if (encerrados.length === 0) {
+    html += `<div class="fila-empty">Nenhum ciclo encerrado ainda.</div>`;
+  }
+  encerrados.forEach(c => html += renderFilaRow(c, false));
+  html += `</div>`;
+
+  html += `</div>`;
+  el.innerHTML = html;
+}
+
+function renderFilaRow(c, comPrioridade) {
+  const barColor = c.status === 'ENCERRADO' ? 'var(--accent2)' : (c.status === 'EM_ANALISE' ? 'var(--gold)' : 'var(--ink3)');
+  return `<div class="fila-row ${c.real ? '' : 'row-fake'}" onclick="handlePcClick(${c.ci},${c.pi},${c.pci})">
+    ${comPrioridade ? `<div class="fila-priority-controls" onclick="event.stopPropagation()">
+      <button class="fila-arrow-btn" onclick="moveFilaItem('${c.key}', -1)" title="Subir na fila"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M18 15l-6-6-6 6"/></svg></button>
+      <button class="fila-arrow-btn" onclick="moveFilaItem('${c.key}', 1)" title="Descer na fila"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M6 9l6 6 6-6"/></svg></button>
+    </div>` : `<div class="fila-priority-controls"></div>`}
+    <div class="fila-pc-id">${c.real ? '<span class="pc-real-dot" title="dado real"></span>' : ''}${escapeHtml(c.pcLabel)}</div>
+    <div class="fila-proj">Proj. ${escapeHtml(c.projeto)}</div>
+    <div class="fila-executor" title="${escapeHtml(c.executor||'')}">${escapeHtml(c.executor || '—')}</div>
+    <div class="fila-ciclo">${cicloLabel(c.numero)}</div>
+    <div class="fila-pct-wrap">
+      <div class="cell-pct-bar-track"><div class="cell-pct-bar-fill" style="width:${c.pct}%;background:${barColor}"></div></div>
+      <span class="cell-pct-num">${c.pct}%</span>
+    </div>
+    <div class="fila-time">${c.data ? 'desde ' + c.data : '—'}</div>
+  </div>`;
+}
+
+function moveFilaItem(key, direction) {
+  ensureFilaOrder();
+  const flat = allCiclosFlat();
+  const byKey = Object.fromEntries(flat.map(c => [c.key, c]));
+  const status = byKey[key].status;
+  const idxGlobal = filaOrder.indexOf(key);
+  let swapWith = -1;
+  let i = idxGlobal + direction;
+  while (i >= 0 && i < filaOrder.length) {
+    if (byKey[filaOrder[i]] && byKey[filaOrder[i]].status === status) { swapWith = i; break; }
+    i += direction;
+  }
+  if (swapWith === -1) return;
+  [filaOrder[idxGlobal], filaOrder[swapWith]] = [filaOrder[swapWith], filaOrder[idxGlobal]];
+  renderFila();
+}
+
+function renderMeta() {
+  if (!DATA) return;
+  const m = DATA.meta;
+  document.getElementById('metaRow').innerHTML = `
+    <span><b>${escapeHtml(m.cliente)}</b></span><span class="sep">·</span>
+    <span>Projeto ${escapeHtml(m.projeto)}</span><span class="sep">·</span>
+    <span>${escapeHtml(m.pc)}</span><span class="sep">·</span>
+    <span>${escapeHtml(m.executor)}</span><span class="sep">·</span>
+    <span>${escapeHtml(m.periodo || 'período não informado')}</span>
+  `;
+}
+
+/* ===== Ciclo como entidade: cards navegáveis + ações ===== */
+function renderCicloCards() {
+  const row = document.getElementById('cicloCardsRow');
+  row.innerHTML = DATA.meta.ciclos.map((c, idx) => {
+    const cor = cicloCardColor(c.status, idx);
+    const sel = idx === selectedCicloIdx ? ' selected' : '';
+    return `<div class="ciclo-card-mini cor-${cor}${sel}" onclick="selectCiclo(${idx})" title="${escapeHtml(cicloLabel(c.numero))} — ${escapeHtml(CICLO_STATUS_LABELS[c.status])}">${escapeHtml(cicloShortLabel(c.numero))}</div>`;
+  }).join('');
+
+  const podeAdicionar = ultimoCiclo().status === 'COM_EXECUTOR' && !DATA.meta.concluida;
+  row.innerHTML += `<button class="ciclo-add-card" onclick="adicionarCiclo()" ${podeAdicionar ? '' : 'disabled'}
+    title="${podeAdicionar ? 'Adicionar novo retorno' : 'Só disponível quando o ciclo mais recente estiver \'Com o executor\''}">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+  </button>`;
+
+  const sel = DATA.meta.ciclos[selectedCicloIdx];
+  const wrap = document.getElementById('cicloSelectedStatusWrap');
+  if (isCicloEditavel(selectedCicloIdx)) {
+    wrap.innerHTML = `<select class="status-select" onchange="updateCicloStatus(this.value)">
+      ${CICLO_STATUS_ORDER.map(s => `<option value="${s}" ${s === sel.status ? 'selected' : ''}>${CICLO_STATUS_LABELS[s]}</option>`).join('')}
+    </select>`;
+  } else {
+    wrap.innerHTML = `<span class="badge ${cicloBadgeClass(sel.status)}">${CICLO_STATUS_LABELS[sel.status]} <span style="opacity:.6; font-weight:500;">(${escapeHtml(cicloLabel(sel.numero))}, somente leitura)</span></span>`;
+  }
+
+  document.getElementById('pcStatusBadge').className = 'badge ' + (DATA.meta.concluida ? 'badge-green' : 'badge-slate');
+  document.getElementById('pcStatusBadge').textContent = DATA.meta.concluida ? 'Concluída' : 'Em andamento';
+
+  const actions = document.getElementById('pcStatusActions');
+  actions.innerHTML = '';
+  if (podeAdicionar) {
+    actions.innerHTML += `<button class="btn btn-ghost" onclick="adicionarCiclo()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+      Adicionar retorno
+    </button>`;
+    actions.innerHTML += `<button class="btn btn-primary" onclick="concluirPC()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg>
+      Concluir PC
+    </button>`;
+  }
+}
+
+function selectCiclo(idx) {
+  selectedCicloIdx = idx;
+  selectedItemId = null;
+  renderCicloCards();
+  renderList();
+  renderDetail();
+  renderProgress();
+}
+
+async function updateCicloStatus(newStatus) {
+  const ciclo = DATA.meta.ciclos[selectedCicloIdx];
+  ciclo.status = newStatus;
+  saveStore();
+  renderCicloCards();
+  renderList();
+  renderProgress();
+  if (ciclo._gid) {
+    try { await graphUpdateItem(LIST_IDS.Ciclos, ciclo._gid, { Status: cicloStatusToChoice(newStatus), StatusChangedAt: new Date().toISOString() }); }
+    catch (e) { console.warn(e); showToast('Não consegui sincronizar o status do ciclo com o SharePoint.'); }
+  }
+}
+
+/* ===== Lógica de exclusão entre retornos (03/07):
+   Só itens ABERTO (ou ainda AGUARDANDO_ANALISE) no retorno anterior voltam pra AGUARDANDO_ANALISE.
+   Itens FECHADO herdam automaticamente um novo registro FECHADO no retorno novo — continuam
+   visíveis e editáveis no retorno ativo, mas nunca voltam a "aguardando análise". ===== */
+async function adicionarCiclo() {
+  const u = ultimoCiclo();
+  if (u.status !== 'COM_EXECUTOR' || DATA.meta.concluida) return;
+  const pc = currentPC ? pcAt(currentPC.ci, currentPC.pi, currentPC.pci) : null;
+  u.status = 'ENCERRADO';
+  const novoNumero = u.numero + 1;
+  const novoCiclo = { numero: novoNumero, status: 'AGUARDANDO_ANALISE', _gid: null };
+  DATA.meta.ciclos.push(novoCiclo);
+  const pendentes = [];
+  DATA.categories.forEach(cat => {
+    cat.items.forEach(item => {
+      const last = item.ciclosStatus[item.ciclosStatus.length - 1];
+      let novaEntry;
+      if (last && last.status === 'FECHADO') {
+        novaEntry = { numero: novoNumero, status: 'FECHADO', comentarioAnalista: last.comentarioAnalista, comentarioExecutor: last.comentarioExecutor, duvida: false, _gid: null };
+      } else {
+        novaEntry = { numero: novoNumero, status: 'AGUARDANDO_ANALISE', comentarioAnalista: '', comentarioExecutor: '', duvida: false, _gid: null };
+      }
+      item.ciclosStatus.push(novaEntry);
+      pendentes.push({ item, entry: novaEntry });
+    });
+  });
+  selectedCicloIdx = DATA.meta.ciclos.length - 1;
+  saveStore();
+  renderCicloCards(); renderList(); renderDetail(); renderProgress();
+  showToast(`${cicloLabel(u.numero)} encerrada — ${cicloLabel(novoNumero)} criado: itens fechados foram mantidos, os demais voltaram para "Aguardando análise"`);
+
+  if (!pc || !u._gid) return;
+  try {
+    await graphUpdateItem(LIST_IDS.Ciclos, u._gid, { Status: 'Encerrado' });
+    novoCiclo._gid = await graphCreateItem(LIST_IDS.Ciclos, { Title: `${pc.label} - Ciclo ${novoNumero}`, PCId: pc._gid, CycleNumber: novoNumero, Status: 'Aguardando análise' });
+    saveStore();
+    const requests = pendentes.map((p, i) => ({
+      id: String(i + 1), method: 'POST',
+      url: `/sites/${SITE_ID}/lists/${LIST_IDS.RevisoesPorCiclo}/items`,
+      headers: { 'Content-Type': 'application/json' },
+      body: { fields: {
+        Title: p.item.title, ItemId: p.item.id, CicloId: novoCiclo._gid,
+        ReviewStatus: itemStatusToChoice(p.entry.status), HasDoubt: false,
+        InternalComment: p.entry.comentarioAnalista || '', ExecutorComment: p.entry.comentarioExecutor || '',
+      } },
+    }));
+    const results = await graphBatch(requests);
+    results.forEach(r => {
+      const idx = Number(r.id) - 1;
+      if (r.status >= 200 && r.status < 300 && r.body && r.body.id) pendentes[idx].entry._gid = r.body.id;
+      else console.warn('Falha ao criar revisão do novo ciclo no Graph', r);
+    });
+    saveStore();
+  } catch (e) {
+    console.warn(e);
+    showToast('Ciclo criado localmente, mas houve erro sincronizando com o SharePoint — use "Recarregar do SharePoint" pra conferir.');
+  }
+}
+
+async function concluirPC() {
+  const u = ultimoCiclo();
+  if (u.status !== 'COM_EXECUTOR' || DATA.meta.concluida) return;
+  const pc = currentPC ? pcAt(currentPC.ci, currentPC.pi, currentPC.pci) : null;
+  u.status = 'ENCERRADO';
+  DATA.meta.concluida = true;
+  saveStore();
+  renderCicloCards();
+  showToast(`PC concluída — ${cicloLabel(u.numero)} foi o último`);
+  if (!pc) return;
+  try {
+    if (u._gid) await graphUpdateItem(LIST_IDS.Ciclos, u._gid, { Status: 'Encerrado' });
+    if (pc._gid) await graphUpdateItem(LIST_IDS.PCs, pc._gid, { Concluded: true, ConcludedAt: new Date().toISOString() });
+  } catch (e) { console.warn(e); showToast('PC concluída localmente, mas houve erro sincronizando com o SharePoint.'); }
+}
+
+function renderProgress() {
+  const g = globalProgress();
+  document.getElementById('progressNum').textContent = g.pct + '%';
+  document.getElementById('progressCount').textContent = `${g.done} / ${g.total} itens`;
+  document.getElementById('progressFill').style.width = g.pct + '%';
+}
+
+function renderList() {
+  const col = document.getElementById('listCol');
+  let totalShown = 0, totalAll = 0;
+  let html = '';
+
+  DATA.categories.forEach(cat => {
+    const visibleItems = cat.items.filter(it => matchesSearch(it, cat, searchTerm) && (!filtroDuvida || itemTemDuvida(it, selectedCicloIdx)));
+    totalAll += cat.items.length;
+    totalShown += visibleItems.length;
+    if ((searchTerm || filtroDuvida) && visibleItems.length === 0) return;
+
+    const prog = catProgress(cat);
+
+    html += `<div class="cat-group" data-cat="${cat.id}">
+      <div class="cat-header" onclick="toggleCat('${cat.id}')">
+        <div class="cat-header-left">
+          <span class="cat-chevron"></span>
+          <span class="cat-title">${escapeHtml(cat.label)}</span>
+        </div>
+        <div class="cat-header-right">
+          <span class="cat-pct">${prog.pct}%</span>
+          <div class="cat-mini-bar"><div class="cat-mini-fill" style="width:${prog.pct}%"></div></div>
+          <span class="cat-count">${visibleItems.length}</span>
+        </div>
+      </div>
+      <div class="cat-items">`;
+
+    if (visibleItems.length === 0) {
+      html += `<div class="empty-msg">Nenhum item preenchido nesta categoria para esta PC.</div>`;
+    }
+
+    visibleItems.forEach(it => {
+      const st = itemStatus(it);
+      const sel = it.id === selectedItemId ? ' selected' : '';
+      html += `<div class="item-card${sel}" onclick="selectItem('${it.id}')">
+        <span class="item-status-dot ${dotClass(st)}"></span>
+        <div class="item-card-body">
+          <div class="item-card-title">${escapeHtml(it.title)}</div>
+          <div class="item-card-sub">${escapeHtml(it.subtitle || 'Sem detalhamento')}</div>
+        </div>
+        <div class="item-card-badges">
+          ${itemTemDuvida(it, selectedCicloIdx) ? `<span class="badge badge-duvida" title="Marcado com dúvida — pendente de revisão do responsável regulatório">? Dúvida</span>` : ''}
+          ${it.possivelRemovido ? `<span class="badge badge-removido" title="Item presente na PC anterior, não encontrado no relatório importado desta PC.">Possível removido</span>` : ''}
+          <span class="badge ${statusBadgeClass(st)}">${STATUS_LABELS[st]}</span>
+        </div>
+      </div>`;
+    });
+
+    html += `</div></div>`;
+  });
+
+  col.innerHTML = html;
+  document.getElementById('searchCount').textContent = searchTerm
+    ? `${totalShown} de ${totalAll} itens`
+    : `${totalAll} itens`;
+}
+
+function toggleCat(catId) {
+  document.querySelector(`.cat-group[data-cat="${catId}"]`).classList.toggle('collapsed');
+}
+
+function toggleFiltroDuvida() {
+  filtroDuvida = !filtroDuvida;
+  document.getElementById('filtroDuvidaBtn').classList.toggle('active', filtroDuvida);
+  renderList();
+}
+
+function selectItem(id) {
+  selectedItemId = id;
+  renderList();
+  renderDetail();
+}
+
+async function cycleCheck(itemId, docKey) {
+  const found = findItem(itemId);
+  if (!found) return;
+  const cur = found.item.checks[docKey];
+  const novo = cur === 'OK' ? 'PND' : 'OK';
+  found.item.checks[docKey] = novo;
+  saveStore();
+  renderDetail();
+  renderList();
+  renderProgress();
+  const gid = found.item._checksGid && found.item._checksGid[docKey];
+  if (gid) {
+    try { await graphUpdateItem(LIST_IDS.ChecksDocumento, gid, { Status: novo }); }
+    catch (e) { console.warn(e); showToast('Não consegui sincronizar esse documento com o SharePoint.'); }
+  }
+}
+
+const _comentarioSyncTimers = {};
+function updateComentario(itemId, field, value) {
+  const found = findItem(itemId);
+  if (!found) return;
+  if (!isCicloEditavel(selectedCicloIdx)) return;
+  found.item.ciclosStatus[selectedCicloIdx][field] = value;
+  saveStore();
+  const key = itemId + ':' + selectedCicloIdx + ':' + field;
+  clearTimeout(_comentarioSyncTimers[key]);
+  _comentarioSyncTimers[key] = setTimeout(() => syncComentario(itemId, selectedCicloIdx, field, value), 700);
+}
+async function syncComentario(itemId, cicloIdx, field, value) {
+  const found = findItem(itemId);
+  if (!found) return;
+  const entry = found.item.ciclosStatus[cicloIdx];
+  if (!entry || !entry._gid) return;
+  const fieldMap = field === 'comentarioAnalista'
+    ? { InternalComment: value, InternalCommentAt: new Date().toISOString() }
+    : { ExecutorComment: value, ExecutorCommentAt: new Date().toISOString() };
+  try { await graphUpdateItem(LIST_IDS.RevisoesPorCiclo, entry._gid, fieldMap); }
+  catch (e) { console.warn(e); showToast('Não consegui sincronizar o comentário com o SharePoint.'); }
+}
+
+async function updateStatus(itemId, value) {
+  const found = findItem(itemId);
+  if (!found) return;
+  if (!isCicloEditavel(selectedCicloIdx)) return;
+  const entry = found.item.ciclosStatus[selectedCicloIdx];
+  entry.status = value;
+  saveStore();
+  renderList();
+  renderDetail();
+  renderProgress();
+  if (entry._gid) {
+    try { await graphUpdateItem(LIST_IDS.RevisoesPorCiclo, entry._gid, { ReviewStatus: itemStatusToChoice(value) }); }
+    catch (e) { console.warn(e); showToast('Não consegui sincronizar o status com o SharePoint.'); }
+  }
+}
+
+function renderDetail() {
+  const card = document.getElementById('detailCard');
+  if (!selectedItemId) {
+    card.innerHTML = `<div class="detail-placeholder">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M9 12h6M9 16h6M9 8h6M5 3h14a2 2 0 012 2v14a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2z"/></svg>
+      <p>Selecione um item na lista à esquerda<br>para ver os detalhes.</p>
+    </div>`;
+    return;
+  }
+  const found = findItem(selectedItemId);
+  if (!found) return;
+  const { item, cat } = found;
+  const valorFmt = fmtValor(item.valor);
+  const docs = docsForItem(item, cat);
+  const editavel = isCicloEditavel(selectedCicloIdx);
+  const entry = item.ciclosStatus[selectedCicloIdx] || { status: 'AGUARDANDO_ANALISE', comentarioAnalista: '', comentarioExecutor: '' };
+  const numeroSel = DATA.meta.ciclos[selectedCicloIdx].numero;
+
+  let html = `
+    <div class="detail-header">
+      <div>
+        <div class="detail-title">${escapeHtml(item.title)}</div>
+        <div class="detail-sub">${escapeHtml(cat.label)}${item.subtitle ? ' — ' + escapeHtml(item.subtitle) : ''}</div>
+        ${item.tipoLabel ? `<span class="detail-tipo">${escapeHtml(item.tipoLabel)}</span>` : ''}
+      </div>
+      ${valorFmt ? `<div class="detail-valor">${valorFmt}</div>` : ''}
+    </div>`;
+
+  if (item.possivelRemovido) {
+    html += `<div class="removido-alert">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 9v4m0 4h.01M10.29 3.86l-8.18 14.18A2 2 0 004 21h16a2 2 0 001.89-2.96L13.71 3.86a2 2 0 00-3.42 0z"/></svg>
+      <div><b>Possível removido.</b> Este item existia numa PC anterior deste projeto e não foi encontrado no relatório Prompt importado para esta PC. <i>(placeholder de layout)</i></div>
+    </div>`;
+  }
+
+  if (item.importado) {
+    html += `<div class="section-note" style="margin-top:10px;">Importado do Prompt — Pagamento: ${escapeHtml(item.importado.dataPagamento || '—')} · Documento: ${escapeHtml(item.importado.dataDocumento || '—')}${item.importado.rendimentos && item.importado.rendimentos !== '0,00' && item.importado.rendimentos !== '0' ? ' · Rendimentos: ' + escapeHtml(item.importado.rendimentos) : ''}</div>`;
+  }
+
+  html += `<div class="section-label">Documentos exigidos
+    ${item.tipoLabel ? `<span class="section-note">— específico para "${escapeHtml(item.tipoLabel)}", clique para alternar OK/PND. Não reseta entre ciclos.</span>` : `<span class="section-note">— clique para alternar OK/PND. Não reseta entre ciclos.</span>`}
+  </div><div class="doc-grid">`;
+  docs.forEach(doc => {
+    const status = item.checks[doc] || 'PND';
+    const cls = status === 'OK' ? 'chip-ok' : 'chip-pnd';
+    const icon = status === 'OK'
+      ? `<svg class="doc-chip-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6L9 17l-5-5"/></svg>`
+      : `<svg class="doc-chip-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="9"/><path d="M12 8v4m0 4h.01"/></svg>`;
+    html += `<div class="doc-chip ${cls}" onclick="cycleCheck('${item.id}','${doc.replace(/'/g,"\\'")}')">
+      ${icon}${escapeHtml(doc)}
+    </div>`;
+  });
+  html += `</div>`;
+
+  html += `<div class="section-label">${escapeHtml(cicloLabel(numeroSel))}${editavel ? ' — ativo' : ' — arquivado, somente leitura'}</div>`;
+  html += `<div class="ciclo-card">
+      <div class="ciclo-head">
+        <span class="ciclo-num">Status do item neste retorno</span>
+        ${editavel
+          ? `<select class="status-select" onchange="updateStatus('${item.id}', this.value)">
+              ${['AGUARDANDO_ANALISE','ABERTO','FECHADO'].map(s => `<option value="${s}" ${s === entry.status ? 'selected' : ''}>${STATUS_LABELS[s]}</option>`).join('')}
+            </select>`
+          : `<span class="badge ${statusBadgeClass(entry.status)}">${STATUS_LABELS[entry.status]}</span>`}
+        <button class="duvida-toggle-btn${entry.duvida ? ' active' : ''}" onclick="toggleDuvida('${item.id}')" title="Independente do status — sinaliza pro responsável regulatório que este item tem uma dúvida a revisar">${entry.duvida ? '✓ Com dúvida' : '? Marcar dúvida'}</button>
+      </div>
+
+      <div class="field-block field-internal">
+        <div class="field-label">Comentário do analista <span class="lock">(interno — nunca exportado ao executor)</span></div>
+        ${editavel
+          ? `<textarea class="editor editor-internal" data-item="${item.id}" data-field="comentarioAnalista"
+              oninput="updateComentario('${item.id}', 'comentarioAnalista', this.value)"
+              placeholder="Sem comentário interno registrado.">${escapeHtml(entry.comentarioAnalista)}</textarea>`
+          : `<div class="field-text ${entry.comentarioAnalista ? '' : 'empty'}">${escapeHtml(entry.comentarioAnalista) || 'Sem comentário interno.'}</div>`}
+      </div>
+
+      <div class="field-block">
+        <div class="field-label">Comentário ao executor <span class="lock">(vazio = sem pendência = não entra na exportação)</span></div>
+        ${editavel ? `
+        <div class="comment-editor-wrap">
+          <textarea class="editor" data-item="${item.id}" data-field="comentarioExecutor" data-cat="${cat.id}"
+            oninput="handleExecutorInput(event)" placeholder="Escreva o comentário…">${escapeHtml(entry.comentarioExecutor)}</textarea>
+        </div>
+        <div class="editor-hint">Digite <kbd>/</kbd> pra abrir a biblioteca inteira, ou continue digitando — sugestões aparecem sozinhas</div>
+        <div class="suggest-strip" id="suggest-${item.id}-atual"></div>
+        ` : `<div class="field-text ${entry.comentarioExecutor ? '' : 'empty'}">${escapeHtml(entry.comentarioExecutor) || 'Sem pendência neste ciclo.'}</div>`}
+      </div>
+    </div>`;
+
+  card.innerHTML = html;
+}
+
+/* ===== comentário: "/" abre biblioteca inteira; digitar normal sugere automaticamente ===== */
+let slashMenuEl = null;
+
+function handleExecutorInput(e) {
+  const ta = e.target;
+  const itemId = ta.dataset.item, catId = ta.dataset.cat;
+  updateComentario(itemId, 'comentarioExecutor', ta.value);
+
+  const val = ta.value;
+  const cursor = ta.selectionStart;
+  const charBefore = val.slice(0, cursor).slice(-1);
+
+  if (charBefore === '/') {
+    openSlashMenu(ta, catId);
+    clearSuggestions(itemId);
+    return;
+  }
+  closeSlashMenu();
+  updateSuggestions(ta, itemId, catId);
+}
+
+function clearSuggestions(itemId) {
+  const strip = document.getElementById(`suggest-${itemId}-atual`);
+  if (strip) strip.innerHTML = '';
+}
+
+function updateSuggestions(ta, itemId, catId) {
+  const strip = document.getElementById(`suggest-${itemId}-atual`);
+  if (!strip) return;
+  const text = ta.value.trim().toLowerCase();
+  if (text.length < 3) { strip.innerHTML = ''; return; }
+
+  const templates = TEMPLATES_BY_CAT[catId] || [];
+  const words = text.split(/\s+/).filter(w => w.length > 2);
+  const matches = templates.filter(t => {
+    const hay = (t.title + ' ' + t.preview).toLowerCase();
+    return words.some(w => hay.includes(w));
+  }).slice(0, 3);
+
+  if (matches.length === 0) { strip.innerHTML = ''; return; }
+
+  strip.innerHTML = matches.map(t => `
+    <div class="suggest-pill" onclick="applySuggestion('${itemId}', ${JSON.stringify(t.preview).replace(/"/g, '&quot;')})">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 2l2.4 7.2L22 12l-7.6 2.8L12 22l-2.4-7.2L2 12l7.6-2.8z"/></svg>
+      ${escapeHtml(t.title)}
+    </div>`).join('');
+}
+
+function applySuggestion(itemId, text) {
+  const ta = document.querySelector(`textarea[data-item="${itemId}"][data-field="comentarioExecutor"]`);
+  if (!ta) return;
+  ta.value = text;
+  updateComentario(itemId, 'comentarioExecutor', text);
+  clearSuggestions(itemId);
+  showToast('Modelo aplicado');
+}
+
+function openSlashMenu(ta, catId) {
+  closeSlashMenu();
+  const templates = TEMPLATES_BY_CAT[catId] || [];
+  slashMenuEl = document.createElement('div');
+  slashMenuEl.className = 'slash-menu';
+  slashMenuEl.innerHTML = `<div class="slash-menu-label">Biblioteca — ${escapeHtml(catId)}</div>` +
+    templates.map((t, i) => `
+      <div class="slash-item" onclick="insertTemplate(${i}, '${catId}')">
+        <div class="slash-item-title">${escapeHtml(t.title)}</div>
+        <div class="slash-item-preview">${escapeHtml(t.preview)}</div>
+      </div>`).join('') || `<div class="slash-item">Nenhum modelo cadastrado pra esta categoria ainda.</div>`;
+
+  const wrap = ta.closest('.comment-editor-wrap');
+  wrap.appendChild(slashMenuEl);
+  slashMenuEl.style.top = (ta.offsetHeight + 4) + 'px';
+  slashMenuEl.style.left = '0px';
+  slashMenuEl._targetTextarea = ta;
+}
+function closeSlashMenu() {
+  if (slashMenuEl && slashMenuEl.parentNode) slashMenuEl.parentNode.removeChild(slashMenuEl);
+  slashMenuEl = null;
+}
+function insertTemplate(i, catId) {
+  if (!slashMenuEl) return;
+  const ta = slashMenuEl._targetTextarea;
+  const templates = TEMPLATES_BY_CAT[catId] || [];
+  const val = ta.value;
+  const cursor = ta.selectionStart;
+  const beforeSlash = val.slice(0, cursor - 1);
+  const after = val.slice(cursor);
+  ta.value = beforeSlash + templates[i].preview + after;
+  updateComentario(ta.dataset.item, 'comentarioExecutor', ta.value);
+  closeSlashMenu();
+  ta.focus();
+  showToast('Modelo inserido — variáveis seriam preenchidas automaticamente');
+}
+document.addEventListener('click', (e) => {
+  if (slashMenuEl && !slashMenuEl.contains(e.target) && e.target.tagName !== 'TEXTAREA') closeSlashMenu();
+});
+
+let toastTimer = null;
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg || 'Feito';
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 2600);
+}
+
+/* =====================================================================================
+   Importação do Relatório Prompt (.xlsx) — client-side via SheetJS.
+   Fonte única de leitura: aba "Todas as Despesas" (já vem com a coluna "Prestação de Contas"
+   por linha, cobrindo todas as PCs existentes até o momento naquele projeto) + aba "Parâmetros"
+   pros metadados do projeto. Ver MEMORY_v3.md, seção "Caminho de importação do Relatório Prompt".
+   ===================================================================================== */
+const CATEGORIA_MAP = {
+  'Equipe Executora': { id: 'equipe', label: 'Equipe Executora', docsFixed: null, docsDefault: ['Comp. PG', 'Recibo/pessoal'] },
+  'Serviços de Terceiros': { id: 'servicos', label: 'Serviços', docsFixed: ['RPA', 'Comp. PG - NF', 'Guia de Impostos', 'Comp. PG - Impostos'] },
+  'Outras Despesas': { id: 'outras_despesas', label: 'Outras Despesas', docsFixed: ['NF', 'Comp. PG - NF', 'Memória de Cálculo'] },
+  'Equipamento e Material Permanente': { id: 'equipamento', label: 'Equipamento e Material Permanente', docsFixed: ['NF/Invoice', 'Comp. PG'] },
+  'Material de Consumo': { id: 'material_consumo', label: 'Material de Consumo', docsFixed: ['NF', 'Comp. PG - NF'] },
+  'Diária ou Ajuda de Custo': { id: 'diaria', label: 'Diária ou Ajuda de Custo', docsFixed: ['Relatório de Viagem', 'Comp. PG'] },
+  'Passagens': { id: 'passagens', label: 'Passagens', docsFixed: ['Bilhete/Comprovante', 'Comp. PG'] },
+};
+function categoriaInfo(elementoCusto) {
+  return CATEGORIA_MAP[elementoCusto] || { id: 'outros', label: elementoCusto || 'Outros', docsFixed: ['Comprovante'] };
+}
+
+let importCtx = null;
+
+function openImportModal() {
+  importCtx = null;
+  document.getElementById('importStep1').classList.remove('hidden');
+  document.getElementById('importStep2').classList.add('hidden');
+  document.getElementById('importStep2').innerHTML = '';
+  document.getElementById('importFileInput').value = '';
+  document.getElementById('importOverlay').classList.remove('hidden');
+}
+function closeImportModal() {
+  document.getElementById('importOverlay').classList.add('hidden');
+}
+
+function handleImportFile(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (ev) => {
+    let wb;
+    try { wb = XLSX.read(ev.target.result, { type: 'array', cellDates: true }); }
+    catch (err) { showToast('Não consegui ler esse arquivo — confirme que é o .xlsx exportado do Prompt.'); return; }
+    processWorkbook(wb, file.name);
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function fmtDateCell(v) {
+  if (v === null || v === undefined || v === '') return '';
+  if (v instanceof Date) return v.toLocaleDateString('pt-BR');
+  if (typeof v === 'number') {
+    const d = new Date(Math.round((v - 25569) * 86400 * 1000));
+    if (!isNaN(d.getTime())) return d.toLocaleDateString('pt-BR');
+  }
+  return String(v);
+}
+
+function processWorkbook(wb, fileName) {
+  const paramSheet = wb.Sheets['Parâmetros'];
+  const despesasSheet = wb.Sheets['Todas as Despesas'];
+  if (!despesasSheet) {
+    showToast('Não encontrei a aba "Todas as Despesas" nesse arquivo — confirme que é o Relatório de PCs exportado do Prompt.');
+    return;
+  }
+  let projetoNum = '', executorNome = '';
+  if (paramSheet) {
+    const prows = XLSX.utils.sheet_to_json(paramSheet, { header: 1 });
+    prows.forEach(r => {
+      if (!r || !r[0]) return;
+      const label = String(r[0]);
+      if (label.startsWith('Número')) projetoNum = String(r[1] || '').trim();
+      if (label.startsWith('Executora')) executorNome = String(r[1] || '').trim();
+    });
+  }
+  const rows = XLSX.utils.sheet_to_json(despesasSheet, { header: 1 });
+  const headerIdx = rows.findIndex(r => r && r[0] === 'Nome da Executora');
+  const dataRows = (headerIdx === -1 ? rows : rows.slice(headerIdx + 1))
+    .filter(r => r && r[3] !== undefined && r[3] !== null && String(r[3]).trim() !== '');
+  const byPc = new Map();
+  dataRows.forEach(r => {
+    const n = String(r[3]).trim();
+    if (!byPc.has(n)) byPc.set(n, []);
+    byPc.get(n).push(r);
+  });
+  const pcNumbers = [...byPc.keys()].sort((a, b) => Number(a) - Number(b));
+  if (pcNumbers.length === 0) {
+    showToast('Não encontrei nenhuma despesa com número de PC preenchido na aba "Todas as Despesas".');
+    return;
+  }
+  importCtx = { wb, projetoNum, executorNome, byPc, pcNumbers, fileName };
+  renderImportStep2();
+}
+
+function renderImportStep2() {
+  document.getElementById('importStep1').classList.add('hidden');
+  const step2 = document.getElementById('importStep2');
+  step2.classList.remove('hidden');
+
+  const clientOptions = STORE.clients.map((c, i) => `<option value="${i}">${escapeHtml(c.client)}</option>`).join('');
+
+  step2.innerHTML = `
+    <div class="modal-field">
+      <label>Cliente</label>
+      <select id="impClient" onchange="document.getElementById('impClientNovo').classList.toggle('hidden', this.value !== 'novo')">
+        ${clientOptions}<option value="novo">+ Novo cliente…</option>
+      </select>
+      <input type="text" id="impClientNovo" class="hidden" placeholder="Nome do cliente" style="margin-top:6px;">
+    </div>
+    <div class="modal-field">
+      <label>Nº do projeto</label>
+      <input type="text" id="impProjeto" value="${escapeHtml(importCtx.projetoNum)}">
+    </div>
+    <div class="modal-field">
+      <label>Executora</label>
+      <input type="text" id="impExecutor" value="${escapeHtml(importCtx.executorNome)}">
+    </div>
+    <div class="modal-field">
+      <label>PCs encontradas em "${escapeHtml(importCtx.fileName)}" — selecione quais importar</label>
+      <div id="impPcList">
+        ${importCtx.pcNumbers.map(n => `
+          <label class="pc-check-row">
+            <input type="checkbox" value="${escapeHtml(n)}" checked>
+            PC${escapeHtml(n)}
+            <small>${importCtx.byPc.get(n).length} despesas</small>
+          </label>`).join('')}
+      </div>
+      <div class="import-summary">O relatório do Prompt sempre traz o histórico completo do projeto — se uma PC já existir aqui, ela é pulada na importação (sem sobrescrever o que já foi analisado).</div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeImportModal()">Cancelar</button>
+      <button class="btn btn-primary" onclick="confirmImport()">Importar selecionadas</button>
+    </div>
+  `;
+}
+
+async function confirmImport() {
+  const clientSel = document.getElementById('impClient').value;
+  let clientName;
+  if (clientSel === 'novo') {
+    clientName = document.getElementById('impClientNovo').value.trim();
+    if (!clientName) { showToast('Informe o nome do novo cliente.'); return; }
+  } else {
+    clientName = STORE.clients[Number(clientSel)].client;
+  }
+  const projetoNum = document.getElementById('impProjeto').value.trim();
+  const executorNome = document.getElementById('impExecutor').value.trim();
+  const checked = [...document.querySelectorAll('#impPcList input[type=checkbox]:checked')].map(i => i.value);
+  if (checked.length === 0) { showToast('Selecione ao menos uma PC.'); return; }
+  if (!projetoNum) { showToast('Informe o número do projeto.'); return; }
+
+  showToast('Importando… isso pode levar alguns segundos (grava tudo no SharePoint).');
+
+  let client = STORE.clients.find(c => c.client.toLowerCase() === clientName.toLowerCase());
+  if (!client) { client = { client: clientName, code: clientName.slice(0, 3).toUpperCase(), projects: [], _gid: null }; STORE.clients.push(client); }
+  let project = client.projects.find(p => p.name === projetoNum);
+  if (!project) { project = { name: projetoNum, executor: executorNome, pcs: [], _gid: null }; client.projects.push(project); }
+
+  if (msalAccount) {
+    try {
+      if (!client._gid) client._gid = await graphCreateItem(LIST_IDS.Clientes, { Title: client.client, ShortName: client.code, Active: true });
+      if (!project._gid) project._gid = await graphCreateItem(LIST_IDS.Projetos, { Title: project.name, ClienteId: client._gid, ProjectCode: project.name, ExecutorName: project.executor, Active: true });
+    } catch (e) {
+      console.warn(e); showToast('Erro criando Cliente/Projeto no SharePoint — importação cancelada.'); return;
+    }
+  }
+
+  let importados = 0, pulados = 0, primeiroImportado = null;
+  for (const n of checked) {
+    const pcLabel = `PC${n}`;
+    if (project.pcs.some(pc => pc.label === pcLabel && pc.real)) { pulados++; continue; }
+    const rows = importCtx.byPc.get(n);
+    const categoriesById = {};
+    const itemsFlat = [];
+    rows.forEach((r, i) => {
+      const elementoCusto = r[1], itemOrcamento = r[2], detalhamento = r[4];
+      const dataPag = r[5], dataDoc = r[6], valor = r[7], rendimentos = r[8];
+      const info = categoriaInfo(elementoCusto);
+      if (!categoriesById[info.id]) categoriesById[info.id] = { id: info.id, label: info.label, docsFixed: info.docsFixed, items: [] };
+      const docsList = (info.docsFixed || info.docsDefault || ['Comprovante']);
+      const checks = {}, checksGid = {};
+      docsList.forEach(d => { checks[d] = 'PND'; });
+      const item = {
+        id: `tmp-${n}-${i}-${Date.now()}`,
+        title: itemOrcamento || detalhamento || 'Item sem descrição',
+        subtitle: detalhamento || '',
+        tipoLabel: itemOrcamento || null,
+        valor: (valor !== undefined && valor !== null && valor !== '') ? String(valor) : null,
+        checks, _checksGid: checksGid,
+        ciclosStatus: [{ numero: 1, status: 'AGUARDANDO_ANALISE', comentarioAnalista: '', comentarioExecutor: '', duvida: false, _gid: null }],
+        possivelRemovido: false,
+        importado: {
+          dataPagamento: fmtDateCell(dataPag),
+          dataDocumento: fmtDateCell(dataDoc),
+          rendimentos: (rendimentos !== undefined && rendimentos !== null) ? String(rendimentos) : null,
+        },
+        _categoryId: info.id, _docsList: docsList, _rawValor: valor, _rawRendimentos: rendimentos,
+      };
+      categoriesById[info.id].items.push(item);
+      itemsFlat.push(item);
+    });
+    const pcData = {
+      meta: { cliente: client.client, projeto: projetoNum, pc: pcLabel, executor: executorNome, periodo: '', ciclos: [{ numero: 1, status: 'EM_ANALISE', _gid: null }], concluida: false },
+      categories: Object.values(categoriesById),
+    };
+    const pc = { label: pcLabel, real: true, data: pcData, _gid: null };
+
+    if (msalAccount) {
+      try {
+        pc._gid = await graphCreateItem(LIST_IDS.PCs, { Title: pcLabel, ProjetoId: project._gid, PCNumber: n, SourceType: 'Prompt', SourceFileName: importCtx.fileName, Concluded: false });
+        pcData.meta.ciclos[0]._gid = await graphCreateItem(LIST_IDS.Ciclos, { Title: `${pcLabel} - Ciclo 1`, PCId: pc._gid, CycleNumber: 1, Status: 'Em análise' });
+
+        const itemReqs = itemsFlat.map((it, i) => ({
+          id: String(i + 1), method: 'POST',
+          url: `/sites/${SITE_ID}/lists/${LIST_IDS.Itens}/items`,
+          headers: { 'Content-Type': 'application/json' },
+          body: { fields: {
+            Title: it.title, PCId: pc._gid, CategoryId: it._categoryId,
+            BudgetItem: it.tipoLabel || '', Description: it.subtitle || '',
+            Amount: it._rawValor != null && it._rawValor !== '' ? (Number(String(it._rawValor).replace(',', '.')) || 0) : null,
+            IncomeAmount: it._rawRendimentos != null && it._rawRendimentos !== '' ? (Number(String(it._rawRendimentos).replace(',', '.')) || 0) : null,
+            PossibleRemoved: false,
+          } },
+        }));
+        const itemResults = await graphBatch(itemReqs);
+        itemResults.forEach(r => {
+          const idx = Number(r.id) - 1;
+          if (r.status >= 200 && r.status < 300 && r.body && r.body.id) itemsFlat[idx].id = r.body.id;
+          else console.warn('Falha ao criar item no Graph', r);
+        });
+
+        const checkReqs = [], revReqs = [], checkMeta = [], revMeta = [];
+        let reqSeq = 1;
+        itemsFlat.forEach(it => {
+          (it._docsList || []).forEach(docKey => {
+            const rid = String(reqSeq++);
+            checkReqs.push({ id: rid, method: 'POST', url: `/sites/${SITE_ID}/lists/${LIST_IDS.ChecksDocumento}/items`, headers: { 'Content-Type': 'application/json' }, body: { fields: { Title: docKey, ItemId: it.id, DocumentTypeId: docKey, Status: 'PND' } } });
+            checkMeta.push({ item: it, docKey, rid });
+          });
+          const rid2 = String(reqSeq++);
+          revReqs.push({ id: rid2, method: 'POST', url: `/sites/${SITE_ID}/lists/${LIST_IDS.RevisoesPorCiclo}/items`, headers: { 'Content-Type': 'application/json' }, body: { fields: { Title: it.title, ItemId: it.id, CicloId: pcData.meta.ciclos[0]._gid, ReviewStatus: 'Aguardando análise', HasDoubt: false, InternalComment: '', ExecutorComment: '' } } });
+          revMeta.push({ item: it, rid: rid2 });
+        });
+        const allResults = await graphBatch([...checkReqs, ...revReqs]);
+        const resultById = new Map(allResults.map(r => [r.id, r]));
+        checkMeta.forEach(cm => {
+          const r = resultById.get(cm.rid);
+          if (r && r.status >= 200 && r.status < 300 && r.body && r.body.id) cm.item._checksGid[cm.docKey] = r.body.id;
+        });
+        revMeta.forEach(rm => {
+          const r = resultById.get(rm.rid);
+          if (r && r.status >= 200 && r.status < 300 && r.body && r.body.id) rm.item.ciclosStatus[0]._gid = r.body.id;
+        });
+
+        await graphCreateItem(LIST_IDS.ImportacoesLote, { Title: `${pcLabel} - ${importCtx.fileName}`, PCId: pc._gid, SourceType: 'Prompt', SourceFileName: importCtx.fileName, Status: 'Importada', OkCount: itemsFlat.length, WarningCount: 0, ErrorCount: 0, ImportedAt: new Date().toISOString() });
+      } catch (e) {
+        console.warn(e);
+        showToast(`Erro sincronizando ${pcLabel} com o SharePoint — os dados podem estar parcialmente salvos. Confira antes de continuar.`);
+      }
+    }
+
+    project.pcs.push(pc);
+    importados++;
+    if (!primeiroImportado) primeiroImportado = { ci: STORE.clients.indexOf(client), pi: client.projects.indexOf(project), pci: project.pcs.length - 1 };
+  }
+
+  saveStore();
+  closeImportModal();
+  renderTree();
+  filaOrder = null;
+  showToast(`${importados} PC(s) importada(s)${pulados ? `, ${pulados} pulada(s) por já existir` : ''}.`);
+  if (primeiroImportado) {
+    handlePcClick(primeiroImportado.ci, primeiroImportado.pi, primeiroImportado.pci);
+  } else if (currentView === 'dashboard') {
+    renderDashboard();
+  }
+}
+
+/* ===== Sidebar retrátil (03/07) ===== */
+function toggleSidebar() {
+  const el = document.getElementById('sidebarEl');
+  const collapsed = el.classList.toggle('collapsed');
+  localStorage.setItem('painelPC_sidebar_collapsed', collapsed ? '1' : '0');
+}
+
+/* ===== Init ===== */
+if (localStorage.getItem('painelPC_sidebar_collapsed') === '1') {
+  document.getElementById('sidebarEl').classList.add('collapsed');
+}
+document.getElementById('searchInput').addEventListener('input', (e) => {
+  searchTerm = e.target.value.trim();
+  renderList();
+});
+
+async function initApp() {
+  try {
+    initMsal();
+    await msalApp.handleRedirectPromise();
+    const accounts = msalApp.getAllAccounts();
+    if (accounts.length > 0) msalAccount = accounts[0];
+  } catch (e) {
+    console.warn('Falha ao iniciar MSAL — login com Microsoft ficará indisponível', e);
+  }
+  renderAuthUI();
+  await loadStore();
+  renderTree();
+  setView('trabalho');
+}
+initApp();
+
+</script>
+</body>
+</html>
