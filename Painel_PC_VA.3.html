@@ -324,6 +324,27 @@
   .ciclo-add-card:disabled { opacity: 0.35; cursor: not-allowed; }
   .ciclo-add-card svg { width: 14px; height: 14px; }
 
+  /* ===== Gestão (16/07): Dashboard + Fila de Trabalho viram views comutáveis de uma mesma
+     tabela PC+Ciclo — ver MEMORY_v4.md "Reestruturação Análise/Gestão". ===== */
+  .gestao-view-switch { display: flex; gap: 6px; margin-bottom: 18px; }
+  .gestao-switch-btn {
+    font-family: 'DM Sans', sans-serif; font-size: 12.5px; font-weight: 600; color: var(--ink3);
+    background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
+    padding: 7px 14px; cursor: pointer; transition: all 0.12s;
+  }
+  .gestao-switch-btn:hover { background: var(--surface2); color: var(--ink); }
+  .gestao-switch-btn.active { background: var(--ink); color: #fff; border-color: var(--ink); }
+
+  .fila-subswitch { display: flex; gap: 6px; margin-bottom: 18px; }
+  .fila-sub-btn {
+    font-family: 'DM Sans', sans-serif; font-size: 12px; font-weight: 600; color: var(--ink3);
+    background: none; border: 1px solid var(--border); border-radius: 99px;
+    padding: 5px 12px; cursor: pointer; transition: all 0.12s;
+  }
+  .fila-sub-btn:hover { background: var(--surface2); color: var(--ink); }
+  .fila-sub-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .fila-sub-hint { font-size: 11.5px; color: var(--ink3); margin: -10px 0 18px; }
+
   /* ===== Fila de Trabalho ===== */
   .fila-status-block { margin-bottom: 22px; }
   .fila-status-header { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
@@ -450,20 +471,16 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
         <span class="nav-label">Área de Trabalho</span>
       </div>
-      <div class="view-nav-item" id="navDashboard" onclick="setView('dashboard')" title="Dashboard">
+      <div class="view-nav-item" id="navGestao" onclick="setView('gestao')" title="Gestão">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg>
-        <span class="nav-label">Dashboard</span>
-      </div>
-      <div class="view-nav-item" id="navFila" onclick="setView('fila')" title="Fila de Trabalho">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>
-        <span class="nav-label">Fila de Trabalho</span>
+        <span class="nav-label">Gestão</span>
       </div>
       <div class="view-nav-item" id="navWorkspace" onclick="setView('workspace')" title="Área de Análise">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 12h6M9 16h6M9 8h6M5 3h14a2 2 0 012 2v14a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2z"/></svg>
         <span class="nav-label">Área de Análise</span>
       </div>
     </div>
-    <div class="tree-section-label">Clientes</div>
+    <div class="tree-section-label">Empresas</div>
     <div class="tree" id="treeCol"></div>
     <div class="sidebar-foot">
       <div id="authStatus" style="margin-bottom:8px;"></div>
@@ -476,17 +493,17 @@
       <div class="topbar">
         <div>
           <h1 class="page-title">Área de Trabalho</h1>
-          <div class="meta-row"><span>Todas as PCs, separadas por cliente e projeto — clique numa para entrar na Área de Análise</span></div>
+          <div class="meta-row"><span>Todas as PCs, separadas por empresa e projeto — clique numa para entrar na Área de Análise</span></div>
         </div>
       </div>
       <div id="trabalhoContent"></div>
     </div>
 
-    <div id="dashboardView" class="hidden">
+    <div id="gestaoView" class="hidden">
       <div class="topbar">
         <div>
-          <h1 class="page-title">Dashboard</h1>
-          <div class="meta-row"><span>Visão consolidada de todas as PCs por cliente/projeto</span></div>
+          <h1 class="page-title">Gestão</h1>
+          <div class="meta-row"><span id="gestaoSubtitle"></span></div>
         </div>
         <div class="topbar-actions">
           <button class="btn btn-ghost" onclick="resetStore()" title="Recarrega os dados direto do SharePoint (ou reseta o exemplo local, se ainda não conectado)">
@@ -499,17 +516,11 @@
           </button>
         </div>
       </div>
-      <div id="dashboardContent"></div>
-    </div>
-
-    <div id="filaView" class="hidden">
-      <div class="topbar">
-        <div>
-          <h1 class="page-title">Fila de Trabalho</h1>
-          <div class="meta-row"><span>PCs organizadas por status — fila operacional de execução, análise e revisão</span></div>
-        </div>
+      <div class="gestao-view-switch" id="gestaoViewSwitch">
+        <button class="gestao-switch-btn" id="gestaoTabStatus" onclick="setGestaoView('status')">Por status operacional</button>
+        <button class="gestao-switch-btn" id="gestaoTabCliente" onclick="setGestaoView('cliente')">Por cliente/projeto</button>
       </div>
-      <div id="filaContent"></div>
+      <div id="gestaoContent"></div>
     </div>
 
     <div id="workspaceView" class="hidden">
@@ -788,7 +799,7 @@ async function loadStoreFromGraph() {
   projetosRaw.forEach(p => {
     const cliente = clientByGid.get(String(p.ClienteId));
     if (!cliente) return;
-    const proj = { _gid: p.id, name: p.ProjectCode || p.Title || '', executor: p.ExecutorName || '', pcs: [] };
+    const proj = { _gid: p.id, name: p.ProjectCode || p.Title || '', executor: p.ExecutorName || '', fundacao: p.FundacaoName || '', pcs: [] };
     cliente.projects.push(proj);
     projByGid.set(proj._gid, proj);
   });
@@ -1121,7 +1132,7 @@ function realMetrics(pc) {
     selectedCicloIdx = idx;
     const g = globalProgress();
     return { numero: c.numero, status: c.status, pct: g.pct, total: g.total, analisados: g.done,
-      data: c.dataUltimaAtualizacao || '—', rubricas };
+      data: c.dataUltimaAtualizacao || '—', rubricas, analista: c.analista || '' };
   });
   DATA = savedData; selectedCicloIdx = savedSel;
   return { label: pc.label, real: true, executor: d.meta.executor, concluida: d.meta.concluida, ciclos };
@@ -1150,7 +1161,7 @@ function renderTree() {
     });
     html += `</div>`;
   });
-  document.getElementById('treeCol').innerHTML = html || '<div class="empty-msg">Nenhum cliente ainda.</div>';
+  document.getElementById('treeCol').innerHTML = html || '<div class="empty-msg">Nenhuma empresa ainda.</div>';
 }
 function toggleTree(id) {
   document.getElementById(id).classList.toggle('hidden');
@@ -1209,7 +1220,7 @@ function renderAreaTrabalho() {
     });
     html += `</div>`;
   });
-  el.innerHTML = html || '<div class="empty-msg">Nenhum cliente ainda.</div>';
+  el.innerHTML = html || '<div class="empty-msg">Nenhuma empresa ainda.</div>';
 }
 
 /* ===== Apagar PC (08/07: pra dar suporte aos testes de importação/ciclos — sem isso, uma PC
@@ -1252,8 +1263,7 @@ function deletePC(ci, pi, pci) {
   renderTree();
   if (eraAAtual && currentView === 'workspace') { setView('trabalho'); }
   else if (currentView === 'trabalho') renderAreaTrabalho();
-  else if (currentView === 'dashboard') renderDashboard();
-  else if (currentView === 'fila') renderFila();
+  else if (currentView === 'gestao') renderGestao();
   showToast(`${pc.label} apagada.`);
 
   if (msalAccount && pc.real && isRealGid(pc._gid)) {
@@ -1269,18 +1279,35 @@ let currentView = 'trabalho';
 function setView(view) {
   currentView = view;
   document.getElementById('trabalhoView').classList.toggle('hidden', view !== 'trabalho');
-  document.getElementById('dashboardView').classList.toggle('hidden', view !== 'dashboard');
-  document.getElementById('filaView').classList.toggle('hidden', view !== 'fila');
+  document.getElementById('gestaoView').classList.toggle('hidden', view !== 'gestao');
   document.getElementById('workspaceView').classList.toggle('hidden', view !== 'workspace');
   document.getElementById('navTrabalho').classList.toggle('active', view === 'trabalho');
-  document.getElementById('navDashboard').classList.toggle('active', view === 'dashboard');
-  document.getElementById('navFila').classList.toggle('active', view === 'fila');
+  document.getElementById('navGestao').classList.toggle('active', view === 'gestao');
   document.getElementById('navWorkspace').classList.toggle('active', view === 'workspace');
   if (view === 'workspace' && !DATA) { showToast('Selecione uma PC real na árvore à esquerda primeiro.'); currentView = 'trabalho'; return setView('trabalho'); }
   if (view === 'trabalho') renderAreaTrabalho();
-  if (view === 'dashboard') renderDashboard();
-  if (view === 'fila') renderFila();
+  if (view === 'gestao') renderGestao();
   if (view === 'workspace') { renderMeta(); renderCicloCards(); renderList(); renderDetail(); renderProgress(); }
+}
+
+/* ===== Gestão: views comutáveis (Por status operacional / Por cliente-projeto) — 16/07.
+   Substitui as antigas telas separadas Dashboard e Fila de Trabalho, seguindo a reestruturação
+   registrada no MEMORY_v4.md ("Reestruturação Análise/Gestão"). Mesma tabela PC+Ciclo por baixo,
+   só muda o agrupamento — igual ao princípio de views do ClickUp. */
+let gestaoView = localStorage.getItem('painelPC_gestao_view') || 'status';
+function setGestaoView(view) {
+  gestaoView = view;
+  localStorage.setItem('painelPC_gestao_view', view);
+  renderGestao();
+}
+function renderGestao() {
+  document.getElementById('gestaoTabStatus').classList.toggle('active', gestaoView === 'status');
+  document.getElementById('gestaoTabCliente').classList.toggle('active', gestaoView === 'cliente');
+  document.getElementById('gestaoSubtitle').textContent = gestaoView === 'status'
+    ? 'PCs organizadas por status — fila operacional de execução, análise e revisão'
+    : 'Visão consolidada de todas as PCs por empresa/projeto';
+  if (gestaoView === 'status') renderFila();
+  else renderDashboard();
 }
 
 function renderCicloRow(pc, ciclo, isFirstOfPc, ci, pi, pci) {
@@ -1315,7 +1342,7 @@ function renderCicloRow(pc, ciclo, isFirstOfPc, ci, pi, pci) {
 }
 
 function renderDashboard() {
-  const el = document.getElementById('dashboardContent');
+  const el = document.getElementById('gestaoContent');
   let html = '';
   STORE.clients.forEach((client, ci) => {
     html += `<div class="dashboard-section">
@@ -1344,7 +1371,7 @@ function renderDashboard() {
     });
     html += `</div>`;
   });
-  el.innerHTML = html || `<div class="placeholder-view">Nenhum cliente cadastrado ainda. Clique em "Importar Excel do Prompt" pra começar.</div>`;
+  el.innerHTML = html || `<div class="placeholder-view">Nenhuma empresa cadastrada ainda. Clique em "Importar Excel do Prompt" pra começar.</div>`;
 }
 
 /* ===== Fila de Trabalho =====
@@ -1375,17 +1402,50 @@ function ensureFilaOrder() {
   filaOrder = allCiclosFlat().map(c => c.key);
 }
 
+/* ===== Duas camadas de priorização (16/07, ver MEMORY_v4.md "Reestruturação Análise/Gestão"):
+   "Minha fila" é pessoal, por analista logado, com ordem manual (arrows). "Visão geral" é
+   supra-analista, do coordenador — só monitora, não reordena por aqui (pra reordenar precisa
+   entrar na fila pessoal do analista responsável). ===== */
+let filaSub = localStorage.getItem('painelPC_fila_sub') || 'minha';
+function setFilaSub(sub) {
+  filaSub = sub;
+  localStorage.setItem('painelPC_fila_sub', sub);
+  renderFila();
+}
+function currentAnalistaName() {
+  if (!msalAccount) return null;
+  return (msalAccount.name || msalAccount.username || '').trim();
+}
+function isMinhaCiclo(c) {
+  const meu = currentAnalistaName();
+  if (!meu) return false;
+  return (c.analista || '').trim().toLowerCase() === meu.toLowerCase();
+}
+
 function renderFila() {
   ensureFilaOrder();
-  const el = document.getElementById('filaContent');
+  const el = document.getElementById('gestaoContent');
   const flat = allCiclosFlat();
   const byKey = Object.fromEntries(flat.map(c => [c.key, c]));
   // garante que ciclos novos (recém-importados) entrem na fila
   flat.forEach(c => { if (!filaOrder.includes(c.key)) filaOrder.push(c.key); });
 
-  let html = `<div class="dashboard-section">`;
+  const comPrioridade = filaSub === 'minha';
+  const meu = currentAnalistaName();
+  const visiveis = comPrioridade ? flat.filter(isMinhaCiclo) : flat;
+  const chavesVisiveis = new Set(visiveis.map(c => c.key));
+
+  let html = `<div class="fila-subswitch">
+    <button class="fila-sub-btn ${filaSub === 'minha' ? 'active' : ''}" onclick="setFilaSub('minha')">Minha fila</button>
+    <button class="fila-sub-btn ${filaSub === 'geral' ? 'active' : ''}" onclick="setFilaSub('geral')">Visão geral</button>
+  </div>`;
+  html += comPrioridade
+    ? `<div class="fila-sub-hint">${meu ? `Ciclos com o campo Analista = "${escapeHtml(meu)}". Ordem manual (setas) — só você mexe aqui.` : 'Conecte-se com sua conta Microsoft pra ver sua fila pessoal (o campo Analista do ciclo precisa bater com seu nome de login).'}</div>`
+    : `<div class="fila-sub-hint">Todos os ciclos de todos os analistas, só leitura — pra reordenar, entre na fila pessoal de quem está responsável.</div>`;
+
+  html += `<div class="dashboard-section">`;
   CICLO_STATUS_ORDER.forEach(status => {
-    const keysInStatus = filaOrder.filter(k => byKey[k] && byKey[k].status === status);
+    const keysInStatus = filaOrder.filter(k => byKey[k] && byKey[k].status === status && chavesVisiveis.has(k));
     html += `<div class="fila-status-block">
       <div class="fila-status-header">
         <span class="fila-status-title">${CICLO_STATUS_LABELS[status]}</span>
@@ -1395,11 +1455,11 @@ function renderFila() {
     if (keysInStatus.length === 0) {
       html += `<div class="fila-empty">Nenhum ciclo neste status.</div>`;
     }
-    keysInStatus.forEach(key => html += renderFilaRow(byKey[key], true));
+    keysInStatus.forEach(key => html += renderFilaRow(byKey[key], comPrioridade));
     html += `</div>`;
   });
 
-  const encerrados = flat.filter(c => c.status === 'ENCERRADO');
+  const encerrados = visiveis.filter(c => c.status === 'ENCERRADO');
   html += `<div class="fila-status-block">
     <div class="fila-status-header">
       <span class="fila-status-title">Concluídos</span>
@@ -1436,6 +1496,9 @@ function renderFilaRow(c, comPrioridade) {
 }
 
 function moveFilaItem(key, direction) {
+  /* Arrows só existem em "Minha fila" (ver renderFilaRow) — a busca do próximo item pra trocar
+     de posição respeita o mesmo filtro (mesmo status + minha), senão a troca "pularia" por cima
+     de ciclos de outros analistas que nem aparecem na lista visível. */
   ensureFilaOrder();
   const flat = allCiclosFlat();
   const byKey = Object.fromEntries(flat.map(c => [c.key, c]));
@@ -1444,7 +1507,8 @@ function moveFilaItem(key, direction) {
   let swapWith = -1;
   let i = idxGlobal + direction;
   while (i >= 0 && i < filaOrder.length) {
-    if (byKey[filaOrder[i]] && byKey[filaOrder[i]].status === status) { swapWith = i; break; }
+    const candidate = byKey[filaOrder[i]];
+    if (candidate && candidate.status === status && (filaSub !== 'minha' || isMinhaCiclo(candidate))) { swapWith = i; break; }
     i += direction;
   }
   if (swapWith === -1) return;
@@ -2064,11 +2128,11 @@ function renderImportStep2() {
 
   step2.innerHTML = `
     <div class="modal-field">
-      <label>Cliente</label>
+      <label>Empresa</label>
       <select id="impClient" onchange="document.getElementById('impClientNovo').classList.toggle('hidden', this.value !== 'novo')">
-        ${clientOptions}<option value="novo">+ Novo cliente…</option>
+        ${clientOptions}<option value="novo">+ Nova empresa…</option>
       </select>
-      <input type="text" id="impClientNovo" class="hidden" placeholder="Nome do cliente" style="margin-top:6px;">
+      <input type="text" id="impClientNovo" class="hidden" placeholder="Nome da empresa" style="margin-top:6px;">
     </div>
     <div class="modal-field">
       <label>Nº do projeto</label>
@@ -2077,6 +2141,10 @@ function renderImportStep2() {
     <div class="modal-field">
       <label>Executora</label>
       <input type="text" id="impExecutor" value="${escapeHtml(importCtx.executorNome)}">
+    </div>
+    <div class="modal-field">
+      <label>Fundação <span style="font-weight:400;color:var(--ink3);">(gestão financeira — deixe igual à Executora se ela for empresa, não universidade)</span></label>
+      <input type="text" id="impFundacao" value="${escapeHtml(importCtx.executorNome)}">
     </div>
     <div class="modal-field">
       <label>PCs encontradas em "${escapeHtml(importCtx.fileName)}" — selecione quais importar</label>
@@ -2112,12 +2180,13 @@ async function confirmImport() {
   let clientName;
   if (clientSel === 'novo') {
     clientName = document.getElementById('impClientNovo').value.trim();
-    if (!clientName) { showToast('Informe o nome do novo cliente.'); return; }
+    if (!clientName) { showToast('Informe o nome da nova empresa.'); return; }
   } else {
     clientName = STORE.clients[Number(clientSel)].client;
   }
   const projetoNum = document.getElementById('impProjeto').value.trim();
   const executorNome = document.getElementById('impExecutor').value.trim();
+  const fundacaoNome = document.getElementById('impFundacao').value.trim();
   const checked = [...document.querySelectorAll('#impPcList input[type=checkbox]:checked')].map(i => i.value);
   if (checked.length === 0) { showToast('Selecione ao menos uma PC.'); return; }
   if (!projetoNum) { showToast('Informe o número do projeto.'); return; }
@@ -2127,14 +2196,14 @@ async function confirmImport() {
   let client = STORE.clients.find(c => c.client.toLowerCase() === clientName.toLowerCase());
   if (!client) { client = { client: clientName, code: clientName.slice(0, 3).toUpperCase(), projects: [], _gid: null }; STORE.clients.push(client); }
   let project = client.projects.find(p => p.name === projetoNum);
-  if (!project) { project = { name: projetoNum, executor: executorNome, pcs: [], _gid: null }; client.projects.push(project); }
+  if (!project) { project = { name: projetoNum, executor: executorNome, fundacao: fundacaoNome, pcs: [], _gid: null }; client.projects.push(project); }
 
   if (msalAccount) {
     try {
       if (!client._gid) client._gid = await graphCreateItem(LIST_IDS.Clientes, { Title: client.client, ShortName: client.code, Active: true });
-      if (!project._gid) project._gid = await graphCreateItem(LIST_IDS.Projetos, { Title: project.name, ClienteId: client._gid, ProjectCode: project.name, ExecutorName: project.executor, Active: true });
+      if (!project._gid) project._gid = await graphCreateItem(LIST_IDS.Projetos, { Title: project.name, ClienteId: client._gid, ProjectCode: project.name, ExecutorName: project.executor, FundacaoName: project.fundacao, Active: true });
     } catch (e) {
-      console.warn(e); showToast('Erro criando Cliente/Projeto no SharePoint — importação cancelada.'); return;
+      console.warn(e); showToast('Erro criando Empresa/Projeto no SharePoint — importação cancelada.'); return;
     }
   }
 
@@ -2244,8 +2313,8 @@ async function confirmImport() {
   showToast(`${importados} PC(s) importada(s)${pulados ? `, ${pulados} pulada(s) por ja existir` : ''}.`);
   if (primeiroImportado) {
     handlePcClick(primeiroImportado.ci, primeiroImportado.pi, primeiroImportado.pci);
-  } else if (currentView === 'dashboard') {
-    renderDashboard();
+  } else if (currentView === 'gestao') {
+    renderGestao();
   }
 }
 
