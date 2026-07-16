@@ -353,19 +353,36 @@
   .fila-status-line { flex: 1; height: 1px; background: var(--border); }
   .fila-empty { font-size: 12px; color: var(--ink3); padding: 10px 14px; background: var(--surface); border: 1px dashed var(--border); border-radius: 10px; }
 
-  .fila-row { display: flex; align-items: center; gap: 12px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 10px 14px; margin-bottom: 6px; cursor: pointer; transition: border-color 0.15s; }
-  .fila-row:hover { border-color: var(--accent2); }
-  .fila-row.row-fake { cursor: default; }
-  .fila-priority-controls { display: flex; flex-direction: column; gap: 1px; flex-shrink: 0; }
+  /* 16/07: a Fila deixou de ser uma lista de cards em flexbox (.fila-row) pra virar uma tabela
+     (.pc-table, mesma base visual do "Por cliente/projeto") — arrows de prioridade viram uma
+     coluna própria, estreita, só nos cards de analista (não na Visão geral). */
+  .fila-arrows-th { width: 22px; }
+  .fila-arrows-td { padding: 4px 6px !important; }
+  .fila-priority-controls, .fila-arrows-td { display: flex; flex-direction: column; gap: 1px; }
   .fila-arrow-btn { width: 18px; height: 14px; display: flex; align-items: center; justify-content: center; border: none; background: var(--surface2); color: var(--ink3); cursor: pointer; border-radius: 3px; padding: 0; }
   .fila-arrow-btn:hover { background: var(--border); color: var(--ink); }
   .fila-arrow-btn svg { width: 10px; height: 10px; }
-  .fila-pc-id { font-weight: 700; font-size: 13px; color: var(--ink); display: flex; align-items: center; gap: 6px; width: 60px; flex-shrink: 0; }
-  .fila-proj { font-size: 11.5px; color: var(--ink3); width: 90px; flex-shrink: 0; }
-  .fila-executor { font-size: 12px; color: var(--ink2); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .fila-ciclo { font-size: 11px; color: var(--ink3); width: 56px; flex-shrink: 0; }
-  .fila-pct-wrap { display: flex; align-items: center; gap: 6px; width: 110px; flex-shrink: 0; }
-  .fila-time { font-size: 11px; color: var(--ink3); width: 90px; flex-shrink: 0; text-align: right; }
+
+  /* Toggle "Itens por categoria" embutido no cabeçalho de "Total de itens" (16/07) — compartilhado
+     pelas duas views de Gestão, ver thTotalItens()/toggleCategorias(). */
+  .th-with-toggle { display: inline-flex; align-items: center; gap: 4px; }
+  .th-toggle-btn { display: flex; align-items: center; justify-content: center; width: 15px; height: 15px; padding: 0; border: none; border-radius: 3px; background: transparent; color: var(--ink3); cursor: pointer; transition: transform 0.15s, background 0.12s; }
+  .th-toggle-btn svg { width: 10px; height: 10px; transition: transform 0.15s; }
+  .th-toggle-btn.active svg { transform: rotate(180deg); }
+  .th-toggle-btn:hover { background: var(--surface2); color: var(--ink); }
+
+  /* Toggle de recolher ciclos de uma PC (16/07, view "Por cliente/projeto") — aberto por padrão. */
+  .pc-collapse-btn { display: inline-flex; align-items: center; justify-content: center; width: 14px; height: 14px; padding: 0; border: none; background: transparent; color: var(--ink3); cursor: pointer; flex-shrink: 0; }
+  .pc-collapse-btn svg { width: 12px; height: 12px; transition: transform 0.15s; }
+  .pc-collapse-btn:hover { color: var(--ink); }
+  .pc-collapse-spacer { width: 14px; flex-shrink: 0; display: inline-block; }
+  .pc-collapsed-hint { font-size: 10px; font-weight: 500; color: var(--ink3); margin-left: 4px; white-space: nowrap; }
+
+  /* Agrupamento visual do trio Total de itens / Analisados / % Analisado (16/07) — só estético,
+     não muda a lógica das 3 colunas. */
+  .progress-group-start, .progress-group-mid, .progress-group-end { background: var(--surface2); }
+  .progress-group-start { border-radius: 8px 0 0 8px; }
+  .progress-group-end { border-radius: 0 8px 8px 0; }
 
 
   /* ===== Modal de importação (VA.0) ===== */
@@ -727,7 +744,9 @@ async function graphGetAllItems(listId) {
     out = out.concat(data.value || []);
     path = data['@odata.nextLink'] ? data['@odata.nextLink'].replace('https://graph.microsoft.com/v1.0', '') : null;
   }
-  return out.map(it => ({ id: it.id, ...it.fields }));
+  /* 16/07: _createdAt vem do createdDateTime nativo do item do SharePoint (não é campo de fields,
+     é metadado do próprio item) — usado como "data de cadastro" sem precisar de coluna extra. */
+  return out.map(it => ({ id: it.id, _createdAt: it.createdDateTime || null, ...it.fields }));
 }
 async function graphCreateItem(listId, fields) {
   const data = await graphFetch(`/sites/${SITE_ID}/lists/${listId}/items`, { method: 'POST', body: JSON.stringify({ fields }) });
@@ -808,7 +827,9 @@ async function loadStoreFromGraph() {
   ciclosRaw.forEach(c => {
     const pcId = String(c.PCId);
     if (!ciclosByPc.has(pcId)) ciclosByPc.set(pcId, []);
-    ciclosByPc.get(pcId).push({ _gid: c.id, numero: Number(c.CycleNumber) || 1, status: choiceToCicloStatus(c.Status), analista: c.AnalystName || '' });
+    /* 16/07: StatusChangedAt já existia no schema e já era gravado a cada troca de status
+       (ver updateCicloStatus), só nunca tinha sido lido de volta pro STORE — agora entra aqui. */
+    ciclosByPc.get(pcId).push({ _gid: c.id, numero: Number(c.CycleNumber) || 1, status: choiceToCicloStatus(c.Status), analista: c.AnalystName || '', statusChangedAt: c.StatusChangedAt || null });
   });
   ciclosByPc.forEach(list => list.sort((a, b) => a.numero - b.numero));
 
@@ -816,7 +837,7 @@ async function loadStoreFromGraph() {
   pcsRaw.forEach(p => {
     const proj = projByGid.get(String(p.ProjetoId));
     if (!proj) return;
-    const ciclos = ciclosByPc.get(p.id) || [{ _gid: null, numero: 1, status: 'AGUARDANDO_ANALISE', analista: '' }];
+    const ciclos = ciclosByPc.get(p.id) || [{ _gid: null, numero: 1, status: 'AGUARDANDO_ANALISE', analista: '', statusChangedAt: null }];
     const pc = {
       label: p.PCNumber ? `PC${p.PCNumber}` : (p.Title || 'PC'),
       real: true,
@@ -824,8 +845,9 @@ async function loadStoreFromGraph() {
       data: {
         meta: {
           cliente: '', projeto: proj.name, pc: p.PCNumber ? `PC${p.PCNumber}` : '', executor: proj.executor,
-          periodo: '', ciclos: ciclos.map(c => ({ numero: c.numero, status: c.status, _gid: c._gid, analista: c.analista || '' })),
+          periodo: '', ciclos: ciclos.map(c => ({ numero: c.numero, status: c.status, _gid: c._gid, analista: c.analista || '', statusChangedAt: c.statusChangedAt || null })),
           concluida: !!p.Concluded,
+          dataCadastro: p._createdAt || null,
         },
         categories: [],
       },
@@ -1132,10 +1154,12 @@ function realMetrics(pc) {
     selectedCicloIdx = idx;
     const g = globalProgress();
     return { numero: c.numero, status: c.status, pct: g.pct, total: g.total, analisados: g.done,
-      data: c.dataUltimaAtualizacao || '—', rubricas, analista: c.analista || '' };
+      data: c.dataUltimaAtualizacao || '—', rubricas, analista: c.analista || '',
+      statusChangedAt: c.statusChangedAt || null };
   });
   DATA = savedData; selectedCicloIdx = savedSel;
-  return { label: pc.label, real: true, executor: d.meta.executor, concluida: d.meta.concluida, ciclos };
+  return { label: pc.label, real: true, executor: d.meta.executor, concluida: d.meta.concluida, ciclos,
+    projeto: d.meta.projeto, dataCadastro: d.meta.dataCadastro || null };
 }
 
 /* ===== Sidebar tree (Cliente > Projetos > PCs) ===== */
@@ -1310,68 +1334,137 @@ function renderGestao() {
   else renderDashboard();
 }
 
-function renderCicloRow(pc, ciclo, isFirstOfPc, ci, pi, pci) {
-  const badgeCls = cicloBadgeClass(ciclo.status);
-  /* 08/07: posição, cor e ordem da rubrica são fixas (RUBRICA_SCHEMA) — categoria sem item nesta
-     PC/ciclo fica em branco na mesma subcoluna, nunca desloca as demais (equipe sempre embaixo de
-     equipe, consumo embaixo de consumo etc.). */
+/* ===== Compartilhado pelas duas views de Gestão (16/07) ===== */
+function renderRubricaChips(rubricas) {
+  /* posição, cor e ordem da rubrica são fixas (RUBRICA_SCHEMA) — categoria sem item nesta
+     PC/ciclo fica em branco na mesma subcoluna, nunca desloca as demais. */
   const rubricaById = {};
-  (ciclo.rubricas || []).forEach(r => { rubricaById[r.id] = r; });
-  const chips = RUBRICA_SCHEMA.map(schema => {
+  (rubricas || []).forEach(r => { rubricaById[r.id] = r; });
+  return RUBRICA_SCHEMA.map(schema => {
     const r = rubricaById[schema.id];
     if (!r || !r.qtd) return `<span class="rubrica-chip rubrica-chip-empty"></span>`;
     return `<span class="rubrica-chip" style="background:${schema.color}" title="${escapeHtml(schema.label)}: ${r.qtd} itens">${r.qtd}</span>`;
   }).join('');
-  const barColor = ciclo.status === 'ENCERRADO' ? 'var(--accent2)' : (ciclo.status === 'EM_ANALISE' ? 'var(--gold)' : 'var(--ink3)');
+}
+function cicloBarColor(status) {
+  return status === 'ENCERRADO' ? 'var(--accent2)' : (status === 'EM_ANALISE' ? 'var(--gold)' : 'var(--ink3)');
+}
+/* Toggle "Itens por categoria" (16/07) — nasce escondida, embutida no cabeçalho de "Total de
+   itens" nas duas views de Gestão; um único estado compartilhado (mais simples que ter um
+   toggle por view, e não faz sentido mostrar numa e esconder na outra). */
+let mostrarCategorias = localStorage.getItem('painelPC_mostrar_categorias') === '1';
+function toggleCategorias() {
+  mostrarCategorias = !mostrarCategorias;
+  localStorage.setItem('painelPC_mostrar_categorias', mostrarCategorias ? '1' : '0');
+  renderGestao();
+}
+function thTotalItens() {
+  return `<span class="th-with-toggle">Total de itens
+    <button class="th-toggle-btn ${mostrarCategorias ? 'active' : ''}" onclick="event.stopPropagation();toggleCategorias()" title="${mostrarCategorias ? 'Ocultar' : 'Mostrar'} itens por categoria">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 9l6 6 6-6"/></svg>
+    </button>
+  </span>`;
+}
 
+/* ===== "Por cliente/projeto" (substitui o antigo Dashboard) =====
+   16/07: cards por empresa (dinâmicos, vêm do STORE — diferente dos cards de analista da view
+   "Por status operacional", que são hardcoded por falta de base de analistas). Sem "Visão geral"
+   aqui — decisão de Ricardo, sempre precisa escolher uma empresa. PC ganha toggle de recolher
+   (aberto por padrão) e o trio Total/Analisados/% ganha agrupamento visual (classes
+   progress-group-*), só estético. */
+let gestaoClienteSel = localStorage.getItem('painelPC_gestao_cliente') || null;
+function setGestaoCliente(nome) {
+  gestaoClienteSel = nome;
+  localStorage.setItem('painelPC_gestao_cliente', nome);
+  renderDashboard();
+}
+let pcColapsadas = new Set(JSON.parse(localStorage.getItem('painelPC_pc_colapsadas') || '[]'));
+function togglePcColapsada(pcKey) {
+  if (pcColapsadas.has(pcKey)) pcColapsadas.delete(pcKey); else pcColapsadas.add(pcKey);
+  localStorage.setItem('painelPC_pc_colapsadas', JSON.stringify([...pcColapsadas]));
+  renderDashboard();
+}
+
+function clienteTableHead() {
+  return `<thead><tr>
+    <th>PC</th><th>Ciclo</th><th>Status</th>
+    <th class="progress-group-start">${thTotalItens()}</th>
+    ${mostrarCategorias ? '<th>Itens por categoria</th>' : ''}
+    <th class="progress-group-mid">Analisados</th>
+    <th class="progress-group-end">% Analisado</th>
+    <th>Analista</th><th>Cadastro</th><th>Status desde</th>
+  </tr></thead>`;
+}
+
+function renderCicloRow(pc, ciclo, isFirstOfPc, ci, pi, pci, pcKey, colapsada, totalCiclos) {
+  if (colapsada && !isFirstOfPc) return '';
+  const badgeCls = cicloBadgeClass(ciclo.status);
+  const chevron = totalCiclos > 1
+    ? `<button class="pc-collapse-btn" onclick="event.stopPropagation(); togglePcColapsada('${pcKey}')" title="${colapsada ? 'Expandir ciclos' : 'Recolher ciclos'}">
+         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="transform:rotate(${colapsada ? '-90deg' : '0deg'})"><path d="M6 9l6 6 6-6"/></svg>
+       </button>`
+    : `<span class="pc-collapse-spacer"></span>`;
   return `<tr class="${pc.real ? '' : 'row-fake'}" onclick="handlePcClick(${ci},${pi},${pci})">
-    <td><div class="pc-cell-id">${isFirstOfPc ? (pc.real ? '<span class="pc-real-dot" title="dado real"></span>' : '') + escapeHtml(pc.label) : ''}</div></td>
+    <td><div class="pc-cell-id">${isFirstOfPc ? chevron + (pc.real ? '<span class="pc-real-dot" title="dado real"></span>' : '') + escapeHtml(pc.label) + (colapsada && totalCiclos > 1 ? `<span class="pc-collapsed-hint">+${totalCiclos - 1} ciclo(s) oculto(s)</span>` : '') : ''}</div></td>
     <td class="pc-cell-muted">${cicloLabel(ciclo.numero)}</td>
     <td><span class="badge ${badgeCls}">${CICLO_STATUS_LABELS[ciclo.status]}</span></td>
-    <td class="pc-cell-muted">${ciclo.total}</td>
-    <td class="pc-cell-muted">${ciclo.analisados}</td>
-    <td>
+    <td class="pc-cell-muted progress-group-start">${ciclo.total}</td>
+    ${mostrarCategorias ? `<td><div class="cell-rubrica-wrap">${renderRubricaChips(ciclo.rubricas)}</div></td>` : ''}
+    <td class="pc-cell-muted progress-group-mid">${ciclo.analisados}</td>
+    <td class="progress-group-end">
       <div class="cell-pct-row">
-        <div class="cell-pct-bar-track"><div class="cell-pct-bar-fill" style="width:${ciclo.pct}%;background:${barColor}"></div></div>
+        <div class="cell-pct-bar-track"><div class="cell-pct-bar-fill" style="width:${ciclo.pct}%;background:${cicloBarColor(ciclo.status)}"></div></div>
         <span class="cell-pct-num">${ciclo.pct}%</span>
       </div>
     </td>
-    <td><div class="cell-rubrica-wrap">${chips}</div></td>
-    <td class="pc-cell-muted">${ciclo.data || '—'}</td>
+    <td class="pc-cell-muted">${escapeHtml(ciclo.analista || '—')}</td>
+    <td class="pc-cell-muted">${isFirstOfPc ? fmtIsoDate(pc.dataCadastro) : ''}</td>
+    <td class="pc-cell-muted">${fmtIsoDate(ciclo.statusChangedAt)}</td>
   </tr>`;
 }
 
 function renderDashboard() {
   const el = document.getElementById('gestaoContent');
-  let html = '';
-  STORE.clients.forEach((client, ci) => {
-    html += `<div class="dashboard-section">
-      <div class="dashboard-section-title">${escapeHtml(client.client)}</div>
-      <div class="dashboard-section-sub">Visão consolidada em 3 níveis — Projeto → PC → Ciclo. Clique numa linha pra abrir a PC.</div>`;
-    client.projects.forEach((p, pi) => {
-      html += `<div class="project-block">
-        <div class="project-header">
-          <span class="project-name">Projeto ${escapeHtml(p.name)}</span>
-          <span class="project-meta">${escapeHtml(p.executor)}</span>
-          <div class="project-header-line"></div>
-        </div>
-        <div class="pc-table-wrap">
-        <table class="pc-table">
-          <thead><tr>
-            <th>PC</th><th>Ciclo</th><th>Status</th><th>Total</th><th>Analisados</th><th>% Analisado</th><th>Itens/Rubrica</th><th>Últ. análise</th>
-          </tr></thead>
-          <tbody>`;
-      p.pcs.forEach((pc, pci) => {
-        const data = pc.real ? realMetrics(pc) : { ...pc, executor: p.executor };
-        data.ciclos.forEach((ciclo, i) => {
-          html += renderCicloRow(data, ciclo, i === 0, ci, pi, pci);
-        });
+  const nomesClientes = STORE.clients.map(c => c.client);
+  if (!gestaoClienteSel || !nomesClientes.includes(gestaoClienteSel)) gestaoClienteSel = nomesClientes[0] || null;
+
+  const switchHtml = `<div class="fila-subswitch">${nomesClientes.map(nome =>
+    `<button class="fila-sub-btn ${gestaoClienteSel === nome ? 'active' : ''}" onclick="setGestaoCliente(${JSON.stringify(nome)})">${escapeHtml(nome)}</button>`
+  ).join('')}</div>`;
+
+  if (!gestaoClienteSel) {
+    el.innerHTML = switchHtml + `<div class="placeholder-view">Nenhuma empresa cadastrada ainda. Clique em "Importar Excel do Prompt" pra começar.</div>`;
+    return;
+  }
+
+  const ci = STORE.clients.findIndex(c => c.client === gestaoClienteSel);
+  const client = STORE.clients[ci];
+  let html = switchHtml + `<div class="dashboard-section">
+    <div class="dashboard-section-title">${escapeHtml(client.client)}</div>
+    <div class="dashboard-section-sub">Visão consolidada em 3 níveis — Projeto → PC → Ciclo. Clique numa linha pra abrir a PC.</div>`;
+  client.projects.forEach((p, pi) => {
+    html += `<div class="project-block">
+      <div class="project-header">
+        <span class="project-name">Projeto ${escapeHtml(p.name)}</span>
+        <span class="project-meta">${escapeHtml(p.executor)}</span>
+        <div class="project-header-line"></div>
+      </div>
+      <div class="pc-table-wrap">
+      <table class="pc-table">
+        ${clienteTableHead()}
+        <tbody>`;
+    p.pcs.forEach((pc, pci) => {
+      const data = pc.real ? realMetrics(pc) : { ...pc, executor: p.executor };
+      const pcKey = `${ci}|${pi}|${pci}`;
+      const colapsada = pcColapsadas.has(pcKey);
+      data.ciclos.forEach((ciclo, i) => {
+        html += renderCicloRow(data, ciclo, i === 0, ci, pi, pci, pcKey, colapsada, data.ciclos.length);
       });
-      html += `</tbody></table></div></div>`;
     });
-    html += `</div>`;
+    html += `</tbody></table></div></div>`;
   });
-  el.innerHTML = html || `<div class="placeholder-view">Nenhuma empresa cadastrada ainda. Clique em "Importar Excel do Prompt" pra começar.</div>`;
+  html += `</div>`;
+  el.innerHTML = html;
 }
 
 /* ===== Fila de Trabalho =====
@@ -1388,6 +1481,7 @@ function allCiclosFlat() {
         data.ciclos.forEach(ciclo => {
           out.push({
             pcLabel: data.label, real: data.real, executor: data.executor, projeto: p.name,
+            cliente: client.client, dataCadastro: data.dataCadastro || null,
             key: `${ci}|${pi}|${pci}|${ciclo.numero}`, ci, pi, pci, ...ciclo,
           });
         });
@@ -1402,24 +1496,44 @@ function ensureFilaOrder() {
   filaOrder = allCiclosFlat().map(c => c.key);
 }
 
-/* ===== Duas camadas de priorização (16/07, ver MEMORY_v4.md "Reestruturação Análise/Gestão"):
-   "Minha fila" é pessoal, por analista logado, com ordem manual (arrows). "Visão geral" é
-   supra-analista, do coordenador — só monitora, não reordena por aqui (pra reordenar precisa
-   entrar na fila pessoal do analista responsável). ===== */
-let filaSub = localStorage.getItem('painelPC_fila_sub') || 'minha';
+/* ===== "Por status operacional" (16/07) =====
+   GAMBIARRA TEMPORÁRIA, PROPOSITAL (ver MEMORY_v4.md, "Reestruturação Análise/Gestão"): a base
+   ainda não tem uma lista real de analistas em lugar nenhum do SharePoint, então os cards de
+   priorização são rótulos hardcoded A/B/C/D em vez de vir dos dados. Quando existir uma lista real
+   de analistas (ponto em aberto nº 11 do MEMORY), ANALISTAS_HARDCODED deve virar uma leitura da
+   base — não esquecer de tirar essa gambiarra. Cada card filtra ciclos pelo campo Analista == a
+   letra (comparação exata, maiúscula) — hoje a base não está populada com esses valores ainda.
+   "Visão geral" continua supra-analista, só leitura, sem reordenar por ali. */
+const ANALISTAS_HARDCODED = ['A', 'B', 'C', 'D'];
+let filaSub = (() => {
+  const saved = localStorage.getItem('painelPC_fila_sub');
+  return (saved && (ANALISTAS_HARDCODED.includes(saved) || saved === 'geral')) ? saved : 'geral';
+})();
 function setFilaSub(sub) {
   filaSub = sub;
   localStorage.setItem('painelPC_fila_sub', sub);
   renderFila();
 }
-function currentAnalistaName() {
-  if (!msalAccount) return null;
-  return (msalAccount.name || msalAccount.username || '').trim();
+function cicloAnalistaMatches(c, letra) {
+  return (c.analista || '').trim().toUpperCase() === letra;
 }
-function isMinhaCiclo(c) {
-  const meu = currentAnalistaName();
-  if (!meu) return false;
-  return (c.analista || '').trim().toLowerCase() === meu.toLowerCase();
+
+function filaTableHead(comPrioridade) {
+  return `<thead><tr>
+    ${comPrioridade ? '<th class="fila-arrows-th"></th>' : ''}
+    <th>PC</th><th>Ciclo</th><th>Projeto</th><th>Executor</th>
+    <th>${thTotalItens()}</th>
+    ${mostrarCategorias ? '<th>Itens por categoria</th>' : ''}
+    <th>% Analisado</th>
+  </tr></thead>`;
+}
+
+function renderFilaTable(rows, comPrioridade) {
+  if (rows.length === 0) return `<div class="fila-empty">Nenhum ciclo neste status.</div>`;
+  return `<div class="pc-table-wrap"><table class="pc-table">
+    ${filaTableHead(comPrioridade)}
+    <tbody>${rows.map(c => renderFilaRow(c, comPrioridade)).join('')}</tbody>
+  </table></div>`;
 }
 
 function renderFila() {
@@ -1430,18 +1544,17 @@ function renderFila() {
   // garante que ciclos novos (recém-importados) entrem na fila
   flat.forEach(c => { if (!filaOrder.includes(c.key)) filaOrder.push(c.key); });
 
-  const comPrioridade = filaSub === 'minha';
-  const meu = currentAnalistaName();
-  const visiveis = comPrioridade ? flat.filter(isMinhaCiclo) : flat;
+  const comPrioridade = filaSub !== 'geral';
+  const visiveis = comPrioridade ? flat.filter(c => cicloAnalistaMatches(c, filaSub)) : flat;
   const chavesVisiveis = new Set(visiveis.map(c => c.key));
 
   let html = `<div class="fila-subswitch">
-    <button class="fila-sub-btn ${filaSub === 'minha' ? 'active' : ''}" onclick="setFilaSub('minha')">Minha fila</button>
+    ${ANALISTAS_HARDCODED.map(letra => `<button class="fila-sub-btn ${filaSub === letra ? 'active' : ''}" onclick="setFilaSub('${letra}')">${letra}</button>`).join('')}
     <button class="fila-sub-btn ${filaSub === 'geral' ? 'active' : ''}" onclick="setFilaSub('geral')">Visão geral</button>
   </div>`;
   html += comPrioridade
-    ? `<div class="fila-sub-hint">${meu ? `Ciclos com o campo Analista = "${escapeHtml(meu)}". Ordem manual (setas) — só você mexe aqui.` : 'Conecte-se com sua conta Microsoft pra ver sua fila pessoal (o campo Analista do ciclo precisa bater com seu nome de login).'}</div>`
-    : `<div class="fila-sub-hint">Todos os ciclos de todos os analistas, só leitura — pra reordenar, entre na fila pessoal de quem está responsável.</div>`;
+    ? `<div class="fila-sub-hint">Ciclos com o campo Analista = "${filaSub}" (cards A/B/C/D são provisórios — ver nota no código/MEMORY). Ordem manual (setas) — só quem está nesse card mexe aqui.</div>`
+    : `<div class="fila-sub-hint">Todos os ciclos de todos os analistas, só leitura — pra reordenar, entre no card do analista responsável.</div>`;
 
   html += `<div class="dashboard-section">`;
   CICLO_STATUS_ORDER.forEach(status => {
@@ -1451,12 +1564,9 @@ function renderFila() {
         <span class="fila-status-title">${CICLO_STATUS_LABELS[status]}</span>
         <span class="fila-status-count">${keysInStatus.length}</span>
         <div class="fila-status-line"></div>
-      </div>`;
-    if (keysInStatus.length === 0) {
-      html += `<div class="fila-empty">Nenhum ciclo neste status.</div>`;
-    }
-    keysInStatus.forEach(key => html += renderFilaRow(byKey[key], comPrioridade));
-    html += `</div>`;
+      </div>
+      ${renderFilaTable(keysInStatus.map(k => byKey[k]), comPrioridade)}
+    </div>`;
   });
 
   const encerrados = visiveis.filter(c => c.status === 'ENCERRADO');
@@ -1465,40 +1575,39 @@ function renderFila() {
       <span class="fila-status-title">Concluídos</span>
       <span class="fila-status-count">${encerrados.length}</span>
       <div class="fila-status-line"></div>
-    </div>`;
-  if (encerrados.length === 0) {
-    html += `<div class="fila-empty">Nenhum ciclo encerrado ainda.</div>`;
-  }
-  encerrados.forEach(c => html += renderFilaRow(c, false));
-  html += `</div>`;
+    </div>
+    ${renderFilaTable(encerrados, false)}
+  </div>`;
 
   html += `</div>`;
   el.innerHTML = html;
 }
 
 function renderFilaRow(c, comPrioridade) {
-  const barColor = c.status === 'ENCERRADO' ? 'var(--accent2)' : (c.status === 'EM_ANALISE' ? 'var(--gold)' : 'var(--ink3)');
-  return `<div class="fila-row ${c.real ? '' : 'row-fake'}" onclick="handlePcClick(${c.ci},${c.pi},${c.pci})">
-    ${comPrioridade ? `<div class="fila-priority-controls" onclick="event.stopPropagation()">
+  return `<tr class="${c.real ? '' : 'row-fake'}" onclick="handlePcClick(${c.ci},${c.pi},${c.pci})">
+    ${comPrioridade ? `<td class="fila-arrows-td" onclick="event.stopPropagation()">
       <button class="fila-arrow-btn" onclick="moveFilaItem('${c.key}', -1)" title="Subir na fila"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M18 15l-6-6-6 6"/></svg></button>
       <button class="fila-arrow-btn" onclick="moveFilaItem('${c.key}', 1)" title="Descer na fila"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M6 9l6 6 6-6"/></svg></button>
-    </div>` : `<div class="fila-priority-controls"></div>`}
-    <div class="fila-pc-id">${c.real ? '<span class="pc-real-dot" title="dado real"></span>' : ''}${escapeHtml(c.pcLabel)}</div>
-    <div class="fila-proj">Proj. ${escapeHtml(c.projeto)}</div>
-    <div class="fila-executor" title="${escapeHtml(c.executor||'')}">${escapeHtml(c.executor || '—')}</div>
-    <div class="fila-ciclo">${cicloLabel(c.numero)}</div>
-    <div class="fila-pct-wrap">
-      <div class="cell-pct-bar-track"><div class="cell-pct-bar-fill" style="width:${c.pct}%;background:${barColor}"></div></div>
-      <span class="cell-pct-num">${c.pct}%</span>
-    </div>
-    <div class="fila-time">${c.data ? 'desde ' + c.data : '—'}</div>
-  </div>`;
+    </td>` : ''}
+    <td><div class="pc-cell-id">${c.real ? '<span class="pc-real-dot" title="dado real"></span>' : ''}${escapeHtml(c.pcLabel)}</div></td>
+    <td class="pc-cell-muted">${cicloLabel(c.numero)}</td>
+    <td class="pc-cell-muted">${escapeHtml(c.projeto)}</td>
+    <td class="pc-cell-muted" title="${escapeHtml(c.executor || '')}">${escapeHtml(c.executor || '—')}</td>
+    <td class="pc-cell-muted">${c.total}</td>
+    ${mostrarCategorias ? `<td><div class="cell-rubrica-wrap">${renderRubricaChips(c.rubricas)}</div></td>` : ''}
+    <td>
+      <div class="cell-pct-row">
+        <div class="cell-pct-bar-track"><div class="cell-pct-bar-fill" style="width:${c.pct}%;background:${cicloBarColor(c.status)}"></div></div>
+        <span class="cell-pct-num">${c.pct}%</span>
+      </div>
+    </td>
+  </tr>`;
 }
 
 function moveFilaItem(key, direction) {
-  /* Arrows só existem em "Minha fila" (ver renderFilaRow) — a busca do próximo item pra trocar
-     de posição respeita o mesmo filtro (mesmo status + minha), senão a troca "pularia" por cima
-     de ciclos de outros analistas que nem aparecem na lista visível. */
+  /* Arrows só existem nos cards de analista (A/B/C/D), não na Visão geral — a busca do próximo
+     item pra trocar de posição respeita o mesmo filtro (mesmo status + mesmo analista), senão a
+     troca "pularia" por cima de ciclos de outros analistas que nem aparecem na lista visível. */
   ensureFilaOrder();
   const flat = allCiclosFlat();
   const byKey = Object.fromEntries(flat.map(c => [c.key, c]));
@@ -1508,7 +1617,7 @@ function moveFilaItem(key, direction) {
   let i = idxGlobal + direction;
   while (i >= 0 && i < filaOrder.length) {
     const candidate = byKey[filaOrder[i]];
-    if (candidate && candidate.status === status && (filaSub !== 'minha' || isMinhaCiclo(candidate))) { swapWith = i; break; }
+    if (candidate && candidate.status === status && (filaSub === 'geral' || cicloAnalistaMatches(candidate, filaSub))) { swapWith = i; break; }
     i += direction;
   }
   if (swapWith === -1) return;
@@ -2081,6 +2190,13 @@ function fmtDateCell(v) {
     if (!isNaN(d.getTime())) return d.toLocaleDateString('pt-BR');
   }
   return String(v);
+}
+/* 16/07: formata datetime ISO vindo direto do Graph (StatusChangedAt, _createdAt) — diferente de
+   fmtDateCell, que trata o formato de data que vem do Excel importado. */
+function fmtIsoDate(iso) {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  return isNaN(d.getTime()) ? '—' : d.toLocaleDateString('pt-BR');
 }
 
 function processWorkbook(wb, fileName) {
