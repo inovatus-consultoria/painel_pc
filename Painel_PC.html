@@ -2,7 +2,7 @@
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
-<title>Painel PC — VA.10 (SharePoint Lists)</title>
+<title>Painel PC — VA.11 (SharePoint Lists)</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
@@ -587,6 +587,63 @@
     .sidebar .view-nav-item .nav-label { display: none; }
     .sidebar .view-nav-item { justify-content: center; padding: 8px; }
   }
+  /* ===== VA.11: identidade Inovatus e Marco 3 ===== */
+  .page-title, .modal-header h2, .portfolio-kpi-value, .detail-section-title,
+  .timeline-cycle-title, .context-value, .login-title { font-family: 'DM Sans', sans-serif; letter-spacing: 0; }
+  .page-title { font-size: 24px; font-weight: 800; line-height: 1.2; }
+  .detail-page-topbar { align-items: center; margin-bottom: 20px; }
+  .detail-eyebrow { font-size: 11px; font-weight: 600; letter-spacing: 0; text-transform: none; }
+  .pc-detail-header { border: 1px solid var(--border); border-top: 3px solid var(--accent); border-radius: 8px; padding: 16px 18px; }
+  .context-label, .cycle-comment-field label { letter-spacing: 0; font-size: 10.5px; }
+  .context-value { font-size: 13px; font-weight: 700; }
+  .detail-section-title { font-size: 14px; font-weight: 700; line-height: 1.35; }
+  .detail-section-note { font-size: 11.5px; line-height: 1.4; }
+  .detail-section { padding-bottom: 18px; margin-bottom: 18px; }
+  .detail-alert.info { border-color: var(--border); background: var(--surface2); color: var(--ink2); }
+  .import-modal-box, .output-modal-box { width: min(920px, 94vw); }
+  .source-segment { margin-bottom: 16px; }
+  .source-segment .segmented-control { width: max-content; }
+  .import-drop { display: block; border: 1px dashed var(--border); border-radius: 8px; padding: 22px; background: var(--bg); text-align: center; cursor: pointer; }
+  .import-drop:hover { border-color: var(--accent); background: var(--green-light); }
+  .import-drop input { display: none; }
+  .import-drop strong { display: block; font-size: 13px; color: var(--ink); }
+  .import-drop span { display: block; margin-top: 5px; color: var(--ink3); font-size: 11.5px; }
+  .draft-summary { display: grid; grid-template-columns: repeat(5, minmax(100px, 1fr)); gap: 8px; margin: 14px 0; }
+  .draft-stat { border: 1px solid var(--border); border-radius: 8px; background: var(--surface); padding: 10px 12px; }
+  .draft-stat b { display: block; font-size: 19px; color: var(--ink); }
+  .draft-stat span { font-size: 10.5px; color: var(--ink3); }
+  .draft-stat.new b { color: var(--accent2); }
+  .draft-stat.changed b, .draft-stat.warning b { color: var(--amber); }
+  .draft-table-wrap { max-height: 330px; overflow: auto; border: 1px solid var(--border); border-radius: 8px; }
+  .draft-table { width: 100%; border-collapse: collapse; font-size: 11.5px; }
+  .draft-table th { position: sticky; top: 0; z-index: 1; background: var(--bg); color: var(--ink3); font-size: 10px; font-weight: 700; text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border); }
+  .draft-table td { padding: 8px 10px; border-bottom: 1px solid var(--surface2); vertical-align: top; color: var(--ink2); }
+  .draft-table td:first-child { color: var(--ink); font-weight: 700; }
+  .draft-state { display: inline-flex; border-radius: 99px; padding: 2px 7px; font-size: 9.5px; font-weight: 700; background: var(--surface2); color: var(--ink2); }
+  .draft-state.new { background: var(--green-light); color: var(--green); }
+  .draft-state.changed { background: var(--amber-light); color: #7D5A16; }
+  .draft-state.removed { background: var(--red-light); color: var(--red); }
+  .import-result { border: 1px solid var(--border); border-radius: 8px; padding: 16px; background: var(--surface); }
+  .import-result h3 { margin: 0 0 8px; font-size: 15px; }
+  .import-result p { margin: 5px 0; color: var(--ink2); font-size: 12.5px; }
+  .output-summary { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
+  .output-preview { width: 100%; min-height: 320px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); padding: 14px; font-family: 'DM Sans', sans-serif; font-size: 12.5px; line-height: 1.55; color: var(--ink); resize: vertical; }
+  .output-table-wrap { max-height: 350px; overflow: auto; border: 1px solid var(--border); border-radius: 8px; }
+  .output-general-note { border-left: 3px solid var(--amber); background: var(--amber-light); padding: 10px 12px; margin-bottom: 12px; font-size: 12px; color: #7D5A16; }
+  @media (max-width: 720px) {
+    .draft-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .import-modal-box, .output-modal-box { width: 96vw; }
+    .pc-context-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  }
+
+  @media (max-width: 720px) {
+    .main { min-width: 0; width: calc(100% - 60px); padding-left: 14px; padding-right: 14px; overflow-x: hidden; }
+    .detail-page-topbar { flex-wrap: wrap; }
+    .detail-page-topbar .topbar-actions { width: 100%; flex-wrap: wrap; }
+    .detail-page-topbar .topbar-actions .btn { flex: 1 1 auto; justify-content: center; }
+    .pc-detail-header, .detail-section, .source-history-grid, .compact-list { min-width: 0; max-width: 100%; }
+    .compact-list-row { min-width: 0; overflow-wrap: anywhere; }
+  }
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://alcdn.msauth.net/browser/2.38.1/js/msal-browser.min.js"></script>
@@ -602,7 +659,7 @@
       Entrar com Microsoft
     </button>
   </div>
-  <div class="login-version">Painel PC · VA.10 · SharePoint Lists</div>
+  <div class="login-version">Painel PC · VA.11 · SharePoint Lists</div>
 </div>
 
 <div id="loading-overlay">
@@ -642,7 +699,7 @@
     <div class="tree" id="treeCol"></div>
     <div class="sidebar-foot">
       <div id="authStatus" style="margin-bottom:8px;"></div>
-      VA.10 · SharePoint Lists · Microsoft Graph
+      VA.11 · SharePoint Lists · Microsoft Graph
     </div>
   </aside>
 
@@ -854,6 +911,25 @@
         <input type="file" id="importFileInput" accept=".xlsx" onchange="handleImportFile(event)">
       </div>
       <div class="import-step hidden" id="importStep2"></div>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay hidden" id="outputOverlay">
+  <div class="modal-box output-modal-box">
+    <div class="modal-header">
+      <h2>Prévia das saídas</h2>
+      <button class="modal-close" onclick="closeOutputPreview()">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div class="source-segment">
+        <div class="segmented-control">
+          <label><input type="radio" name="outputMode" value="prompt" checked onchange="renderOutputPreview()"><span>Texto Prompt</span></label>
+          <label><input type="radio" name="outputMode" value="ref" onchange="renderOutputPreview()"><span>Punchlist REF</span></label>
+        </div>
+      </div>
+      <div id="outputPreviewContent"></div>
+      <div class="modal-actions" id="outputActions"></div>
     </div>
   </div>
 </div>
@@ -3607,6 +3683,562 @@ concluirPC = async function() {
   else setView('detail');
 };
 
+/* =====================================================================================
+   VA.11 - Marco 2 estabilizado + Marco 3 (entradas e saidas)
+   ===================================================================================== */
+let controlledImport = null;
+
+function graphErrorText(error) {
+  const raw = String(error && error.message ? error.message : error || 'Erro desconhecido');
+  try {
+    const jsonStart = raw.indexOf('{');
+    if (jsonStart >= 0) {
+      const parsed = JSON.parse(raw.slice(jsonStart));
+      const message = parsed && parsed.error && parsed.error.message;
+      if (message) return message;
+    }
+  } catch (_) {}
+  return raw.replace(/^Graph\s+\w+\s+.*?falhou:\s*\d+\s*/i, '').slice(0, 420);
+}
+
+function buildSharePointItemFields(item, pcId) {
+  const fields = {
+    Title: String(item.title || item.budgetItem || item.description || 'Item').slice(0, 250),
+    PCId: Number(pcId),
+    SourceItemKey: String(item.sourceKey || '').slice(0, 250),
+    CategoryId: String(item.categoryId || 'outros').slice(0, 250),
+    BudgetItem: String(item.budgetItem || '').slice(0, 250),
+    Description: item.description || '',
+    DocumentChecks: serializeJsonObject(item.checks || {}),
+    SourceSheetName: String(item.sourceSheetName || item.sourceType || 'Manual').slice(0, 250),
+    CanonicalDataJson: serializeJsonObject(item.canonicalData || {}),
+    ImportWarnings: item.importWarnings || '',
+    PossibleRemoved: !!item.possibleRemoved,
+  };
+  if (item.expenseType) fields.ExpenseTypeId = String(item.expenseType).slice(0, 250);
+  if (item.paymentDate) fields.PaymentDate = item.paymentDate;
+  if (item.documentDate) fields.DocumentDate = item.documentDate;
+  if (Number.isFinite(item.amount)) fields.Amount = item.amount;
+  if (Number.isFinite(item.incomeAmount)) fields.IncomeAmount = item.incomeAmount;
+  if (item.payeeName) fields.PayeeName = String(item.payeeName).slice(0, 250);
+  if (item.payeeDocumentMasked) fields.PayeeDocumentMasked = String(item.payeeDocumentMasked).slice(0, 250);
+  if (Number.isFinite(item.sourceRowNumber)) fields.SourceRowNumber = item.sourceRowNumber;
+  return fields;
+}
+
+async function submitManualItem() {
+  const categoryId = document.getElementById('manualCategory').value;
+  const budgetItem = document.getElementById('manualBudgetItem').value.trim();
+  const description = document.getElementById('manualDescription').value.trim();
+  const payee = document.getElementById('manualPayee').value.trim();
+  const paymentDate = document.getElementById('manualPaymentDate').value || null;
+  const documentDate = document.getElementById('manualDocumentDate').value || null;
+  const amount = parseAmountInput(document.getElementById('manualAmount').value);
+  if (!budgetItem && !description) return showFormError('manualItemError', 'Informe o item de orçamento ou a descrição.');
+  if (Number.isNaN(amount)) return showFormError('manualItemError', 'Informe um valor válido.');
+  const pc = pcAt(currentPC.ci, currentPC.pi, currentPC.pci);
+  const cycle = DATA.meta.ciclos[selectedCicloIdx];
+  const categoryInfo = categoriaInfoById(categoryId);
+  const docs = categoryInfo.docsFixed || categoryInfo.docsDefault || ['Comprovante'];
+  const checks = Object.fromEntries(docs.map(doc => [doc, 'PND']));
+  const sourceKey = `manual-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const title = (budgetItem || description.slice(0, 80)).slice(0, 250);
+  const normalized = {
+    title, sourceKey, sourceType: 'Manual', categoryId, categoryLabel: categoryInfo.label || categoryId,
+    expenseType: '', budgetItem: budgetItem || title, description, payeeName: payee,
+    payeeDocumentMasked: '', paymentDate, documentDate, amount, incomeAmount: null, checks,
+    sourceSheetName: 'Manual', sourceRowNumber: null, importWarnings: '', possibleRemoved: false,
+    canonicalData: { schemaVersion: 1, source: 'Manual', category: categoryId },
+  };
+  showFormError('manualItemError', '');
+  showLoadingGate('Adicionando item...');
+  try {
+    const itemId = await graphCreateItem(LIST_IDS.Itens, buildSharePointItemFields(normalized, pc._gid));
+    let analysisId = null;
+    let partial = false;
+    try {
+      analysisId = await graphCreateItem(LIST_IDS.AnalisesItemCiclo, {
+        Title: title, ItemId: Number(itemId), CicloId: Number(cycle._gid),
+        ReviewStatus: 'Aguardando análise', HasDoubt: false,
+        InternalComment: '', ExecutorComment: '', ExecutorResponse: '',
+      });
+    } catch (analysisError) {
+      console.warn(analysisError);
+      partial = true;
+    }
+    const localItem = importedItemToLocal(normalized, itemId, analysisId);
+    let category = DATA.categories.find(cat => cat.id === categoryId);
+    if (!category) {
+      category = { id: categoryId, label: normalized.categoryLabel, docsFixed: docs, items: [] };
+      DATA.categories.push(category);
+    }
+    category.items.push(localItem);
+    selectedItemId = itemId;
+    saveStore();
+    closeManualItemModal();
+    renderAnalysisFilters(); renderList(); renderDetail(); renderProgress(); renderTree();
+    showToast(partial ? 'Item criado. A análise do ciclo será sincronizada na próxima edição.' : 'Item adicionado.');
+  } catch (error) {
+    console.warn(error);
+    showFormError('manualItemError', `O SharePoint recusou o item: ${graphErrorText(error)}`);
+  } finally {
+    hideLoadingGate();
+  }
+}
+
+function foldText(value) {
+  return String(value == null ? '' : value).normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ').trim().toUpperCase();
+}
+
+function slugText(value) {
+  return foldText(value).toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '').slice(0, 80) || 'outros';
+}
+
+function maskSensitive(value) {
+  return String(value == null ? '' : value)
+    .replace(/\b\d{3}[.\s]?\d{3}[.\s]?\d{3}-?\d{2}\b/g, match => `***.***.***-${match.replace(/\D/g, '').slice(-2)}`)
+    .replace(/\b\d{2}[.\s]?\d{3}[.\s]?\d{3}[\/]?\d{4}-?\d{2}\b/g, match => `**.***.***/****-${match.replace(/\D/g, '').slice(-2)}`)
+    .replace(/\b\d{11}\b/g, match => `*********${match.slice(-2)}`)
+    .replace(/\b\d{14}\b/g, match => `************${match.slice(-2)}`);
+}
+
+function excelNumber(value) {
+  if (value === null || value === undefined || value === '') return null;
+  if (typeof value === 'number') return Number.isFinite(value) ? value : null;
+  const clean = String(value).replace(/R\$/gi, '').replace(/\s/g, '').replace(/\.(?=\d{3}(?:\D|$))/g, '').replace(',', '.');
+  const parsed = Number(clean);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function stableSourceKey(parts) {
+  const raw = parts.map(value => foldText(value)).join('|');
+  let hash = 2166136261;
+  for (let i = 0; i < raw.length; i++) { hash ^= raw.charCodeAt(i); hash = Math.imul(hash, 16777619); }
+  return `${raw.slice(0, 190)}|${(hash >>> 0).toString(36)}`.slice(0, 250);
+}
+
+function currentImportTarget() {
+  if (!currentPC || !DATA) return null;
+  const pc = pcAt(currentPC.ci, currentPC.pi, currentPC.pci);
+  const cycle = DATA.meta.ciclos[selectedCicloIdx];
+  if (!pc || pcStatusOf(pc) !== 'ATIVA' || !cycle) return null;
+  return { pc, cycle };
+}
+
+function openImportModal() {
+  const target = currentImportTarget();
+  if (!target) return showToast('Abra uma PC ativa com ciclo antes de importar.');
+  controlledImport = { sourceType: DATA.meta.sourceType === 'REF' ? 'REF' : 'Prompt', fileName: '', groups: [], selectedGroup: '', items: [], warnings: [], comparison: null };
+  const overlay = document.getElementById('importOverlay');
+  overlay.querySelector('.modal-box').classList.add('import-modal-box');
+  overlay.querySelector('.modal-header h2').textContent = 'Importar itens para a PC';
+  overlay.querySelector('.modal-body').innerHTML = `
+    <div id="controlledImportBody">
+      <div class="source-segment"><div class="segmented-control">
+        <label><input type="radio" name="importSource" value="Prompt" ${controlledImport.sourceType === 'Prompt' ? 'checked' : ''} onchange="setImportSource(this.value)"><span>Prompt</span></label>
+        <label><input type="radio" name="importSource" value="REF" ${controlledImport.sourceType === 'REF' ? 'checked' : ''} onchange="setImportSource(this.value)"><span>REF</span></label>
+      </div></div>
+      <p class="modal-hint" id="importSourceHint"></p>
+      <label class="import-drop"><input type="file" id="importFileInput" accept=".xlsx" onchange="handleImportFile(event)"><strong>Selecionar arquivo Excel</strong><span id="importDropHint"></span></label>
+    </div>`;
+  setImportSource(controlledImport.sourceType);
+  overlay.classList.remove('hidden');
+}
+
+function setImportSource(sourceType) {
+  if (!controlledImport) return;
+  controlledImport.sourceType = sourceType;
+  const hint = document.getElementById('importSourceHint');
+  const drop = document.getElementById('importDropHint');
+  if (hint) hint.textContent = sourceType === 'Prompt'
+    ? 'Use o relatório com a aba “Todas as Despesas”. Você poderá escolher qual PC do arquivo comparar com a PC aberta.'
+    : 'Use o REF oficial. As abas visíveis com coluna ITEM serão normalizadas por rubrica.';
+  if (drop) drop.textContent = sourceType === 'Prompt' ? 'Relatório Prompt (.xlsx)' : 'Arquivo REF (.xlsx)';
+}
+
+function handleImportFile(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    try {
+      const workbook = XLSX.read(ev.target.result, { type: 'array', cellDates: true });
+      processWorkbook(workbook, file.name);
+    } catch (error) {
+      console.warn(error);
+      showToast('Não consegui ler o arquivo Excel selecionado.');
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function processWorkbook(workbook, fileName) {
+  const parsed = controlledImport.sourceType === 'REF' ? parseRefImportDraft(workbook) : parsePromptImportDraft(workbook);
+  if (!parsed.groups.length) {
+    showToast(parsed.warnings[0] || 'Nenhum item utilizável foi encontrado no arquivo.');
+    return;
+  }
+  controlledImport.fileName = fileName;
+  controlledImport.groups = parsed.groups;
+  controlledImport.warnings = parsed.warnings;
+  controlledImport.selectedGroup = parsed.groups[0].key;
+  selectImportGroup(controlledImport.selectedGroup);
+}
+
+function sheetByFoldedName(workbook, expected) {
+  const found = workbook.SheetNames.find(name => foldText(name) === foldText(expected));
+  return found ? workbook.Sheets[found] : null;
+}
+
+function parsePromptImportDraft(workbook) {
+  const sheet = sheetByFoldedName(workbook, 'Todas as Despesas');
+  if (!sheet) return { groups: [], warnings: ['Não encontrei a aba “Todas as Despesas”.'] };
+  const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: null, raw: true });
+  const headerIndex = rows.findIndex(row => row.some(value => foldText(value) === 'NOME DA EXECUTORA') && row.some(value => foldText(value).includes('PRESTACAO DE CONTAS')));
+  if (headerIndex < 0) return { groups: [], warnings: ['Não encontrei o cabeçalho esperado do Prompt.'] };
+  const headers = rows[headerIndex].map(foldText);
+  const column = (...names) => headers.findIndex(header => names.some(name => header.includes(name)));
+  const ix = {
+    executor: column('NOME DA EXECUTORA'), category: column('ELEMENTO DE CUSTO'), budget: column('ITEM DE ORCAMENTO'),
+    pc: column('PRESTACAO DE CONTAS'), description: column('DETALHAMENTO DA DESPESA'), payment: column('DATA DE PAGAMENTO'),
+    document: column('DATA DO DOCUMENTO'), amount: column('VALOR TOTAL'), income: column('TOTAL DE RENDIMENTOS'),
+  };
+  if (ix.pc < 0 || ix.category < 0) return { groups: [], warnings: ['O Prompt não contém as colunas mínimas de PC e elemento de custo.'] };
+  const grouped = new Map();
+  rows.slice(headerIndex + 1).forEach((row, offset) => {
+    const pcNumber = String(row[ix.pc] == null ? '' : row[ix.pc]).trim();
+    if (!pcNumber) return;
+    const categoryRaw = row[ix.category];
+    const budgetRaw = row[ix.budget];
+    const descriptionRaw = maskSensitive(row[ix.description]);
+    const info = categoriaInfo(categoryRaw);
+    const paymentDate = toIsoDateCell(row[ix.payment]);
+    const documentDate = toIsoDateCell(row[ix.document]);
+    const amount = excelNumber(row[ix.amount]);
+    const incomeAmount = excelNumber(row[ix.income]);
+    const docs = info.docsFixed || info.docsDefault || ['Comprovante'];
+    const sourceKey = stableSourceKey([pcNumber, info.id, budgetRaw, descriptionRaw, paymentDate, documentDate, amount]);
+    const item = {
+      title: String(budgetRaw || descriptionRaw || 'Item sem descrição').slice(0, 250), sourceKey, sourceType: 'Prompt',
+      categoryId: info.id, categoryLabel: info.label, expenseType: '', budgetItem: String(budgetRaw || ''),
+      description: descriptionRaw, payeeName: '', payeeDocumentMasked: '', paymentDate, documentDate, amount, incomeAmount,
+      checks: Object.fromEntries(docs.map(doc => [doc, 'PND'])), sourceSheetName: 'Todas as Despesas',
+      sourceRowNumber: headerIndex + offset + 2, importWarnings: '', possibleRemoved: false,
+      canonicalData: { schemaVersion: 1, source: 'Prompt', pcNumber, category: String(categoryRaw || ''), executor: String(row[ix.executor] || ''), fields: { budgetItem: String(budgetRaw || ''), description: descriptionRaw, paymentDate, documentDate, amount, incomeAmount } },
+    };
+    if (!grouped.has(pcNumber)) grouped.set(pcNumber, []);
+    grouped.get(pcNumber).push(item);
+  });
+  return { groups: [...grouped].map(([key, items]) => ({ key, label: `PC${key}`, items })), warnings: [] };
+}
+
+function refSheetCategory(sheetName) {
+  return String(sheetName).replace(/^[A-Z]\s*-\s*/i, '').replace(/\.+$/g, '').trim();
+}
+
+function parseRefImportDraft(workbook) {
+  const items = [];
+  const warnings = [];
+  const sheetMeta = new Map((workbook.Workbook && workbook.Workbook.Sheets || []).map(info => [info.name, info]));
+  workbook.SheetNames.forEach(sheetName => {
+    if (!/^[D-Y]\s*-/i.test(sheetName) || (sheetMeta.get(sheetName) && sheetMeta.get(sheetName).Hidden)) return;
+    const rows = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { header: 1, defval: null, raw: true });
+    const headerIndex = rows.findIndex(row => foldText(row[0]) === 'ITEM');
+    if (headerIndex < 0) return;
+    const rawHeaders = rows[headerIndex];
+    let dataColumns = 1;
+    while (dataColumns < rawHeaders.length && rawHeaders[dataColumns] !== null && rawHeaders[dataColumns] !== '') dataColumns++;
+    const headers = rawHeaders.slice(0, dataColumns).map(value => String(value || '').replace(/\s+/g, ' ').trim());
+    const foldedHeaders = headers.map(foldText);
+    const findCol = (...terms) => foldedHeaders.findIndex(header => terms.some(term => header.includes(term)));
+    const amountCol = findCol('VALOR TOTAL', 'VALOR DA DESPESA', 'VALOR RECOLHIDO', 'CUSTO DA ATIVIDADE', 'VALOR (R$)');
+    const dateCol = findCol('DATA DE EMISSAO', 'DATA DO COMPROVANTE', 'DATA DE ENCERRAMENTO');
+    const payeeCol = findCol('QUEM RECEBEU', 'FORNECEDOR', 'BENEFICIARIO', 'RAZAO SOCIAL');
+    const documentCol = findCol('CPF', 'CNPJ');
+    const descriptionCols = foldedHeaders.map((header, index) => ({ header, index })).filter(entry => /DESCRICAO|DESPESA REALIZADA|ITEM IMPORTADO|ATIVIDADE|SERVICO|MATERIAL|JUSTIFICATIVA/.test(entry.header)).map(entry => entry.index).slice(0, 3);
+    rows.slice(headerIndex + 1).forEach((row, offset) => {
+      const sourceItem = String(row[0] == null ? '' : row[0]).trim();
+      if (!sourceItem || /TOTAL|ITEM/i.test(sourceItem)) return;
+      const meaningful = row.slice(1, dataColumns).filter(value => value !== null && value !== '' && value !== false && value !== 0 && value !== '0').length;
+      if (meaningful < 2) return;
+      const fields = {};
+      headers.forEach((header, index) => { if (header && row[index] !== null && row[index] !== '') fields[header] = maskSensitive(row[index]); });
+      const description = descriptionCols.map(index => maskSensitive(row[index])).filter(Boolean).join(' | ');
+      const categoryLabel = refSheetCategory(sheetName);
+      const categoryId = `ref_${slugText(categoryLabel)}`;
+      const amount = amountCol >= 0 ? excelNumber(row[amountCol]) : null;
+      const documentDate = dateCol >= 0 ? toIsoDateCell(row[dateCol]) : null;
+      const payeeName = payeeCol >= 0 ? maskSensitive(row[payeeCol]) : '';
+      const payeeDocumentMasked = documentCol >= 0 ? maskSensitive(row[documentCol]) : '';
+      const warningsForItem = [];
+      if (!description) warningsForItem.push('Descrição não identificada automaticamente.');
+      if (amount === null) warningsForItem.push('Valor não identificado automaticamente.');
+      items.push({
+        title: `${sourceItem} - ${description || categoryLabel}`.slice(0, 250), sourceKey: String(sourceItem).slice(0, 250), sourceType: 'REF',
+        categoryId, categoryLabel, expenseType: '', budgetItem: sourceItem, description: description || categoryLabel,
+        payeeName, payeeDocumentMasked, paymentDate: null, documentDate, amount, incomeAmount: null,
+        checks: { Comprovante: 'PND' }, sourceSheetName: sheetName, sourceRowNumber: headerIndex + offset + 2,
+        importWarnings: warningsForItem.join(' '), possibleRemoved: false,
+        canonicalData: { schemaVersion: 1, source: 'REF', sheet: sheetName, item: sourceItem, category: categoryLabel, fields },
+      });
+    });
+  });
+  if (!items.length) warnings.push('Nenhuma linha preenchida foi encontrada nas abas de rubricas do REF.');
+  return { groups: items.length ? [{ key: 'REF', label: 'Itens preenchidos do REF', items }] : [], warnings };
+}
+
+function importedItemFingerprint(item) {
+  return JSON.stringify({
+    categoryId: item.categoryId || item._categoryId || '', budgetItem: item.budgetItem || item.tipoLabel || '',
+    description: item.description || item.subtitle || '', paymentDate: item.paymentDate || (item.importado && item.importado.dataPagamento) || '',
+    documentDate: item.documentDate || (item.importado && item.importado.dataDocumento) || '', amount: item.amount == null ? item.valor : item.amount,
+    incomeAmount: item.incomeAmount == null ? (item.importado && item.importado.rendimentos) : item.incomeAmount,
+    payeeName: item.payeeName || '', canonicalData: item.canonicalData || {},
+  });
+}
+
+function compareImportItems(items, sourceType) {
+  const existing = DATA.categories.flatMap(category => category.items.map(item => ({ category, item })));
+  const byKey = new Map(existing.filter(entry => entry.item.sourceItemKey).map(entry => [String(entry.item.sourceItemKey), entry]));
+  const incomingKeys = new Set(items.map(item => String(item.sourceKey)));
+  const rows = items.map(item => {
+    const match = byKey.get(String(item.sourceKey));
+    if (!match) return { state: 'new', imported: item, existing: null };
+    return { state: importedItemFingerprint(item) === importedItemFingerprint(match.item) ? 'unchanged' : 'changed', imported: item, existing: match };
+  });
+  const removed = existing.filter(entry => {
+    const source = foldText(entry.item.canonicalData && entry.item.canonicalData.source);
+    return source === foldText(sourceType) && entry.item.sourceItemKey && !incomingKeys.has(String(entry.item.sourceItemKey));
+  }).map(entry => ({ state: 'removed', imported: null, existing: entry }));
+  return { rows, removed, counts: {
+    new: rows.filter(row => row.state === 'new').length, changed: rows.filter(row => row.state === 'changed').length,
+    unchanged: rows.filter(row => row.state === 'unchanged').length, removed: removed.length,
+    warnings: items.filter(item => item.importWarnings).length,
+  } };
+}
+
+function selectImportGroup(key) {
+  const group = controlledImport.groups.find(candidate => candidate.key === key) || controlledImport.groups[0];
+  controlledImport.selectedGroup = group.key;
+  controlledImport.items = group.items;
+  controlledImport.comparison = compareImportItems(group.items, controlledImport.sourceType);
+  renderImportStep2();
+}
+
+function renderImportStep2() {
+  const target = currentImportTarget();
+  const comparison = controlledImport.comparison;
+  const c = comparison.counts;
+  const groupSelect = controlledImport.groups.length > 1 ? `<div class="modal-field"><label>PC encontrada no arquivo</label><select onchange="selectImportGroup(this.value)">${controlledImport.groups.map(group => `<option value="${escapeHtml(group.key)}" ${group.key === controlledImport.selectedGroup ? 'selected' : ''}>${escapeHtml(group.label)} - ${group.items.length} itens</option>`).join('')}</select></div>` : '';
+  const previewRows = [...comparison.rows, ...comparison.removed].slice(0, 160);
+  const stateLabels = { new: 'Novo', changed: 'Alterado', unchanged: 'Sem alteração', removed: 'Possível removido' };
+  document.getElementById('controlledImportBody').innerHTML = `
+    <p class="modal-hint"><b>Destino:</b> ${escapeHtml(DATA.meta.cliente)} / ${escapeHtml(DATA.meta.projeto)} / ${escapeHtml(DATA.meta.pc)} / ${escapeHtml(cicloLabel(target.cycle.numero))}</p>
+    ${groupSelect}
+    <div class="draft-summary">
+      <div class="draft-stat new"><b>${c.new}</b><span>novos</span></div><div class="draft-stat changed"><b>${c.changed}</b><span>alterados</span></div>
+      <div class="draft-stat"><b>${c.unchanged}</b><span>sem alteração</span></div><div class="draft-stat"><b>${c.removed}</b><span>possíveis removidos</span></div>
+      <div class="draft-stat warning"><b>${c.warnings}</b><span>com aviso</span></div>
+    </div>
+    <div class="draft-table-wrap"><table class="draft-table"><thead><tr><th>Item</th><th>Rubrica</th><th>Origem</th><th>Situação</th><th>Aviso</th></tr></thead><tbody>
+      ${previewRows.map(row => { const item = row.imported || row.existing.item; return `<tr><td>${escapeHtml(item.title || item.sourceItemKey || 'Item')}</td><td>${escapeHtml(item.categoryLabel || (row.existing && row.existing.category.label) || item._categoryId || '')}</td><td>${escapeHtml(item.sourceSheetName || controlledImport.sourceType)}</td><td><span class="draft-state ${row.state}">${stateLabels[row.state]}</span></td><td>${escapeHtml(item.importWarnings || '')}</td></tr>`; }).join('')}
+    </tbody></table></div>
+    ${previewRows.length < comparison.rows.length + comparison.removed.length ? `<p class="modal-hint">Prévia limitada a ${previewRows.length} linhas; todas serão processadas.</p>` : ''}
+    <div class="modal-actions"><button class="btn btn-ghost" onclick="closeImportModal()">Cancelar</button><button class="btn btn-primary" onclick="confirmImport()">Confirmar importação</button></div>`;
+}
+
+function importedItemToLocal(imported, itemId, analysisId) {
+  const ciclosStatus = DATA.meta.ciclos.map((cycle, index) => ({
+    numero: cycle.numero, status: index === selectedCicloIdx ? 'AGUARDANDO_ANALISE' : 'FECHADO',
+    comentarioAnalista: '', comentarioExecutor: '', executorResponse: '', duvida: false,
+    _gid: index === selectedCicloIdx ? analysisId : null, _legacy: false,
+  }));
+  return {
+    id: String(itemId), title: imported.title, subtitle: imported.description, tipoLabel: imported.budgetItem || null,
+    valor: imported.amount, checks: { ...imported.checks }, ciclosStatus, possivelRemovido: !!imported.possibleRemoved,
+    canonicalData: imported.canonicalData, sourceItemKey: imported.sourceKey, sourceSheetName: imported.sourceSheetName,
+    sourceRowNumber: imported.sourceRowNumber, importWarnings: imported.importWarnings || '', payeeName: imported.payeeName || '',
+    payeeDocumentMasked: imported.payeeDocumentMasked || '', paymentDate: imported.paymentDate, documentDate: imported.documentDate,
+    amount: imported.amount, incomeAmount: imported.incomeAmount,
+    importado: { dataPagamento: imported.paymentDate ? fmtIsoDate(imported.paymentDate) : '', dataDocumento: imported.documentDate ? fmtIsoDate(imported.documentDate) : '', rendimentos: imported.incomeAmount },
+  };
+}
+
+function applyImportedToLocal(local, imported) {
+  local.title = imported.title; local.subtitle = imported.description; local.tipoLabel = imported.budgetItem || null;
+  local.valor = imported.amount; local.amount = imported.amount; local.incomeAmount = imported.incomeAmount;
+  local.canonicalData = imported.canonicalData; local.sourceSheetName = imported.sourceSheetName; local.sourceRowNumber = imported.sourceRowNumber;
+  local.importWarnings = imported.importWarnings || ''; local.payeeName = imported.payeeName || ''; local.payeeDocumentMasked = imported.payeeDocumentMasked || '';
+  local.paymentDate = imported.paymentDate; local.documentDate = imported.documentDate; local.possivelRemovido = false;
+  local.importado = { dataPagamento: imported.paymentDate ? fmtIsoDate(imported.paymentDate) : '', dataDocumento: imported.documentDate ? fmtIsoDate(imported.documentDate) : '', rendimentos: imported.incomeAmount };
+}
+
+async function ensureImportedAnalysis(localItem, imported) {
+  let entry = localItem.ciclosStatus[selectedCicloIdx];
+  if (!entry) {
+    entry = { numero: DATA.meta.ciclos[selectedCicloIdx].numero, status: 'AGUARDANDO_ANALISE', comentarioAnalista: '', comentarioExecutor: '', executorResponse: '', duvida: false, _gid: null, _legacy: false };
+    localItem.ciclosStatus[selectedCicloIdx] = entry;
+  }
+  if (!isRealGid(entry._gid)) {
+    entry._gid = await graphCreateItem(LIST_IDS.AnalisesItemCiclo, {
+      Title: imported.title, ItemId: Number(localItem.id), CicloId: Number(DATA.meta.ciclos[selectedCicloIdx]._gid),
+      ReviewStatus: itemStatusToChoice(entry.status), HasDoubt: !!entry.duvida,
+      InternalComment: entry.comentarioAnalista || '', ExecutorComment: entry.comentarioExecutor || '', ExecutorResponse: entry.executorResponse || '',
+    });
+  }
+  return entry._gid;
+}
+
+async function confirmImport() {
+  const target = currentImportTarget();
+  if (!target || !controlledImport || !controlledImport.comparison) return;
+  const button = document.querySelector('#controlledImportBody .btn-primary');
+  if (button) button.disabled = true;
+  showLoadingGate('Gravando importação no SharePoint...');
+  const result = { created: 0, updated: 0, unchanged: 0, removed: 0, failed: [] };
+  try {
+    for (const row of controlledImport.comparison.rows) {
+      try {
+        if (row.state === 'new') {
+          const itemId = await graphCreateItem(LIST_IDS.Itens, buildSharePointItemFields(row.imported, target.pc._gid));
+          const analysisId = await graphCreateItem(LIST_IDS.AnalisesItemCiclo, {
+            Title: row.imported.title, ItemId: Number(itemId), CicloId: Number(target.cycle._gid),
+            ReviewStatus: 'Aguardando análise', HasDoubt: false, InternalComment: '', ExecutorComment: '', ExecutorResponse: '',
+          });
+          const local = importedItemToLocal(row.imported, itemId, analysisId);
+          let category = DATA.categories.find(cat => cat.id === row.imported.categoryId);
+          if (!category) { category = { id: row.imported.categoryId, label: row.imported.categoryLabel, docsFixed: Object.keys(row.imported.checks), items: [] }; DATA.categories.push(category); }
+          category.items.push(local); result.created++;
+        } else if (row.state === 'changed') {
+          await graphUpdateItem(LIST_IDS.Itens, row.existing.item.id, buildSharePointItemFields(row.imported, target.pc._gid));
+          applyImportedToLocal(row.existing.item, row.imported);
+          await ensureImportedAnalysis(row.existing.item, row.imported);
+          result.updated++;
+        } else {
+          if (row.existing.item.possivelRemovido) {
+            await graphUpdateItem(LIST_IDS.Itens, row.existing.item.id, { PossibleRemoved: false });
+            row.existing.item.possivelRemovido = false;
+          }
+          await ensureImportedAnalysis(row.existing.item, row.imported);
+          result.unchanged++;
+        }
+      } catch (error) { result.failed.push(`${row.imported.title}: ${graphErrorText(error)}`); }
+    }
+    for (const row of controlledImport.comparison.removed) {
+      try {
+        await graphUpdateItem(LIST_IDS.Itens, row.existing.item.id, { PossibleRemoved: true });
+        row.existing.item.possivelRemovido = true; result.removed++;
+      } catch (error) { result.failed.push(`${row.existing.item.title}: ${graphErrorText(error)}`); }
+    }
+    const importedAt = new Date().toISOString();
+    try {
+      const notes = `${result.created} novo(s), ${result.updated} alterado(s), ${result.unchanged} sem alteração, ${result.removed} possível(is) removido(s), ${result.failed.length} falha(s).`;
+      const sourceId = await graphCreateItem(LIST_IDS.FontesPC, {
+        Title: `${DATA.meta.pc} - ${controlledImport.fileName}`.slice(0, 250), PCId: String(target.pc._gid), CicloId: String(target.cycle._gid),
+        FileType: controlledImport.sourceType, FileName: controlledImport.fileName, ImportedAt: importedAt, Notes: notes,
+      });
+      DATA.meta.fontes.push({ _gid: sourceId, cicloId: String(target.cycle._gid), fileType: controlledImport.sourceType, fileName: controlledImport.fileName, importedAt, notes, title: `${DATA.meta.pc} - ${controlledImport.fileName}` });
+    } catch (error) { result.failed.push(`Registro da fonte: ${graphErrorText(error)}`); }
+    saveStore(); renderTree(); renderPCDetail();
+    document.getElementById('controlledImportBody').innerHTML = `<div class="import-result"><h3>${result.failed.length ? 'Importação concluída com avisos' : 'Importação concluída'}</h3><p>${result.created} item(ns) criado(s)</p><p>${result.updated} item(ns) atualizado(s)</p><p>${result.unchanged} item(ns) sem alteração</p><p>${result.removed} item(ns) marcado(s) como possível remoção</p>${result.failed.length ? `<p><b>${result.failed.length} falha(s):</b></p><div class="form-error">${result.failed.slice(0, 8).map(escapeHtml).join('<br>')}</div>` : ''}</div><div class="modal-actions"><button class="btn btn-primary" onclick="closeImportModal()">Fechar</button></div>`;
+  } finally { hideLoadingGate(); }
+}
+
+function outputRowsForCurrentCycle() {
+  if (!DATA || !DATA.meta.ciclos[selectedCicloIdx]) return [];
+  return DATA.categories.flatMap(category => category.items.map(item => {
+    const entry = item.ciclosStatus[selectedCicloIdx] || {};
+    const pendingDocs = Object.entries(item.checks || {}).filter(([, status]) => status !== 'OK').map(([name]) => name);
+    const executorComment = String(entry.comentarioExecutor || '').trim();
+    if (!executorComment && !pendingDocs.length) return null;
+    return { category: category.label, item: item.title, description: item.subtitle || '', executorComment, pendingDocs, executorResponse: entry.executorResponse || '', status: STATUS_LABELS[entry.status] || entry.status || '' };
+  }).filter(Boolean));
+}
+
+function buildPromptOutput(rows) {
+  const cycle = DATA.meta.ciclos[selectedCicloIdx];
+  const lines = [`PRESTAÇÃO DE CONTAS ${DATA.meta.pc}`, `${DATA.meta.cliente} | Projeto ${DATA.meta.projeto} | ${cicloLabel(cycle.numero)}`, ''];
+  if (cycle.generalExecutorComment) lines.push('PENDÊNCIA GERAL', cycle.generalExecutorComment.trim(), '');
+  let lastCategory = '';
+  rows.forEach(row => {
+    if (row.category !== lastCategory) { lines.push(row.category.toUpperCase()); lastCategory = row.category; }
+    lines.push(`- ${row.item}`);
+    if (row.description && row.description !== row.item) lines.push(`  Descrição: ${row.description}`);
+    if (row.pendingDocs.length) lines.push(`  Documentos pendentes: ${row.pendingDocs.join(', ')}`);
+    if (row.executorComment) lines.push(`  Pendência: ${row.executorComment}`);
+    if (row.executorResponse) lines.push(`  Resposta registrada: ${row.executorResponse}`);
+    lines.push('');
+  });
+  if (!rows.length && !cycle.generalExecutorComment) lines.push('Nenhuma pendência ao executor registrada neste ciclo.');
+  return lines.join('\n').trim();
+}
+
+function openOutputPreview() {
+  if (!DATA || !DATA.meta.ciclos[selectedCicloIdx]) return showToast('Selecione um ciclo para gerar a saída.');
+  document.querySelector('input[name="outputMode"][value="prompt"]').checked = true;
+  renderOutputPreview();
+  document.getElementById('outputOverlay').classList.remove('hidden');
+}
+
+function closeOutputPreview() { document.getElementById('outputOverlay').classList.add('hidden'); }
+
+function renderOutputPreview() {
+  const rows = outputRowsForCurrentCycle();
+  const cycle = DATA.meta.ciclos[selectedCicloIdx];
+  const mode = document.querySelector('input[name="outputMode"]:checked').value;
+  const content = document.getElementById('outputPreviewContent');
+  const actions = document.getElementById('outputActions');
+  if (mode === 'prompt') {
+    content.innerHTML = `<div class="output-summary"><span class="badge badge-outline">${rows.length} item(ns) com pendência</span><span class="badge badge-outline">${escapeHtml(cicloLabel(cycle.numero))}</span></div><textarea class="output-preview" id="promptOutputText" readonly>${escapeHtml(buildPromptOutput(rows))}</textarea>`;
+    actions.innerHTML = '<button class="btn btn-ghost" onclick="closeOutputPreview()">Fechar</button><button class="btn btn-ghost" onclick="downloadPromptOutput()">Baixar .txt</button><button class="btn btn-primary" onclick="copyPromptOutput()">Copiar texto</button>';
+  } else {
+    content.innerHTML = `${cycle.generalExecutorComment ? `<div class="output-general-note"><b>Pendência geral:</b> ${escapeHtml(cycle.generalExecutorComment)}</div>` : ''}<div class="output-summary"><span class="badge badge-outline">${rows.length} linha(s) no Punchlist</span><span class="badge badge-outline">Comentários internos excluídos</span></div><div class="output-table-wrap"><table class="draft-table"><thead><tr><th>Rubrica</th><th>Item</th><th>Documentos pendentes</th><th>Pendência ao executor</th><th>Resposta</th></tr></thead><tbody>${rows.map(row => `<tr><td>${escapeHtml(row.category)}</td><td>${escapeHtml(row.item)}</td><td>${escapeHtml(row.pendingDocs.join(', '))}</td><td>${escapeHtml(row.executorComment)}</td><td>${escapeHtml(row.executorResponse)}</td></tr>`).join('') || '<tr><td colspan="5">Nenhuma pendência registrada.</td></tr>'}</tbody></table></div>`;
+    actions.innerHTML = '<button class="btn btn-ghost" onclick="closeOutputPreview()">Fechar</button><button class="btn btn-primary" onclick="downloadRefPunchlist()">Baixar Punchlist .xlsx</button>';
+  }
+}
+
+async function copyPromptOutput() {
+  const text = document.getElementById('promptOutputText').value;
+  try { await navigator.clipboard.writeText(text); showToast('Texto copiado.'); }
+  catch (_) { document.getElementById('promptOutputText').select(); document.execCommand('copy'); showToast('Texto copiado.'); }
+}
+
+function downloadTextFile(name, content, type) {
+  const blob = new Blob([content], { type: type || 'text/plain;charset=utf-8' });
+  const url = URL.createObjectURL(blob); const anchor = document.createElement('a');
+  anchor.href = url; anchor.download = name; anchor.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+function safeFilePart(value) { return String(value || 'PC').replace(/[^a-z0-9_-]+/gi, '_'); }
+function downloadPromptOutput() { downloadTextFile(`${safeFilePart(DATA.meta.pc)}_${safeFilePart(cicloLabel(DATA.meta.ciclos[selectedCicloIdx].numero))}_Prompt.txt`, buildPromptOutput(outputRowsForCurrentCycle())); }
+
+function downloadRefPunchlist() {
+  const rows = outputRowsForCurrentCycle();
+  const cycle = DATA.meta.ciclos[selectedCicloIdx];
+  const data = [['Cliente', 'Projeto', 'PC', 'Ciclo', 'Rubrica', 'Item', 'Descrição', 'Documentos pendentes', 'Pendência ao executor', 'Resposta do executor', 'Status']];
+  rows.forEach(row => data.push([DATA.meta.cliente, DATA.meta.projeto, DATA.meta.pc, cicloLabel(cycle.numero), row.category, row.item, row.description, row.pendingDocs.join(', '), row.executorComment, row.executorResponse, row.status]));
+  if (cycle.generalExecutorComment) data.splice(1, 0, [DATA.meta.cliente, DATA.meta.projeto, DATA.meta.pc, cicloLabel(cycle.numero), 'GERAL', 'Pendência geral', '', '', cycle.generalExecutorComment, '', '']);
+  const workbook = XLSX.utils.book_new();
+  const sheet = XLSX.utils.aoa_to_sheet(data);
+  sheet['!cols'] = [{ wch: 18 }, { wch: 15 }, { wch: 10 }, { wch: 14 }, { wch: 24 }, { wch: 34 }, { wch: 48 }, { wch: 30 }, { wch: 48 }, { wch: 36 }, { wch: 18 }];
+  XLSX.utils.book_append_sheet(workbook, sheet, 'Punchlist');
+  XLSX.writeFile(workbook, `${safeFilePart(DATA.meta.pc)}_${safeFilePart(cicloLabel(cycle.numero))}_Punchlist_REF.xlsx`);
+}
+
+const va11BaseRenderPCDetail = renderPCDetail;
+renderPCDetail = function() {
+  va11BaseRenderPCDetail();
+  const actions = document.getElementById('detailTopActions');
+  const pc = currentPC ? pcAt(currentPC.ci, currentPC.pi, currentPC.pci) : null;
+  if (actions && pc && DATA && DATA.meta.ciclos.length) {
+    const button = document.createElement('button');
+    button.className = 'btn btn-primary'; button.type = 'button'; button.onclick = openOutputPreview;
+    button.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16v16H4zM8 9h8M8 13h8M8 17h5"/></svg>Gerar saídas';
+    actions.appendChild(button);
+  }
+};
+
+
 async function initApp() {
   try {
     initMsal();
@@ -3641,3 +4273,8 @@ initApp();
 </script>
 </body>
 </html>
+
+
+
+
+
