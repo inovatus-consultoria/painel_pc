@@ -2,7 +2,7 @@
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
-<title>Painel PC — VA.11 (SharePoint Lists)</title>
+<title>Painel PC — VA.12 (SharePoint Lists)</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
@@ -647,6 +647,96 @@
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://alcdn.msauth.net/browser/2.38.1/js/msal-browser.min.js"></script>
+<style id="va12-styles">
+  html, body { height: 100%; overflow: hidden; }
+  #app.show { height: 100%; }
+  .shell { height: 100vh; min-height: 0; overflow: hidden; }
+  .sidebar { height: 100vh; }
+  .main { height: 100vh; min-height: 0; overflow: hidden; }
+  #trabalhoView:not(.hidden), #pcDetailView:not(.hidden) { height: 100%; overflow-y: auto; padding-right: 4px; }
+  #gestaoView:not(.hidden), #workspaceView:not(.hidden) { height: 100%; min-height: 0; display: flex; flex-direction: column; }
+  #gestaoContent { flex: 1; min-height: 0; overflow-y: auto; padding-right: 4px; }
+  #workspaceView .topbar { flex: 0 0 auto; }
+  #workspaceView .pc-status-bar, #workspaceView .cycle-comments-panel,
+  #workspaceView .search-bar, #workspaceView .analysis-filter-bar { flex: 0 0 auto; }
+  #workspaceView .workspace { flex: 1; min-height: 0; align-items: stretch; }
+  #workspaceView .list-col { height: 100%; max-height: none; overflow-y: auto; }
+  #workspaceView .detail-col { height: 100%; min-height: 0; overflow-y: auto; padding-right: 4px; }
+  .pc-table-wrap thead th, .draft-table thead th { position: sticky; top: 0; z-index: 2; }
+
+  .pc-context-grid { gap: 8px 14px; }
+  .pc-detail-header { padding-top: 12px; padding-bottom: 12px; }
+  .detail-section { padding-bottom: 12px; margin-bottom: 12px; }
+  .detail-section-head { margin-bottom: 8px; }
+  .summary-grid { grid-template-columns: repeat(5, minmax(130px, 1fr)); gap: 6px 12px; }
+  .summary-row { min-width: 0; }
+  .summary-row-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .timeline-cycle { min-width: 132px; padding: 9px 12px; }
+
+  .va12-destination {
+    display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px;
+    padding: 12px; margin-bottom: 14px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface2);
+  }
+  .va12-destination label, .va12-inline-label {
+    display: block; margin-bottom: 5px; color: var(--ink2); font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em;
+  }
+  .va12-destination select { width: 100%; }
+  .va12-target-summary { grid-column: 1 / -1; color: var(--ink2); font-size: 12px; }
+
+  .reconcile-summary { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 8px; margin: 12px 0; }
+  .reconcile-stat { padding: 9px 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface); }
+  .reconcile-stat b { display: block; font-size: 18px; color: var(--ink); }
+  .reconcile-stat span { color: var(--ink3); font-size: 10.5px; }
+  .reconcile-stat.review { background: var(--amber-light); border-color: #e3ca86; }
+  .reconcile-stat.failed { background: var(--red-light); border-color: #e7b0ad; }
+  .reconcile-old { display: block; margin-top: 4px; color: var(--ink3); font-size: 11px; }
+  .reconcile-confidence { white-space: nowrap; color: var(--ink3); font-size: 11px; }
+  .reconcile-action { min-width: 150px; }
+  .warning-editor { display: grid; grid-template-columns: minmax(100px, 1fr) minmax(130px, 1fr); gap: 6px; margin-top: 6px; }
+  .warning-editor input, .warning-editor select { min-width: 0; height: 32px; padding: 5px 8px; }
+  .import-blocked-note { margin: 10px 0 0; padding: 9px 11px; border: 1px solid #e3ca86; border-radius: 6px; background: var(--amber-light); color: #7a5810; font-size: 12px; }
+
+  .output-item-list { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
+  .output-item-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 11px 12px; border: 1px solid var(--border); border-radius: 7px; background: var(--surface); }
+  .output-item-title { font-size: 12px; font-weight: 700; color: var(--ink); }
+  .output-item-comment { margin-top: 4px; color: var(--ink2); line-height: 1.45; white-space: pre-wrap; }
+  .output-general-note { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px; align-items: center; }
+
+  .va12-new-fields { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; padding: 11px; border: 1px dashed var(--border); border-radius: 7px; background: var(--surface2); }
+  .va12-new-fields.hidden { display: none; }
+
+  .settings-overlay .modal-box { width: min(880px, 94vw); }
+  .settings-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; }
+  .settings-section { min-width: 0; }
+  .settings-section + .settings-section { border-left: 1px solid var(--border); padding-left: 22px; }
+  .settings-section h3 { margin: 0 0 12px; font-size: 15px; }
+  .settings-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .settings-fields .full { grid-column: 1 / -1; }
+  .settings-active { display: flex; align-items: center; gap: 8px; min-height: 40px; }
+  .settings-active input { width: auto; }
+  .sync-banner { display: none; margin-bottom: 12px; padding: 9px 12px; border: 1px solid #e3ca86; border-radius: 7px; background: var(--amber-light); color: #7a5810; font-size: 12px; }
+  .sync-banner.visible { display: block; }
+
+  .btn:disabled, .btn[disabled] { cursor: not-allowed; opacity: 0.42; filter: grayscale(0.45); }
+
+  @media (max-width: 1180px) {
+    .summary-grid { grid-template-columns: repeat(3, minmax(150px, 1fr)); }
+    .va12-destination { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .reconcile-summary { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  }
+  @media (max-width: 760px) {
+    html, body { height: auto; overflow: auto; }
+    #app.show, .shell, .sidebar, .main { height: auto; min-height: 100vh; overflow: visible; }
+    #gestaoView:not(.hidden), #workspaceView:not(.hidden) { height: auto; display: block; }
+    #gestaoContent, #workspaceView .list-col, #workspaceView .detail-col { height: auto; max-height: none; overflow: visible; }
+    #workspaceView .workspace { display: block; }
+    .va12-destination, .settings-grid, .settings-fields, .va12-new-fields { grid-template-columns: 1fr; }
+    .settings-section + .settings-section { border-left: none; border-top: 1px solid var(--border); padding: 18px 0 0; }
+    .summary-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .reconcile-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  }
+</style>
+
 </head>
 <body>
 
@@ -659,7 +749,7 @@
       Entrar com Microsoft
     </button>
   </div>
-  <div class="login-version">Painel PC · VA.11 · SharePoint Lists</div>
+  <div class="login-version">Painel PC · VA.12 · SharePoint Lists</div>
 </div>
 
 <div id="loading-overlay">
@@ -699,7 +789,7 @@
     <div class="tree" id="treeCol"></div>
     <div class="sidebar-foot">
       <div id="authStatus" style="margin-bottom:8px;"></div>
-      VA.11 · SharePoint Lists · Microsoft Graph
+      VA.12 · SharePoint Lists · Microsoft Graph
     </div>
   </aside>
 
@@ -4238,6 +4328,964 @@ renderPCDetail = function() {
   }
 };
 
+
+
+/* =====================================================================================
+   VA.12 - configuracoes, cadastros e normalizacao do modelo carregado
+   ===================================================================================== */
+const va12BaseLoadStore = loadStore;
+const va12BaseOpenPCForm = openPCForm;
+const va12BaseUpdatePCProjectOptions = updatePCProjectOptions;
+const va12BaseSubmitPCForm = submitPCForm;
+
+function va12NormalizeNumber(value) {
+  if (value === null || value === undefined || value === '') return null;
+  const parsed = typeof value === 'number' ? value : Number(String(value).replace(/\s/g, '').replace(/\.(?=\d{3}(?:\D|$))/g, '').replace(',', '.'));
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function va12NormalizeLoadedStore() {
+  if (!STORE || !Array.isArray(STORE.clients)) return;
+  STORE.clients.forEach(client => {
+    (client.projects || []).forEach(project => {
+      (project.pcs || []).forEach(pc => {
+        (pc.data && pc.data.categories || []).forEach(category => {
+          (category.items || []).forEach(item => {
+            item.categoryId = category.id;
+            item.categoryLabel = category.label;
+            const canonicalFields = item.canonicalData && item.canonicalData.fields || {};
+            item.amount = va12NormalizeNumber(item.amount != null ? item.amount : item.valor);
+            item.incomeAmount = va12NormalizeNumber(item.incomeAmount != null ? item.incomeAmount : item.importado && item.importado.rendimentos);
+            item.paymentDate = item.paymentDate || item.canonicalData && (item.canonicalData.paymentDate || item.canonicalData.fields && item.canonicalData.fields.paymentDate) || null;
+            item.documentDate = item.documentDate || item.canonicalData && (item.canonicalData.documentDate || item.canonicalData.fields && item.canonicalData.fields.documentDate) || null;
+            item.payeeName = item.payeeName || '';
+            item.sourceItemKey = item.sourceItemKey || '';
+            item.canonicalData = item.canonicalData || {};
+            if (!item.description && canonicalFields.description) item.description = canonicalFields.description;
+          });
+        });
+      });
+    });
+  });
+}
+
+loadStore = async function() {
+  await va12BaseLoadStore();
+  va12NormalizeLoadedStore();
+  va12EnsureRuntimeDom();
+  va12RenderSyncBanner();
+};
+
+function va12AnalystNames() {
+  const names = new Set();
+  if (!STORE) return [];
+  STORE.clients.forEach(client => (client.projects || []).forEach(project => (project.pcs || []).forEach(pc => {
+    (pc.data && pc.data.meta.ciclos || []).forEach(cycle => {
+      const name = String(cycle.analista || '').trim();
+      if (name) names.add(name);
+    });
+  })));
+  return [...names].sort((a, b) => a.localeCompare(b, 'pt-BR'));
+}
+
+function va12RefreshAnalystDatalist() {
+  const list = document.getElementById('va12AnalystSuggestions');
+  if (list) list.innerHTML = va12AnalystNames().map(name => `<option value="${escapeHtml(name)}"></option>`).join('');
+  document.querySelectorAll('.analista-input').forEach(input => input.setAttribute('list', 'va12AnalystSuggestions'));
+}
+
+function va12EnsureRuntimeDom() {
+  if (!document.getElementById('va12SyncBanner')) {
+    const banner = document.createElement('div');
+    banner.id = 'va12SyncBanner';
+    banner.className = 'sync-banner';
+    document.querySelector('.main').prepend(banner);
+  }
+  if (!document.getElementById('va12AnalystSuggestions')) {
+    const datalist = document.createElement('datalist');
+    datalist.id = 'va12AnalystSuggestions';
+    document.body.appendChild(datalist);
+  }
+  if (!document.getElementById('navSettings')) {
+    const nav = document.querySelector('.view-nav');
+    const button = document.createElement('div');
+    button.id = 'navSettings';
+    button.className = 'view-nav-item';
+    button.title = 'Configuracoes';
+    button.onclick = openSettingsModal;
+    button.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 00.3 1.9l.1.1-2.8 2.8-.1-.1a1.7 1.7 0 00-1.9-.3 1.7 1.7 0 00-1 1.6v.2h-4V21a1.7 1.7 0 00-1-1.6 1.7 1.7 0 00-1.9.3l-.1.1L4.2 17l.1-.1a1.7 1.7 0 00.3-1.9A1.7 1.7 0 003 14H2.8v-4H3a1.7 1.7 0 001.6-1 1.7 1.7 0 00-.3-1.9L4.2 7 7 4.2l.1.1A1.7 1.7 0 009 4.6 1.7 1.7 0 0010 3V2.8h4V3a1.7 1.7 0 001 1.6 1.7 1.7 0 001.9-.3l.1-.1L19.8 7l-.1.1a1.7 1.7 0 00-.3 1.9 1.7 1.7 0 001.6 1h.2v4H21a1.7 1.7 0 00-1.6 1z"/></svg><span class="nav-label">Configuracoes</span>';
+    nav.appendChild(button);
+  }
+  if (!document.getElementById('settingsOverlay')) {
+    const overlay = document.createElement('div');
+    overlay.id = 'settingsOverlay';
+    overlay.className = 'modal-overlay settings-overlay hidden';
+    overlay.innerHTML = `<div class="modal-box"><div class="modal-header"><h2>Configuracoes</h2><button class="modal-close" onclick="closeSettingsModal()">&times;</button></div><div class="modal-body" id="settingsBody"></div></div>`;
+    document.body.appendChild(overlay);
+  }
+  const formGrid = document.querySelector('#pcFormOverlay .form-grid');
+  if (formGrid && !document.getElementById('va12NewClientFields')) {
+    formGrid.insertAdjacentHTML('beforeend', `
+      <div class="va12-new-fields hidden" id="va12NewClientFields">
+        <div class="modal-field"><label>Novo cliente</label><input id="va12NewClientName" placeholder="Nome do cliente"></div>
+        <div class="modal-field"><label>Sigla</label><input id="va12NewClientCode" placeholder="Ex.: PET"></div>
+      </div>
+      <div class="va12-new-fields hidden" id="va12NewProjectFields">
+        <div class="modal-field"><label>Novo projeto</label><input id="va12NewProjectName" placeholder="Codigo ou nome do projeto"></div>
+        <div class="modal-field"><label>Executor</label><input id="va12NewProjectExecutor" placeholder="Responsavel executor"></div>
+        <div class="modal-field"><label>Fundacao</label><input id="va12NewProjectFoundation" placeholder="Fundacao, se aplicavel"></div>
+      </div>`);
+  }
+  va12RefreshAnalystDatalist();
+}
+
+function va12RenderSyncBanner() {
+  const banner = document.getElementById('va12SyncBanner');
+  if (!banner) return;
+  const fallback = STORE && STORE.syncState === 'cache_fallback';
+  banner.classList.toggle('visible', fallback);
+  banner.textContent = fallback ? 'Modo de contingencia: os dados exibidos vieram do cache local porque o SharePoint nao respondeu. Recarregue antes de realizar operacoes grandes.' : '';
+}
+
+function openSettingsModal() {
+  va12EnsureRuntimeDom();
+  renderSettingsModal();
+  document.getElementById('settingsOverlay').classList.remove('hidden');
+}
+
+function closeSettingsModal() { document.getElementById('settingsOverlay').classList.add('hidden'); }
+
+function renderSettingsModal() {
+  const activeClients = STORE.clients || [];
+  document.getElementById('settingsBody').innerHTML = `<div class="settings-grid">
+    <section class="settings-section"><h3>Clientes</h3>
+      <div class="modal-field"><label>Cadastro</label><select id="settingsClientSelect" onchange="va12SettingsClientChanged()"><option value="new">+ Novo cliente</option>${activeClients.map((client, ci) => `<option value="${ci}">${escapeHtml(client.client)}</option>`).join('')}</select></div>
+      <div class="settings-fields">
+        <div class="modal-field full"><label>Nome</label><input id="settingsClientName"></div>
+        <div class="modal-field"><label>Sigla</label><input id="settingsClientCode"></div>
+        <label class="settings-active"><input type="checkbox" id="settingsClientActive" checked> Cliente ativo</label>
+      </div>
+      <div class="modal-actions"><button class="btn btn-primary" onclick="saveSettingsClient()">Salvar cliente</button></div>
+    </section>
+    <section class="settings-section"><h3>Projetos</h3>
+      <div class="settings-fields">
+        <div class="modal-field full"><label>Cliente</label><select id="settingsProjectClient" onchange="va12SettingsProjectClientChanged()">${activeClients.map((client, ci) => `<option value="${ci}">${escapeHtml(client.client)}</option>`).join('')}</select></div>
+        <div class="modal-field full"><label>Projeto</label><select id="settingsProjectSelect" onchange="va12SettingsProjectChanged()"></select></div>
+        <div class="modal-field full"><label>Codigo ou nome</label><input id="settingsProjectName"></div>
+        <div class="modal-field"><label>Executor</label><input id="settingsProjectExecutor"></div>
+        <div class="modal-field"><label>Fundacao</label><input id="settingsProjectFoundation"></div>
+        <div class="modal-field full"><label>Observacoes</label><textarea id="settingsProjectNotes"></textarea></div>
+        <label class="settings-active full"><input type="checkbox" id="settingsProjectActive" checked> Projeto ativo</label>
+      </div>
+      <div class="modal-actions"><button class="btn btn-primary" onclick="saveSettingsProject()">Salvar projeto</button></div>
+    </section>
+  </div>`;
+  va12SettingsClientChanged();
+  va12SettingsProjectClientChanged();
+}
+
+function va12SettingsClientChanged() {
+  const value = document.getElementById('settingsClientSelect').value;
+  const client = value === 'new' ? null : STORE.clients[Number(value)];
+  document.getElementById('settingsClientName').value = client ? client.client : '';
+  document.getElementById('settingsClientCode').value = client ? client.code || '' : '';
+  document.getElementById('settingsClientActive').checked = client ? client.active !== false : true;
+}
+
+function va12SettingsProjectClientChanged() {
+  const ci = Number(document.getElementById('settingsProjectClient').value || 0);
+  const client = STORE.clients[ci];
+  const select = document.getElementById('settingsProjectSelect');
+  select.innerHTML = `<option value="new">+ Novo projeto</option>${client ? (client.projects || []).map((project, pi) => `<option value="${pi}">${escapeHtml(project.name)}</option>`).join('') : ''}`;
+  va12SettingsProjectChanged();
+}
+
+function va12SettingsProjectChanged() {
+  const ci = Number(document.getElementById('settingsProjectClient').value || 0);
+  const value = document.getElementById('settingsProjectSelect').value;
+  const project = value === 'new' ? null : STORE.clients[ci] && STORE.clients[ci].projects[Number(value)];
+  document.getElementById('settingsProjectName').value = project ? project.name : '';
+  document.getElementById('settingsProjectExecutor').value = project ? project.executor || '' : '';
+  document.getElementById('settingsProjectFoundation').value = project ? project.fundacao || '' : '';
+  document.getElementById('settingsProjectNotes').value = project ? project.notes || '' : '';
+  document.getElementById('settingsProjectActive').checked = project ? project.active !== false : true;
+}
+
+async function saveSettingsClient() {
+  const select = document.getElementById('settingsClientSelect');
+  const name = document.getElementById('settingsClientName').value.trim();
+  const code = document.getElementById('settingsClientCode').value.trim();
+  const active = document.getElementById('settingsClientActive').checked;
+  if (!name) return showToast('Informe o nome do cliente.');
+  showLoadingGate('Salvando cliente...');
+  try {
+    if (select.value === 'new') {
+      const gid = await graphCreateItem(LIST_IDS.Clientes, { Title: name, ShortName: code, Active: active });
+      STORE.clients.push({ _gid: gid, client: name, code, active, projects: [] });
+    } else {
+      const client = STORE.clients[Number(select.value)];
+      await graphUpdateItem(LIST_IDS.Clientes, client._gid, { Title: name, ShortName: code, Active: active });
+      Object.assign(client, { client: name, code, active });
+    }
+    saveStore(); renderTree(); renderSettingsModal();
+    if (currentView === 'trabalho') renderAreaTrabalho();
+    showToast('Cliente salvo.');
+  } catch (error) { showToast(`Nao consegui salvar o cliente: ${graphErrorText(error)}`); }
+  finally { hideLoadingGate(); }
+}
+
+async function saveSettingsProject() {
+  const ci = Number(document.getElementById('settingsProjectClient').value || 0);
+  const client = STORE.clients[ci];
+  const select = document.getElementById('settingsProjectSelect');
+  const name = document.getElementById('settingsProjectName').value.trim();
+  const executor = document.getElementById('settingsProjectExecutor').value.trim();
+  const foundation = document.getElementById('settingsProjectFoundation').value.trim();
+  const notes = document.getElementById('settingsProjectNotes').value.trim();
+  const active = document.getElementById('settingsProjectActive').checked;
+  if (!client || !name) return showToast('Selecione o cliente e informe o projeto.');
+  showLoadingGate('Salvando projeto...');
+  try {
+    const fields = { Title: name, ClienteId: client._gid, ProjectCode: name, ExecutorName: executor, FundacaoName: foundation, Active: active, Notes: notes };
+    if (select.value === 'new') {
+      const gid = await graphCreateItem(LIST_IDS.Projetos, fields);
+      client.projects.push({ _gid: gid, name, executor, fundacao: foundation, active, notes, pcs: [] });
+    } else {
+      const project = client.projects[Number(select.value)];
+      await graphUpdateItem(LIST_IDS.Projetos, project._gid, fields);
+      Object.assign(project, { name, executor, fundacao: foundation, active, notes });
+    }
+    saveStore(); renderTree(); renderSettingsModal();
+    if (currentView === 'trabalho') renderAreaTrabalho();
+    showToast('Projeto salvo.');
+  } catch (error) { showToast(`Nao consegui salvar o projeto: ${graphErrorText(error)}`); }
+  finally { hideLoadingGate(); }
+}
+
+openPCForm = function() {
+  va12EnsureRuntimeDom();
+  va12BaseOpenPCForm();
+  const select = document.getElementById('pcFormClient');
+  const options = STORE.clients.map((client, ci) => client.active !== false ? `<option value="${ci}">${escapeHtml(client.client)}</option>` : '').join('');
+  select.innerHTML = `${options}<option value="new_client">+ Novo cliente</option>`;
+  select.setAttribute('onchange', 'updatePCProjectOptions()');
+  document.getElementById('pcFormProject').setAttribute('onchange', 'va12ToggleNewProjectFields()');
+  updatePCProjectOptions();
+};
+
+updatePCProjectOptions = function() {
+  if (pcFormMode !== 'create') return;
+  const clientValue = document.getElementById('pcFormClient').value;
+  const newClient = clientValue === 'new_client';
+  document.getElementById('va12NewClientFields').classList.toggle('hidden', !newClient);
+  const projectSelect = document.getElementById('pcFormProject');
+  if (newClient) {
+    projectSelect.innerHTML = '<option value="new_project">+ Novo projeto</option>';
+  } else {
+    const ci = Number(clientValue);
+    const client = STORE.clients[ci];
+    const options = client ? client.projects.map((project, pi) => project.active !== false ? `<option value="${ci}|${pi}">${escapeHtml(project.name)} · ${escapeHtml(project.executor || 'sem executor')}</option>` : '').join('') : '';
+    projectSelect.innerHTML = `${options}<option value="new_project">+ Novo projeto</option>`;
+  }
+  va12ToggleNewProjectFields();
+};
+
+function va12ToggleNewProjectFields() {
+  const show = document.getElementById('pcFormProject').value === 'new_project';
+  document.getElementById('va12NewProjectFields').classList.toggle('hidden', !show);
+}
+
+submitPCForm = async function() {
+  if (pcFormMode !== 'create') return va12BaseSubmitPCForm();
+  const clientSelect = document.getElementById('pcFormClient');
+  const projectSelect = document.getElementById('pcFormProject');
+  let ci = clientSelect.value === 'new_client' ? -1 : Number(clientSelect.value);
+  let client = ci >= 0 ? STORE.clients[ci] : null;
+  const needsClient = clientSelect.value === 'new_client';
+  const needsProject = projectSelect.value === 'new_project';
+  if (needsClient) {
+    const name = document.getElementById('va12NewClientName').value.trim();
+    const code = document.getElementById('va12NewClientCode').value.trim();
+    if (!name) return showFormError('pcFormError', 'Informe o nome do novo cliente.');
+    showLoadingGate('Criando cliente e projeto...');
+    try {
+      const gid = await graphCreateItem(LIST_IDS.Clientes, { Title: name, ShortName: code, Active: true });
+      client = { _gid: gid, client: name, code, active: true, projects: [] };
+      STORE.clients.push(client); ci = STORE.clients.length - 1;
+    } catch (error) { hideLoadingGate(); return showFormError('pcFormError', `Nao consegui criar o cliente: ${graphErrorText(error)}`); }
+  }
+  let pi = -1;
+  if (!needsProject) {
+    const parts = projectSelect.value.split('|').map(Number); ci = parts[0]; pi = parts[1]; client = STORE.clients[ci];
+  } else {
+    const name = document.getElementById('va12NewProjectName').value.trim();
+    const executor = document.getElementById('va12NewProjectExecutor').value.trim();
+    const foundation = document.getElementById('va12NewProjectFoundation').value.trim();
+    if (!name) { hideLoadingGate(); return showFormError('pcFormError', 'Informe o nome ou codigo do novo projeto.'); }
+    try {
+      const gid = await graphCreateItem(LIST_IDS.Projetos, { Title: name, ClienteId: client._gid, ProjectCode: name, ExecutorName: executor, FundacaoName: foundation, Active: true, Notes: '' });
+      client.projects.push({ _gid: gid, name, executor, fundacao: foundation, active: true, notes: '', pcs: [] });
+      pi = client.projects.length - 1;
+    } catch (error) { hideLoadingGate(); return showFormError('pcFormError', `Cliente criado, mas nao consegui criar o projeto: ${graphErrorText(error)}`); }
+  }
+  saveStore(); renderTree(); hideLoadingGate();
+  clientSelect.innerHTML = `<option value="${ci}">${escapeHtml(client.client)}</option>`;
+  clientSelect.value = String(ci);
+  projectSelect.innerHTML = `<option value="${ci}|${pi}">${escapeHtml(client.projects[pi].name)}</option>`;
+  projectSelect.value = `${ci}|${pi}`;
+  document.getElementById('va12NewClientFields').classList.add('hidden');
+  document.getElementById('va12NewProjectFields').classList.add('hidden');
+  return va12BaseSubmitPCForm();
+};
+
+
+/* =====================================================================================
+   VA.12 - destino explicito e conciliacao assistida de Prompt/REF
+   ===================================================================================== */
+let va12ImportTarget = null;
+let va12RenderingDestination = false;
+
+function va12ActiveImportTargets() {
+  const targets = [];
+  STORE.clients.forEach((client, ci) => {
+    if (client.active === false) return;
+    (client.projects || []).forEach((project, pi) => {
+      if (project.active === false) return;
+      (project.pcs || []).forEach((pc, pci) => {
+        if (!pc.real || pcStatusOf(pc) !== 'ATIVA') return;
+        (pc.data.meta.ciclos || []).forEach((cycle, cycleIndex) => {
+          if (cycle.status !== 'ENCERRADO') targets.push({ ci, pi, pci, cycleIndex, client, project, pc, cycle });
+        });
+      });
+    });
+  });
+  return targets;
+}
+
+function va12TargetFromValues() {
+  const ci = Number(document.getElementById('va12ImportClient').value);
+  const pi = Number(document.getElementById('va12ImportProject').value);
+  const pci = Number(document.getElementById('va12ImportPC').value);
+  const cycleIndex = Number(document.getElementById('va12ImportCycle').value);
+  const client = STORE.clients[ci];
+  const project = client && client.projects[pi];
+  const pc = project && project.pcs[pci];
+  const cycle = pc && pc.data.meta.ciclos[cycleIndex];
+  return client && project && pc && cycle ? { ci, pi, pci, cycleIndex, client, project, pc, cycle } : null;
+}
+
+function va12RenderImportDestination(preferred) {
+  const targets = va12ActiveImportTargets();
+  const clientSelect = document.getElementById('va12ImportClient');
+  const clientIndexes = [...new Set(targets.map(target => target.ci))];
+  clientSelect.innerHTML = clientIndexes.map(ci => `<option value="${ci}">${escapeHtml(STORE.clients[ci].client)}</option>`).join('');
+  if (preferred && clientIndexes.includes(preferred.ci)) clientSelect.value = String(preferred.ci);
+  va12ImportClientChanged(preferred);
+}
+
+function va12ImportClientChanged(preferred) {
+  const targets = va12ActiveImportTargets();
+  const ci = Number(document.getElementById('va12ImportClient').value);
+  const indexes = [...new Set(targets.filter(target => target.ci === ci).map(target => target.pi))];
+  const select = document.getElementById('va12ImportProject');
+  select.innerHTML = indexes.map(pi => `<option value="${pi}">${escapeHtml(STORE.clients[ci].projects[pi].name)}</option>`).join('');
+  if (preferred && preferred.ci === ci && indexes.includes(preferred.pi)) select.value = String(preferred.pi);
+  va12ImportProjectChanged(preferred);
+}
+
+function va12ImportProjectChanged(preferred) {
+  const targets = va12ActiveImportTargets();
+  const ci = Number(document.getElementById('va12ImportClient').value);
+  const pi = Number(document.getElementById('va12ImportProject').value);
+  const indexes = [...new Set(targets.filter(target => target.ci === ci && target.pi === pi).map(target => target.pci))];
+  const select = document.getElementById('va12ImportPC');
+  select.innerHTML = indexes.map(pci => `<option value="${pci}">${escapeHtml(STORE.clients[ci].projects[pi].pcs[pci].label)}</option>`).join('');
+  if (preferred && preferred.ci === ci && preferred.pi === pi && indexes.includes(preferred.pci)) select.value = String(preferred.pci);
+  va12ImportPCChanged(preferred);
+}
+
+function va12ImportPCChanged(preferred) {
+  const ci = Number(document.getElementById('va12ImportClient').value);
+  const pi = Number(document.getElementById('va12ImportProject').value);
+  const pci = Number(document.getElementById('va12ImportPC').value);
+  const pc = STORE.clients[ci] && STORE.clients[ci].projects[pi] && STORE.clients[ci].projects[pi].pcs[pci];
+  const indexes = pc ? pc.data.meta.ciclos.map((cycle, index) => ({ cycle, index })).filter(entry => entry.cycle.status !== 'ENCERRADO') : [];
+  const select = document.getElementById('va12ImportCycle');
+  select.innerHTML = indexes.map(entry => `<option value="${entry.index}">${escapeHtml(cicloLabel(entry.cycle.numero))} · ${escapeHtml(CICLO_STATUS_LABELS[entry.cycle.status])}</option>`).join('');
+  if (preferred && preferred.ci === ci && preferred.pi === pi && preferred.pci === pci && indexes.some(entry => entry.index === preferred.cycleIndex)) select.value = String(preferred.cycleIndex);
+  va12ImportDestinationChanged();
+}
+
+function va12ImportDestinationChanged() {
+  const target = va12TargetFromValues();
+  va12ImportTarget = target;
+  if (controlledImport) controlledImport.target = target;
+  const summary = document.getElementById('va12TargetSummary');
+  if (summary) summary.textContent = target ? `Destino: ${target.client.client} / ${target.project.name} / ${target.pc.label} / ${cicloLabel(target.cycle.numero)}` : 'Nenhuma PC ativa com ciclo disponivel.';
+  if (target) {
+    currentPC = { ci: target.ci, pi: target.pi, pci: target.pci };
+    DATA = target.pc.data;
+    selectedCicloIdx = target.cycleIndex;
+    if (!va12RenderingDestination && controlledImport && controlledImport.items && controlledImport.items.length) {
+      controlledImport.comparison = compareImportItems(controlledImport.items, controlledImport.sourceType);
+      renderImportStep2();
+    }
+  }
+}
+
+currentImportTarget = function() {
+  if (controlledImport && controlledImport.target) return controlledImport.target;
+  if (!currentPC || !DATA) return null;
+  const pc = pcAt(currentPC.ci, currentPC.pi, currentPC.pci);
+  const cycle = DATA.meta.ciclos[selectedCicloIdx];
+  return pc && cycle ? { ci: currentPC.ci, pi: currentPC.pi, pci: currentPC.pci, cycleIndex: selectedCicloIdx, pc, cycle } : null;
+};
+
+openImportModal = function() {
+  va12EnsureRuntimeDom();
+  const preferred = currentPC && DATA && DATA.meta.ciclos[selectedCicloIdx] ? {
+    ci: currentPC.ci, pi: currentPC.pi, pci: currentPC.pci, cycleIndex: selectedCicloIdx,
+  } : va12ActiveImportTargets()[0] || null;
+  controlledImport = { sourceType: DATA && DATA.meta.sourceType === 'REF' ? 'REF' : 'Prompt', fileName: '', groups: [], selectedGroup: '', items: [], warnings: [], comparison: null, target: null };
+  const overlay = document.getElementById('importOverlay');
+  overlay.querySelector('.modal-box').classList.add('import-modal-box');
+  overlay.querySelector('.modal-header h2').textContent = 'Importar itens';
+  overlay.querySelector('.modal-body').innerHTML = `<div id="controlledImportBody">
+    <div class="va12-destination">
+      <div><label>Cliente</label><select id="va12ImportClient" onchange="va12ImportClientChanged()"></select></div>
+      <div><label>Projeto</label><select id="va12ImportProject" onchange="va12ImportProjectChanged()"></select></div>
+      <div><label>PC</label><select id="va12ImportPC" onchange="va12ImportPCChanged()"></select></div>
+      <div><label>Ciclo</label><select id="va12ImportCycle" onchange="va12ImportDestinationChanged()"></select></div>
+      <div class="va12-target-summary" id="va12TargetSummary"></div>
+    </div>
+    <div class="source-segment"><div class="segmented-control">
+      <label><input type="radio" name="importSource" value="Prompt" ${controlledImport.sourceType === 'Prompt' ? 'checked' : ''} onchange="setImportSource(this.value)"><span>Prompt</span></label>
+      <label><input type="radio" name="importSource" value="REF" ${controlledImport.sourceType === 'REF' ? 'checked' : ''} onchange="setImportSource(this.value)"><span>REF</span></label>
+    </div></div>
+    <p class="modal-hint" id="importSourceHint"></p>
+    <label class="import-drop"><input type="file" id="importFileInput" accept=".xlsx" onchange="handleImportFile(event)"><strong>Selecionar arquivo Excel</strong><span id="importDropHint"></span></label>
+  </div>`;
+  va12RenderImportDestination(preferred);
+  setImportSource(controlledImport.sourceType);
+  overlay.classList.remove('hidden');
+};
+
+function va12NormText(value) {
+  return String(value == null ? '' : value).normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ').trim().toUpperCase();
+}
+
+function va12NormValue(value) {
+  if (value instanceof Date) return value.toISOString().slice(0, 10);
+  if (value === null || value === undefined || value === '') return null;
+  if (typeof value === 'number') return Number.isFinite(value) ? Number(value.toFixed(6)) : null;
+  if (typeof value === 'boolean') return value;
+  if (Array.isArray(value)) return value.map(va12NormValue);
+  if (typeof value === 'object') {
+    return Object.keys(value).sort().reduce((out, key) => { out[key] = va12NormValue(value[key]); return out; }, {});
+  }
+  const number = va12NormalizeNumber(value);
+  if (/^-?[\d.,\s]+$/.test(String(value).trim()) && number !== null) return Number(number.toFixed(6));
+  return va12NormText(value);
+}
+
+function va12CleanCanonical(item) {
+  const source = va12NormText(item.sourceType || item.canonicalData && item.canonicalData.source);
+  const raw = { ...(item.canonicalData || {}) };
+  ['schemaVersion', 'source', 'item', 'pcNumber', 'sheet', 'category', 'executor'].forEach(key => delete raw[key]);
+  if (source === 'REF' && raw.fields) {
+    const fields = {};
+    Object.entries(raw.fields).forEach(([key, value]) => {
+      if (!/^ITEM$/i.test(va12NormText(key))) fields[key] = value;
+    });
+    raw.fields = fields;
+  }
+  return va12NormValue(raw);
+}
+
+function va12Comparable(item, categoryId) {
+  const source = va12NormText(item.sourceType || item.canonicalData && item.canonicalData.source);
+  return {
+    source,
+    category: va12NormText(categoryId || item.categoryId || item._categoryId),
+    budgetItem: source === 'REF' ? '' : va12NormText(item.budgetItem || item.tipoLabel),
+    description: va12NormText(item.description || item.subtitle),
+    payee: va12NormText(item.payeeName),
+    paymentDate: va12NormValue(item.paymentDate || item.canonicalData && item.canonicalData.paymentDate),
+    documentDate: va12NormValue(item.documentDate || item.canonicalData && item.canonicalData.documentDate),
+    amount: va12NormalizeNumber(item.amount == null ? item.valor : item.amount),
+    incomeAmount: va12NormalizeNumber(item.incomeAmount == null ? item.importado && item.importado.rendimentos : item.incomeAmount),
+    canonical: va12CleanCanonical(item),
+  };
+}
+
+function va12StableString(value) {
+  if (value === null || typeof value !== 'object') return JSON.stringify(value);
+  if (Array.isArray(value)) return `[${value.map(va12StableString).join(',')}]`;
+  return `{${Object.keys(value).sort().map(key => `${JSON.stringify(key)}:${va12StableString(value[key])}`).join(',')}}`;
+}
+
+function va12Fingerprint(item, categoryId) { return va12StableString(va12Comparable(item, categoryId)); }
+
+function va12Corpus(item) {
+  const canonical = va12CleanCanonical(item);
+  return va12NormText([item.description || item.subtitle, item.payeeName, item.title, item.budgetItem || item.tipoLabel, va12StableString(canonical)].filter(Boolean).join(' '));
+}
+
+function va12TokenSimilarity(a, b) {
+  const aa = new Set(va12NormText(a).split(/[^A-Z0-9]+/).filter(token => token.length > 1));
+  const bb = new Set(va12NormText(b).split(/[^A-Z0-9]+/).filter(token => token.length > 1));
+  if (!aa.size || !bb.size) return 0;
+  let common = 0; aa.forEach(token => { if (bb.has(token)) common++; });
+  return (2 * common) / (aa.size + bb.size);
+}
+
+function va12FindCanonicalValue(item, pattern) {
+  const fields = item.canonicalData && item.canonicalData.fields || {};
+  const entry = Object.entries(fields).find(([key]) => pattern.test(va12NormText(key)));
+  return entry ? entry[1] : null;
+}
+
+function va12PairScore(imported, entry) {
+  const existing = entry.item;
+  const incomingComparable = va12Comparable(imported, imported.categoryId);
+  const existingComparable = va12Comparable(existing, entry.category.id);
+  if (incomingComparable.source !== existingComparable.source) return 0;
+  if (va12StableString(incomingComparable) === va12StableString(existingComparable)) return 1;
+  let score = incomingComparable.category === existingComparable.category ? 0.12 : 0;
+  score += va12TokenSimilarity(va12Corpus(imported), va12Corpus(existing)) * 0.38;
+  if (incomingComparable.payee && incomingComparable.payee === existingComparable.payee) score += 0.1;
+  if (incomingComparable.amount !== null && incomingComparable.amount === existingComparable.amount) score += 0.14;
+  if (incomingComparable.documentDate && incomingComparable.documentDate === existingComparable.documentDate) score += 0.08;
+  if (incomingComparable.paymentDate && incomingComparable.paymentDate === existingComparable.paymentDate) score += 0.06;
+  const incomingDoc = va12NormText(va12FindCanonicalValue(imported, /COMPROVANTE|NOTA FISCAL/));
+  const existingDoc = va12NormText(va12FindCanonicalValue(existing, /COMPROVANTE|NOTA FISCAL/));
+  if (incomingDoc && incomingDoc === existingDoc) score += 0.09;
+  const incomingRow = Number(imported.sourceRowNumber);
+  const existingRow = Number(existing.sourceRowNumber);
+  if (Number.isFinite(incomingRow) && Number.isFinite(existingRow)) score += Math.max(0, 0.05 - Math.min(Math.abs(incomingRow - existingRow), 10) * 0.005);
+  if (va12NormText(imported.budgetItem) === va12NormText(existing.tipoLabel) && imported.budgetItem) score += 0.03;
+  return Math.min(score, 0.99);
+}
+
+compareImportItems = function(items, sourceType) {
+  const target = currentImportTarget();
+  const data = target && target.pc && target.pc.data;
+  const existingAll = data ? data.categories.flatMap(category => category.items.map(item => ({ category, item }))) : [];
+  const existing = existingAll.filter(entry => va12NormText(entry.item.canonicalData && entry.item.canonicalData.source) === va12NormText(sourceType));
+  const used = new Set();
+  const rows = [];
+  const orderedItems = [...items].sort((a, b) => Number(a.sourceRowNumber || 0) - Number(b.sourceRowNumber || 0));
+
+  orderedItems.forEach(imported => {
+    const exact = existing.filter((entry, index) => !used.has(index) && va12Fingerprint(imported, imported.categoryId) === va12Fingerprint(entry.item, entry.category.id));
+    if (!exact.length) return;
+    exact.sort((a, b) => Math.abs(Number(a.item.sourceRowNumber || 0) - Number(imported.sourceRowNumber || 0)) - Math.abs(Number(b.item.sourceRowNumber || 0) - Number(imported.sourceRowNumber || 0)));
+    const match = exact[0]; const index = existing.indexOf(match); used.add(index);
+    rows.push({ state: 'unchanged', imported, existing: match, confidence: 1, decision: 'same' });
+  });
+
+  orderedItems.filter(imported => !rows.some(row => row.imported === imported)).forEach(imported => {
+    const candidates = existing.map((entry, index) => ({ entry, index, score: used.has(index) ? 0 : va12PairScore(imported, entry) })).filter(candidate => candidate.score > 0).sort((a, b) => b.score - a.score);
+    const top = candidates[0]; const second = candidates[1];
+    if (!top || top.score < 0.45) {
+      rows.push({ state: 'new', imported, existing: null, confidence: top ? top.score : 0, decision: 'new' });
+      return;
+    }
+    used.add(top.index);
+    const strong = top.score >= 0.72 && (!second || top.score - second.score >= 0.08);
+    rows.push({ state: strong ? 'changed' : 'review', imported, existing: top.entry, confidence: top.score, decision: strong ? 'same' : '' });
+  });
+
+  rows.sort((a, b) => Number(a.imported.sourceRowNumber || 0) - Number(b.imported.sourceRowNumber || 0));
+  rows.forEach((row, index) => { row._index = index; row.warningDecision = row.imported.importWarnings ? '' : 'none'; });
+  const removed = existing.filter((entry, index) => !used.has(index)).map(entry => ({ state: 'removed', imported: null, existing: entry }));
+  const counts = {
+    new: rows.filter(row => row.state === 'new').length,
+    changed: rows.filter(row => row.state === 'changed').length,
+    unchanged: rows.filter(row => row.state === 'unchanged').length,
+    review: rows.filter(row => row.state === 'review').length,
+    removed: removed.length,
+    warnings: rows.filter(row => row.imported.importWarnings).length,
+  };
+  return { rows, removed, counts };
+};
+
+function va12SetReviewDecision(index, value) {
+  const row = controlledImport.comparison.rows[index];
+  if (row) row.decision = value;
+  va12UpdateImportConfirmState();
+}
+
+function va12SetWarningDecision(index, value) {
+  const row = controlledImport.comparison.rows[index];
+  if (!row) return;
+  row.warningDecision = value;
+  if (value === 'correct') {
+    const input = document.getElementById(`va12WarningValue${index}`);
+    const amount = va12NormalizeNumber(input && input.value);
+    if (amount !== null) row.imported.amount = amount;
+  }
+  va12UpdateImportConfirmState();
+}
+
+function va12UpdateImportConfirmState() {
+  const comparison = controlledImport && controlledImport.comparison;
+  const button = document.getElementById('va12ConfirmImport');
+  const note = document.getElementById('va12ImportBlocked');
+  if (!comparison || !button) return;
+  const unresolvedReviews = comparison.rows.filter(row => row.state === 'review' && !row.decision).length;
+  const unresolvedWarnings = comparison.rows.filter(row => row.imported.importWarnings && !row.warningDecision).length;
+  const blocked = unresolvedReviews + unresolvedWarnings;
+  button.disabled = blocked > 0 || !currentImportTarget();
+  if (note) {
+    note.classList.toggle('hidden', blocked === 0);
+    note.textContent = blocked ? `Resolva ${unresolvedReviews} correspondencia(s) e ${unresolvedWarnings} aviso(s) antes de confirmar.` : '';
+  }
+}
+
+renderImportStep2 = function() {
+  const target = currentImportTarget();
+  const comparison = controlledImport.comparison;
+  if (!target || !comparison) return;
+  const c = comparison.counts;
+  const groupSelect = controlledImport.groups.length > 1 ? `<div class="modal-field"><label>PC encontrada no arquivo</label><select onchange="selectImportGroup(this.value)">${controlledImport.groups.map(group => `<option value="${escapeHtml(group.key)}" ${group.key === controlledImport.selectedGroup ? 'selected' : ''}>${escapeHtml(group.label)} - ${group.items.length} itens</option>`).join('')}</select></div>` : '';
+  const previewRows = [...comparison.rows, ...comparison.removed].slice(0, 200);
+  const labels = { new: 'Novo', changed: 'Alterado', unchanged: 'Sem alteracao', review: 'Revisar', removed: 'Possivel removido' };
+  document.getElementById('controlledImportBody').innerHTML = `
+    <div class="va12-destination"><div><label>Cliente</label><select id="va12ImportClient" onchange="va12ImportClientChanged()"></select></div><div><label>Projeto</label><select id="va12ImportProject" onchange="va12ImportProjectChanged()"></select></div><div><label>PC</label><select id="va12ImportPC" onchange="va12ImportPCChanged()"></select></div><div><label>Ciclo</label><select id="va12ImportCycle" onchange="va12ImportDestinationChanged()"></select></div><div class="va12-target-summary" id="va12TargetSummary"></div></div>
+    ${groupSelect}
+    <div class="reconcile-summary">
+      <div class="reconcile-stat"><b>${c.new}</b><span>novos</span></div><div class="reconcile-stat"><b>${c.changed}</b><span>alterados</span></div>
+      <div class="reconcile-stat"><b>${c.unchanged}</b><span>sem alteracao</span></div><div class="reconcile-stat review"><b>${c.review}</b><span>para revisar</span></div>
+      <div class="reconcile-stat"><b>${c.removed}</b><span>possiveis removidos</span></div><div class="reconcile-stat ${c.warnings ? 'failed' : ''}"><b>${c.warnings}</b><span>com aviso</span></div>
+    </div>
+    <div class="draft-table-wrap"><table class="draft-table"><thead><tr><th>Item recebido / anterior</th><th>Rubrica</th><th>Situacao</th><th>Decisao</th><th>Aviso</th></tr></thead><tbody>
+      ${previewRows.map(row => {
+        const imported = row.imported; const item = imported || row.existing.item; const idx = row._index;
+        const old = row.existing && imported ? `<span class="reconcile-old">Anterior: ${escapeHtml(row.existing.item.title || row.existing.item.tipoLabel || 'Item')}</span>` : '';
+        const decision = row.state === 'review' ? `<select class="reconcile-action" onchange="va12SetReviewDecision(${idx}, this.value)"><option value="">Decidir...</option><option value="same">E o mesmo item</option><option value="new">E um item novo</option><option value="ignore">Ignorar nesta importacao</option></select>` : row.state === 'new' ? 'Criar item' : row.state === 'removed' ? 'Marcar, nao excluir' : 'Aplicar automaticamente';
+        const warning = imported && imported.importWarnings ? `<div>${escapeHtml(imported.importWarnings)}</div><div class="warning-editor"><input id="va12WarningValue${idx}" placeholder="Valor corrigido"><select onchange="va12SetWarningDecision(${idx}, this.value)"><option value="">Decidir...</option><option value="accept">Aceitar sem corrigir</option><option value="correct">Usar valor informado</option><option value="skip">Nao importar esta linha</option></select></div>` : '';
+        return `<tr><td>${escapeHtml(item.title || item.sourceItemKey || 'Item')}${old}</td><td>${escapeHtml(imported ? imported.categoryLabel : row.existing.category.label)}</td><td><span class="draft-state ${row.state}">${labels[row.state]}</span>${row.confidence != null && row.state !== 'new' ? `<span class="reconcile-confidence"> ${Math.round(row.confidence * 100)}%</span>` : ''}</td><td>${decision}</td><td>${warning}</td></tr>`;
+      }).join('')}
+    </tbody></table></div>
+    ${previewRows.length < comparison.rows.length + comparison.removed.length ? `<p class="modal-hint">Previa limitada a ${previewRows.length} linhas; todas serao processadas.</p>` : ''}
+    <div class="import-blocked-note hidden" id="va12ImportBlocked"></div>
+    <div class="modal-actions"><button class="btn btn-ghost" onclick="closeImportModal()">Cancelar</button><button class="btn btn-primary" id="va12ConfirmImport" onclick="confirmImport()">Confirmar importacao</button></div>`;
+  va12RenderingDestination = true;
+  va12RenderImportDestination(target);
+  va12RenderingDestination = false;
+  va12UpdateImportConfirmState();
+};
+
+function va12SystemSourceKey(sourceType) {
+  const uuid = globalThis.crypto && crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  return `sys-${String(sourceType || 'item').toLowerCase()}-${uuid}`.slice(0, 250);
+}
+
+function va12MergedChecks(existing, imported) {
+  const merged = { ...(existing && existing.checks || {}) };
+  Object.keys(imported.checks || {}).forEach(doc => { if (!merged[doc]) merged[doc] = 'PND'; });
+  return merged;
+}
+
+function va12EnsureCategory(imported) {
+  let category = DATA.categories.find(candidate => candidate.id === imported.categoryId);
+  if (!category) {
+    category = { id: imported.categoryId, label: imported.categoryLabel, docsFixed: Object.keys(imported.checks || {}), items: [] };
+    DATA.categories.push(category);
+  }
+  return category;
+}
+
+function va12ApplyMatchedLocal(row) {
+  const local = row.existing.item;
+  const imported = row.imported;
+  const oldCategory = row.existing.category;
+  const newCategory = va12EnsureCategory(imported);
+  imported.checks = va12MergedChecks(local, imported);
+  local.title = imported.title; local.subtitle = imported.description; local.description = imported.description;
+  local.tipoLabel = imported.budgetItem || null; local.valor = imported.amount; local.amount = imported.amount;
+  local.incomeAmount = imported.incomeAmount; local.canonicalData = imported.canonicalData;
+  local.sourceItemKey = imported.sourceKey; local.sourceSheetName = imported.sourceSheetName;
+  local.sourceRowNumber = imported.sourceRowNumber; local.importWarnings = imported.importWarnings || '';
+  local.payeeName = imported.payeeName || ''; local.payeeDocumentMasked = imported.payeeDocumentMasked || '';
+  local.paymentDate = imported.paymentDate; local.documentDate = imported.documentDate;
+  local.importado = { dataPagamento: imported.paymentDate ? fmtIsoDate(imported.paymentDate) : '', dataDocumento: imported.documentDate ? fmtIsoDate(imported.documentDate) : '', rendimentos: imported.incomeAmount };
+  local.checks = imported.checks; local.categoryId = imported.categoryId; local.categoryLabel = imported.categoryLabel;
+  local.possivelRemovido = false;
+  if (oldCategory !== newCategory) {
+    oldCategory.items = oldCategory.items.filter(item => item !== local);
+    if (!newCategory.items.includes(local)) newCategory.items.push(local);
+    row.existing.category = newCategory;
+  }
+  return local;
+}
+
+async function va12CreateImported(row, target, result) {
+  const imported = row.imported;
+  imported.sourceKey = va12SystemSourceKey(controlledImport.sourceType);
+  const itemId = await graphCreateItem(LIST_IDS.Itens, buildSharePointItemFields(imported, target.pc._gid));
+  const analysisId = await graphCreateItem(LIST_IDS.AnalisesItemCiclo, {
+    Title: imported.title, ItemId: Number(itemId), CicloId: Number(target.cycle._gid),
+    ReviewStatus: 'Aguardando análise', HasDoubt: false, InternalComment: '', ExecutorComment: '', ExecutorResponse: '',
+  });
+  const local = importedItemToLocal(imported, itemId, analysisId);
+  local.categoryId = imported.categoryId; local.categoryLabel = imported.categoryLabel;
+  va12EnsureCategory(imported).items.push(local);
+  result.created++;
+}
+
+async function va12UpdateImported(row, target, result) {
+  const imported = row.imported;
+  const local = row.existing.item;
+  imported.sourceKey = String(local.sourceItemKey || '').startsWith('sys-') ? local.sourceItemKey : va12SystemSourceKey(controlledImport.sourceType);
+  imported.checks = va12MergedChecks(local, imported);
+  await graphUpdateItem(LIST_IDS.Itens, local.id, buildSharePointItemFields(imported, target.pc._gid));
+  va12ApplyMatchedLocal(row);
+  await ensureImportedAnalysis(local, imported);
+  result.updated++;
+}
+
+confirmImport = async function() {
+  const target = currentImportTarget();
+  const comparison = controlledImport && controlledImport.comparison;
+  if (!target || !comparison) return;
+  const unresolved = comparison.rows.some(row => row.state === 'review' && !row.decision || row.imported.importWarnings && !row.warningDecision);
+  if (unresolved) return va12UpdateImportConfirmState();
+  const button = document.getElementById('va12ConfirmImport'); if (button) button.disabled = true;
+  showLoadingGate('Gravando importacao no SharePoint...');
+  currentPC = { ci: target.ci, pi: target.pi, pci: target.pci }; DATA = target.pc.data; selectedCicloIdx = target.cycleIndex;
+  const result = { created: 0, updated: 0, unchanged: 0, removed: 0, skipped: 0, failed: [] };
+  const extraRemoved = [];
+  try {
+    for (const row of comparison.rows) {
+      try {
+        if (row.warningDecision === 'skip' || row.decision === 'ignore') { result.skipped++; continue; }
+        if (row.state === 'review' && row.decision === 'new') {
+          if (row.existing) extraRemoved.push(row.existing);
+          await va12CreateImported(row, target, result); continue;
+        }
+        if (row.state === 'new') { await va12CreateImported(row, target, result); continue; }
+        if (row.state === 'changed' || row.state === 'review') { await va12UpdateImported(row, target, result); continue; }
+        const local = row.existing.item;
+        const migratedKey = String(local.sourceItemKey || '').startsWith('sys-') ? local.sourceItemKey : va12SystemSourceKey(controlledImport.sourceType);
+        const fields = {};
+        if (migratedKey !== local.sourceItemKey) { fields.SourceItemKey = migratedKey; local.sourceItemKey = migratedKey; }
+        if (local.possivelRemovido) { fields.PossibleRemoved = false; local.possivelRemovido = false; }
+        if (Object.keys(fields).length) await graphUpdateItem(LIST_IDS.Itens, local.id, fields);
+        await ensureImportedAnalysis(local, row.imported); result.unchanged++;
+      } catch (error) { result.failed.push(`${row.imported.title}: ${graphErrorText(error)}`); }
+    }
+    const removedEntries = [...comparison.removed.map(row => row.existing), ...extraRemoved];
+    const uniqueRemoved = [...new Map(removedEntries.map(entry => [String(entry.item.id), entry])).values()];
+    for (const entry of uniqueRemoved) {
+      try {
+        await graphUpdateItem(LIST_IDS.Itens, entry.item.id, { PossibleRemoved: true });
+        entry.item.possivelRemovido = true; result.removed++;
+      } catch (error) { result.failed.push(`${entry.item.title}: ${graphErrorText(error)}`); }
+    }
+    const importedAt = new Date().toISOString();
+    try {
+      const notes = `${result.created} novo(s), ${result.updated} alterado(s), ${result.unchanged} sem alteracao, ${result.removed} possivel(is) removido(s), ${result.skipped} ignorado(s), ${result.failed.length} falha(s).`;
+      const sourceId = await graphCreateItem(LIST_IDS.FontesPC, { Title: `${DATA.meta.pc} - ${controlledImport.fileName}`.slice(0, 250), PCId: String(target.pc._gid), CicloId: String(target.cycle._gid), FileType: controlledImport.sourceType, FileName: controlledImport.fileName, ImportedAt: importedAt, Notes: notes });
+      DATA.meta.fontes.push({ _gid: sourceId, cicloId: String(target.cycle._gid), fileType: controlledImport.sourceType, fileName: controlledImport.fileName, importedAt, notes, title: `${DATA.meta.pc} - ${controlledImport.fileName}` });
+    } catch (error) { result.failed.push(`Registro da fonte: ${graphErrorText(error)}`); }
+    saveStore(); renderTree();
+    document.getElementById('controlledImportBody').innerHTML = `<div class="import-result"><h3>${result.failed.length ? 'Importacao concluida com avisos' : 'Importacao concluida'}</h3><p>${result.created} item(ns) criado(s)</p><p>${result.updated} item(ns) atualizado(s)</p><p>${result.unchanged} item(ns) sem alteracao</p><p>${result.removed} item(ns) marcado(s) como possivel remocao</p><p>${result.skipped} item(ns) ignorado(s)</p>${result.failed.length ? `<p><b>${result.failed.length} falha(s):</b></p><div class="form-error">${result.failed.slice(0, 12).map(escapeHtml).join('<br>')}</div>` : ''}</div><div class="modal-actions"><button class="btn btn-primary" onclick="closeImportModal();setView('detail')">Fechar</button></div>`;
+  } finally { hideLoadingGate(); }
+};
+
+/* =====================================================================================
+   VA.12 - saidas, acoes, analistas e fila persistente
+   ===================================================================================== */
+function va12CopyText(text, successMessage) {
+  const value = String(text || '');
+  if (!value) return showToast('Não há comentário para copiar.');
+  const fallback = () => {
+    const input = document.createElement('textarea');
+    input.value = value; input.style.position = 'fixed'; input.style.opacity = '0';
+    document.body.appendChild(input); input.select(); document.execCommand('copy'); input.remove();
+    showToast(successMessage || 'Comentário copiado.');
+  };
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(value).then(() => showToast(successMessage || 'Comentário copiado.')).catch(fallback);
+  } else fallback();
+}
+
+outputRowsForCurrentCycle = function() {
+  if (!DATA || !DATA.meta.ciclos[selectedCicloIdx]) return [];
+  return DATA.categories.flatMap(category => category.items.map(item => {
+    const entry = item.ciclosStatus[selectedCicloIdx] || {};
+    const executorComment = String(entry.comentarioExecutor || '').trim();
+    if (!executorComment) return null;
+    const pendingDocs = Object.entries(item.checks || {}).filter(([, status]) => status !== 'OK').map(([name]) => name);
+    return {
+      category: category.label, item: item.title, description: item.subtitle || '',
+      executorComment, pendingDocs, executorResponse: entry.executorResponse || '',
+      status: STATUS_LABELS[entry.status] || entry.status || ''
+    };
+  }).filter(Boolean));
+};
+
+function copyPromptItem(index) {
+  const row = outputRowsForCurrentCycle()[index];
+  if (row) va12CopyText(row.executorComment, `Comentário de ${row.item} copiado.`);
+}
+function copyPromptGeneral() {
+  const cycle = DATA && DATA.meta.ciclos[selectedCicloIdx];
+  if (cycle) va12CopyText(cycle.generalExecutorComment, 'Comentário geral copiado.');
+}
+
+renderOutputPreview = function() {
+  const rows = outputRowsForCurrentCycle();
+  const cycle = DATA.meta.ciclos[selectedCicloIdx];
+  const mode = document.querySelector('input[name="outputMode"]:checked').value;
+  const content = document.getElementById('outputPreviewContent');
+  const actions = document.getElementById('outputActions');
+  if (mode === 'prompt') {
+    const general = String(cycle.generalExecutorComment || '').trim();
+    content.innerHTML = `<div class="output-summary"><span class="badge badge-outline">${rows.length} comentário(s) ao executor</span><span class="badge badge-outline">${escapeHtml(cicloLabel(cycle.numero))}</span></div>
+      <div class="output-item-list">
+        ${general ? `<article class="output-item-card output-general-note"><div class="output-item-head"><strong>Comentário geral ao executor</strong><button class="btn btn-ghost btn-copy-item" onclick="copyPromptGeneral()" title="Copiar comentário geral">Copiar</button></div><p>${escapeHtml(general)}</p></article>` : ''}
+        ${rows.map((row, index) => `<article class="output-item-card"><div class="output-item-head"><div><span class="output-item-category">${escapeHtml(row.category)}</span><strong>${escapeHtml(row.item)}</strong></div><button class="btn btn-ghost btn-copy-item" onclick="copyPromptItem(${index})" title="Copiar apenas o comentário ao executor">Copiar</button></div><p>${escapeHtml(row.executorComment)}</p>${row.pendingDocs.length ? `<small>Documentos pendentes: ${escapeHtml(row.pendingDocs.join(', '))}</small>` : ''}</article>`).join('') || '<div class="portfolio-empty">Nenhum comentário ao executor registrado neste ciclo.</div>'}
+      </div>`;
+    actions.innerHTML = '<button class="btn btn-ghost" onclick="closeOutputPreview()">Fechar</button>';
+  } else {
+    content.innerHTML = `${cycle.generalExecutorComment ? `<div class="output-general-note"><b>Pendência geral:</b> ${escapeHtml(cycle.generalExecutorComment)}</div>` : ''}<div class="output-summary"><span class="badge badge-outline">${rows.length} linha(s) no Punchlist</span><span class="badge badge-outline">Somente comentários ao executor</span></div><div class="output-table-wrap"><table class="draft-table"><thead><tr><th>Rubrica</th><th>Item</th><th>Documentos pendentes</th><th>Pendência ao executor</th><th>Resposta</th></tr></thead><tbody>${rows.map(row => `<tr><td>${escapeHtml(row.category)}</td><td>${escapeHtml(row.item)}</td><td>${escapeHtml(row.pendingDocs.join(', '))}</td><td>${escapeHtml(row.executorComment)}</td><td>${escapeHtml(row.executorResponse)}</td></tr>`).join('') || '<tr><td colspan="5">Nenhuma pendência registrada.</td></tr>'}</tbody></table></div>`;
+    actions.innerHTML = '<button class="btn btn-ghost" onclick="closeOutputPreview()">Fechar</button><button class="btn btn-primary" onclick="downloadRefPunchlist()">Baixar Punchlist .xlsx</button>';
+  }
+};
+
+const va12BaseConcluirPC = concluirPC;
+concluirPC = async function() {
+  const latest = DATA && DATA.meta.ciclos.length ? ultimoCiclo() : null;
+  if (!latest || DATA.meta.concluida || latest.status === 'AGUARDANDO_ANALISE') return;
+  const originalStatus = latest.status;
+  latest.status = 'COM_EXECUTOR';
+  try { await va12BaseConcluirPC(); }
+  finally { if (!DATA.meta.concluida) latest.status = originalStatus; }
+};
+
+function va12ApplyActionRules() {
+  if (!DATA || !DATA.meta.ciclos.length) return;
+  const latest = ultimoCiclo();
+  const concluded = !!DATA.meta.concluida;
+  document.querySelectorAll('button[onclick="adicionarCiclo()"]').forEach(button => {
+    const enabled = !concluded && latest.status === 'COM_EXECUTOR';
+    button.disabled = !enabled;
+    button.title = enabled ? 'Encerrar o ciclo com o executor e criar um retorno' : 'Disponível apenas quando o ciclo mais recente estiver com o executor';
+  });
+  document.querySelectorAll('button[onclick="concluirPC()"]').forEach(button => {
+    const enabled = !concluded && latest.status !== 'AGUARDANDO_ANALISE';
+    button.disabled = !enabled;
+    button.title = enabled ? 'Concluir a PC e encerrar o ciclo atual' : 'Analise o ciclo antes de concluir a PC';
+  });
+  document.querySelectorAll('.analista-input').forEach(input => input.setAttribute('list', 'va12AnalystNames'));
+}
+
+const va12BaseRenderPCDetail = renderPCDetail;
+renderPCDetail = function() { va12BaseRenderPCDetail(); va12RefreshAnalystDatalist(); va12ApplyActionRules(); };
+const va12BaseRenderCicloCards = renderCicloCards;
+renderCicloCards = function() { va12BaseRenderCicloCards(); va12RefreshAnalystDatalist(); va12ApplyActionRules(); };
+
+function va12AnalystNames() {
+  const names = new Set();
+  (STORE.clients || []).forEach(client => (client.projects || []).forEach(project => (project.pcs || []).forEach(pc => {
+    if (!pc.real || !pc.data || !pc.data.meta) return;
+    (pc.data.meta.ciclos || []).forEach(cycle => { const name = String(cycle.analista || '').trim(); if (name) names.add(name); });
+  })));
+  return [...names].sort((a, b) => a.localeCompare(b, 'pt-BR'));
+}
+
+function va12QueueRows() {
+  const out = [];
+  (STORE.clients || []).forEach((client, ci) => (client.projects || []).forEach((project, pi) => (project.pcs || []).forEach((pc, pci) => {
+    if (!pc.real || !pc.data || !pc.data.meta) return;
+    const metrics = realMetrics(pc);
+    (pc.data.meta.ciclos || []).forEach((cycle, cycleIndex) => {
+      const cm = pcCycleMetrics(pc, cycleIndex);
+      out.push({
+        key: `${ci}|${pi}|${pci}|${cycle._gid || cycle.numero}`, ci, pi, pci, cycleIndex,
+        cycleRef: cycle, pcLabel: pc.label, projeto: project.name, cliente: client.client,
+        executor: project.executor || metrics.executor || '', numero: cycle.numero, status: cycle.status,
+        analista: cycle.analista || '', manualQueuePosition: cycle.manualQueuePosition,
+        total: cm.total, pct: cm.pct, rubricas: metrics.ciclos[cycleIndex] ? metrics.ciclos[cycleIndex].rubricas : [], real: true
+      });
+    });
+  })));
+  return out;
+}
+
+function va12QueueSort(a, b) {
+  const ap = Number.isFinite(a.manualQueuePosition) ? a.manualQueuePosition : Number.MAX_SAFE_INTEGER;
+  const bp = Number.isFinite(b.manualQueuePosition) ? b.manualQueuePosition : Number.MAX_SAFE_INTEGER;
+  return ap - bp || a.pcLabel.localeCompare(b.pcLabel, 'pt-BR') || a.numero - b.numero;
+}
+
+function va12OpenQueueCycle(ci, pi, pci, cycleIndex) {
+  handlePcClick(ci, pi, pci);
+  selectedCicloIdx = cycleIndex;
+  renderPCDetail();
+}
+
+function va12RenderQueueRow(c, sortable) {
+  return `<tr onclick="va12OpenQueueCycle(${c.ci},${c.pi},${c.pci},${c.cycleIndex})">
+    ${sortable ? `<td class="fila-arrows-td" onclick="event.stopPropagation()"><button class="fila-arrow-btn" onclick="moveFilaItem('${escapeHtml(c.key)}',-1)" title="Subir na fila">↑</button><button class="fila-arrow-btn" onclick="moveFilaItem('${escapeHtml(c.key)}',1)" title="Descer na fila">↓</button></td>` : ''}
+    <td><div class="pc-cell-id"><span class="pc-real-dot"></span>${escapeHtml(c.pcLabel)}</div></td><td class="pc-cell-muted">${escapeHtml(cicloLabel(c.numero))}</td><td class="pc-cell-muted">${escapeHtml(c.projeto)}</td><td class="pc-cell-muted">${escapeHtml(c.executor || '—')}</td><td class="pc-cell-muted">${c.total}</td>${mostrarCategorias ? `<td><div class="cell-rubrica-wrap">${renderRubricaChips(c.rubricas)}</div></td>` : ''}<td><div class="cell-pct-row"><div class="cell-pct-bar-track"><div class="cell-pct-bar-fill" style="width:${c.pct}%;background:${cicloBarColor(c.status)}"></div></div><span class="cell-pct-num">${c.pct}%</span></div></td></tr>`;
+}
+
+function va12RenderQueueTable(rows, sortable) {
+  if (!rows.length) return '<div class="fila-empty">Nenhum ciclo neste grupo.</div>';
+  return `<div class="pc-table-wrap"><table class="pc-table">${filaTableHead(sortable)}<tbody>${rows.map(row => va12RenderQueueRow(row, sortable)).join('')}</tbody></table></div>`;
+}
+
+renderFila = function() {
+  const el = document.getElementById('gestaoContent');
+  if (!el) return;
+  const analysts = va12AnalystNames();
+  if (filaSub !== 'geral' && filaSub !== '__none__' && !analysts.includes(filaSub)) filaSub = 'geral';
+  const flat = va12QueueRows();
+  const selected = filaSub === 'geral' ? flat : filaSub === '__none__' ? flat.filter(c => !c.analista.trim()) : flat.filter(c => c.analista === filaSub);
+  const sortable = filaSub !== 'geral';
+  let html = `<div class="fila-subswitch">${analysts.map(name => `<button class="fila-sub-btn ${filaSub === name ? 'active' : ''}" onclick="setFilaSub('${escapeHtml(name).replace(/'/g, '&#39;')}')">${escapeHtml(name)}</button>`).join('')}<button class="fila-sub-btn ${filaSub === '__none__' ? 'active' : ''}" onclick="setFilaSub('__none__')">Sem analista</button><button class="fila-sub-btn ${filaSub === 'geral' ? 'active' : ''}" onclick="setFilaSub('geral')">Visão geral</button></div>`;
+  html += `<div class="fila-sub-hint">${sortable ? 'Ordem manual persistida por analista e status.' : 'Visão consolidada de todos os analistas, somente leitura.'}</div><div class="dashboard-section">`;
+  CICLO_STATUS_ORDER.filter(status => status !== 'ENCERRADO').forEach(status => {
+    const rows = selected.filter(c => c.status === status).sort(va12QueueSort);
+    html += `<div class="fila-status-block"><div class="fila-status-header"><span class="fila-status-title">${escapeHtml(CICLO_STATUS_LABELS[status])}</span><span class="fila-status-count">${rows.length}</span><div class="fila-status-line"></div></div>${va12RenderQueueTable(rows, sortable)}</div>`;
+  });
+  const closed = selected.filter(c => c.status === 'ENCERRADO').sort(va12QueueSort);
+  html += `<div class="fila-status-block"><div class="fila-status-header"><span class="fila-status-title">Concluídos</span><span class="fila-status-count">${closed.length}</span><div class="fila-status-line"></div></div>${va12RenderQueueTable(closed, false)}</div></div>`;
+  el.innerHTML = html;
+};
+
+moveFilaItem = async function(key, direction) {
+  const all = va12QueueRows();
+  const current = all.find(row => row.key === key);
+  if (!current || filaSub === 'geral') return;
+  const peers = all.filter(row => row.status === current.status && (filaSub === '__none__' ? !row.analista.trim() : row.analista === filaSub)).sort(va12QueueSort);
+  const index = peers.findIndex(row => row.key === key);
+  const targetIndex = index + direction;
+  if (index < 0 || targetIndex < 0 || targetIndex >= peers.length) return;
+  const before = new Map(peers.map(row => [row.key, row.cycleRef.manualQueuePosition]));
+  [peers[index], peers[targetIndex]] = [peers[targetIndex], peers[index]];
+  peers.forEach((row, position) => { row.cycleRef.manualQueuePosition = position + 1; });
+  saveStore(); renderFila();
+  try {
+    await Promise.all(peers.filter(row => row.cycleRef._gid).map((row, position) => graphUpdateItem(LIST_IDS.Ciclos, row.cycleRef._gid, { ManualQueuePosition: position + 1 })));
+    showToast('Prioridade atualizada.');
+  } catch (error) {
+    peers.forEach((row, position) => { row.cycleRef.manualQueuePosition = before.get(row.key); });
+    saveStore(); renderFila(); showToast(`Não consegui salvar a prioridade: ${graphErrorText(error)}`);
+  }
+};
+
+const va12BaseSetView = setView;
+setView = function(view) {
+  va12BaseSetView(view);
+  va12EnsureRuntimeDom(); va12RefreshAnalystDatalist(); va12ApplyActionRules();
+  const scrollTarget = view === 'gestao' ? document.getElementById('gestaoContent') : view === 'workspace' ? document.querySelector('.workspace-list') : null;
+  if (scrollTarget) scrollTarget.scrollTop = 0;
+};
 
 async function initApp() {
   try {
