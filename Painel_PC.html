@@ -737,6 +737,21 @@
   }
 </style>
 
+<style id="va12-delete-styles">
+  .btn-danger { color:#9f2d2d; border-color:#d9aaaa; background:#fff; }
+  .btn-danger:hover:not(:disabled) { color:#fff; border-color:#9f2d2d; background:#9f2d2d; }
+  .delete-confirm-box { max-width:540px; }
+  .delete-warning { border-left:4px solid #b33b32; background:#fff6f5; padding:14px 16px; color:#53201d; }
+  .delete-warning strong { display:block; margin-bottom:5px; }
+  .delete-impact { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px; margin:14px 0; }
+  .delete-impact div { border:1px solid var(--border); padding:10px; background:#fff; text-align:center; }
+  .delete-impact b { display:block; font-size:18px; color:var(--ink); }
+  .delete-impact span { color:var(--muted); font-size:12px; }
+  .delete-confirm-name { font-weight:700; color:var(--ink); overflow-wrap:anywhere; }
+  .delete-error { margin-top:8px; color:#9f2d2d; font-size:13px; }
+  @media (max-width:560px) { .delete-impact { grid-template-columns:1fr; } }
+</style>
+
 </head>
 <body>
 
@@ -5286,6 +5301,140 @@ setView = function(view) {
   const scrollTarget = view === 'gestao' ? document.getElementById('gestaoContent') : view === 'workspace' ? document.querySelector('.workspace-list') : null;
   if (scrollTarget) scrollTarget.scrollTop = 0;
 };
+
+/* =====================================================================================
+   VA.12 - exclusao definitiva de PC com confirmacao explicita
+   ===================================================================================== */
+let va12DeleteTarget = null;
+
+function va12EnsureDeleteDialog() {
+  if (document.getElementById('va12DeleteOverlay')) return;
+  const overlay = document.createElement('div');
+  overlay.id = 'va12DeleteOverlay';
+  overlay.className = 'modal-overlay hidden';
+  overlay.innerHTML = `<div class="modal-box delete-confirm-box">
+    <div class="modal-header"><h2>Excluir PC</h2><button class="modal-close" onclick="closeDeletePCDialog()" title="Fechar">&times;</button></div>
+    <div class="modal-body" id="va12DeleteBody"></div>
+  </div>`;
+  document.body.appendChild(overlay);
+}
+
+function va12DeleteImpact(pc) {
+  const categories = pc && pc.data && pc.data.categories || [];
+  const items = categories.reduce((total, category) => total + (category.items || []).length, 0);
+  const cycles = pc && pc.data && pc.data.meta && pc.data.meta.ciclos ? pc.data.meta.ciclos.length : 0;
+  const sources = pc && pc.data && pc.data.meta && pc.data.meta.fontes ? pc.data.meta.fontes.length : 0;
+  return { items, cycles, sources };
+}
+
+deletePC = function(ci, pi, pci) {
+  const client = STORE.clients[ci];
+  const project = client && client.projects[pi];
+  const pc = project && project.pcs[pci];
+  if (!pc) return;
+  va12EnsureDeleteDialog();
+  const impact = va12DeleteImpact(pc);
+  va12DeleteTarget = { ci, pi, pci, client, project, pc };
+  document.getElementById('va12DeleteBody').innerHTML = `
+    <div class="delete-warning"><strong>Esta exclusão é definitiva.</strong>A PC e todos os registros vinculados serão apagados do SharePoint. Esta ação não pode ser desfeita.</div>
+    <div class="delete-impact"><div><b>${impact.cycles}</b><span>ciclo(s)</span></div><div><b>${impact.items}</b><span>item(ns)</span></div><div><b>${impact.sources}</b><span>fonte(s)</span></div></div>
+    <div class="modal-field"><label>Digite <span class="delete-confirm-name">${escapeHtml(pc.label)}</span> para confirmar</label><input id="va12DeleteConfirmation" autocomplete="off" oninput="va12ValidateDeleteConfirmation()"></div>
+    <div class="delete-error hidden" id="va12DeleteError"></div>
+    <div class="modal-actions"><button class="btn btn-ghost" onclick="closeDeletePCDialog()">Cancelar</button><button class="btn btn-danger" id="va12DeleteConfirmButton" onclick="confirmDeletePC()" disabled>Excluir definitivamente</button></div>`;
+  document.getElementById('va12DeleteOverlay').classList.remove('hidden');
+  setTimeout(() => document.getElementById('va12DeleteConfirmation').focus(), 0);
+};
+
+function closeDeletePCDialog() {
+  const overlay = document.getElementById('va12DeleteOverlay');
+  if (overlay) overlay.classList.add('hidden');
+  va12DeleteTarget = null;
+}
+
+function va12ValidateDeleteConfirmation() {
+  const input = document.getElementById('va12DeleteConfirmation');
+  const button = document.getElementById('va12DeleteConfirmButton');
+  if (!input || !button || !va12DeleteTarget) return;
+  button.disabled = input.value.trim() !== va12DeleteTarget.pc.label;
+}
+
+async function va12DeleteIfPresent(listId, itemId) {
+  if (!listId || !isRealGid(itemId)) return;
+  try { await graphDeleteItem(listId, itemId); }
+  catch (error) {
+    const message = String(error && error.message || error || '');
+    if (/\b404\b|not found|does not exist|não existe/i.test(message)) return;
+    throw error;
+  }
+}
+
+graphDeletePCCascade = async function(pc) {
+  const categories = pc.data && pc.data.categories || [];
+  for (const category of categories) {
+    for (const item of (category.items || [])) {
+      for (const analysis of (item.ciclosStatus || [])) {
+        const listId = analysis._legacy ? LIST_IDS.RevisoesPorCiclo : LIST_IDS.AnalisesItemCiclo;
+        await va12DeleteIfPresent(listId, analysis._gid);
+      }
+      await va12DeleteIfPresent(LIST_IDS.Itens, item.id);
+    }
+  }
+  for (const source of (pc.data.meta.fontes || [])) await va12DeleteIfPresent(LIST_IDS.FontesPC, source._gid);
+  for (const cycle of (pc.data.meta.ciclos || [])) {
+    for (const history of (cycle.statusHistory || [])) await va12DeleteIfPresent(LIST_IDS.HistoricoStatusCiclo, history._gid);
+    await va12DeleteIfPresent(LIST_IDS.Ciclos, cycle._gid);
+  }
+  await va12DeleteIfPresent(LIST_IDS.PCs, pc._gid);
+};
+
+async function confirmDeletePC() {
+  const target = va12DeleteTarget;
+  const input = document.getElementById('va12DeleteConfirmation');
+  if (!target || !input || input.value.trim() !== target.pc.label) return;
+  const errorBox = document.getElementById('va12DeleteError');
+  errorBox.classList.add('hidden');
+  showLoadingGate(`Excluindo ${target.pc.label}...`);
+  try {
+    if (target.pc.real && isRealGid(target.pc._gid)) {
+      if (!msalAccount) throw new Error('A sessão do SharePoint não está ativa. Recarregue e entre novamente antes de excluir.');
+      await graphDeletePCCascade(target.pc);
+    }
+    let index = target.project.pcs.indexOf(target.pc);
+    if (index < 0) index = target.pci;
+    if (target.project.pcs[index] !== target.pc) throw new Error('A PC mudou de posição. Feche esta janela e tente novamente.');
+    const wasCurrent = currentPC && currentPC.ci === target.ci && currentPC.pi === target.pi && currentPC.pci === index;
+    const shiftsCurrent = currentPC && currentPC.ci === target.ci && currentPC.pi === target.pi && currentPC.pci > index;
+    target.project.pcs.splice(index, 1);
+    if (wasCurrent) { currentPC = null; DATA = null; selectedItemId = null; selectedCicloIdx = 0; }
+    else if (shiftsCurrent) currentPC.pci -= 1;
+    saveStore(); filaOrder = null; renderTree();
+    document.getElementById('va12DeleteOverlay').classList.add('hidden');
+    va12DeleteTarget = null;
+    if (wasCurrent) setView('trabalho');
+    else if (currentView === 'trabalho') renderAreaTrabalho();
+    else if (currentView === 'gestao') renderGestao();
+    showToast(`${target.pc.label} foi excluída definitivamente.`);
+  } catch (error) {
+    console.warn('Falha ao excluir PC', error);
+    errorBox.textContent = `Não foi possível concluir a exclusão: ${graphErrorText(error)}`;
+    errorBox.classList.remove('hidden');
+  } finally { hideLoadingGate(); }
+}
+
+function va12AddDeleteAction() {
+  const actions = document.getElementById('detailTopActions');
+  if (!actions || !currentPC || actions.querySelector('[data-va12-delete-pc]')) return;
+  const button = document.createElement('button');
+  button.type = 'button'; button.className = 'btn btn-ghost btn-danger';
+  button.dataset.va12DeletePc = 'true';
+  button.title = 'Excluir esta PC definitivamente';
+  button.onclick = () => deletePC(currentPC.ci, currentPC.pi, currentPC.pci);
+  button.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg>Excluir PC';
+  actions.prepend(button);
+}
+
+const va12DeleteBaseRenderPCDetail = renderPCDetail;
+renderPCDetail = function() { va12DeleteBaseRenderPCDetail(); va12AddDeleteAction(); };
 
 async function initApp() {
   try {
