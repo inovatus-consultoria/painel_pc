@@ -2,7 +2,7 @@
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
-<title>Painel PC — VA.3 (SharePoint Lists)</title>
+<title>Painel PC — VA.9 (SharePoint Lists)</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
@@ -461,7 +461,7 @@
       Entrar com Microsoft
     </button>
   </div>
-  <div class="login-version">Painel PC · VA.3 · SharePoint Lists</div>
+  <div class="login-version">Painel PC · VA.9 · SharePoint Lists</div>
 </div>
 
 <div id="loading-overlay">
@@ -501,7 +501,7 @@
     <div class="tree" id="treeCol"></div>
     <div class="sidebar-foot">
       <div id="authStatus" style="margin-bottom:8px;"></div>
-      VA.3 · dado em SharePoint Lists (Microsoft Graph)<br>importe o Excel do Prompt pra trazer PCs novas
+      VA.9 · dado em SharePoint Lists (Microsoft Graph)<br>importe o Excel do Prompt pra trazer PCs novas
     </div>
   </aside>
 
@@ -624,9 +624,9 @@
 
 <script>
 
-/* ===== Config SharePoint Lists + Microsoft Graph (integração 08/07 — ver MEMORY_v3.md) =====
+/* ===== Config SharePoint Lists + Microsoft Graph (modelo MVP revisado — ver MEMORY_v4.md) =====
    Reaproveita o App Registration "Inovatus" (mesmo do Controle HH / gestão de projetos).
-   Site "Ferramentas" e as 11 listas já existem em produção (docs/Guia_Configuracao_SharePoint.md). */
+   Os IDs são resolvidos pelo nome da lista para não acoplar o app a IDs criados manualmente. */
 const MSAL_CONFIG = {
   auth: {
     clientId: 'd86f175d-2548-4d9f-b33a-57cda630412a',
@@ -643,13 +643,19 @@ const LIST_IDS = {
   PCs: '32402919-acd5-4322-9599-cfb5c13ba4ce',
   Ciclos: '04f1a834-3d94-4a56-9817-801627c3dd19',
   Itens: 'd352c696-251e-4353-820a-4263e373924c',
-  ChecksDocumento: 'd9569c49-e6fa-418d-aa41-eec564952be3',
-  RevisoesPorCiclo: 'e08e7d37-adc0-497d-95e0-4d32d4d1a845',
-  ModelosComentario: '8fe5cb5b-75f0-4ab9-9f3a-75c64fddc60c',
-  SchemaDocumentos: '863a0c39-2213-4304-b33d-c9f6d1b0778e',
-  ImportacoesLote: 'd49a41b5-768d-4298-a0e4-131e75df7478',
-  LogAtividade: 'ab898d85-6be3-4417-8d58-3854b1fa9934',
+  AnalisesItemCiclo: null,
+  HistoricoStatusCiclo: null,
+  FontesPC: null,
+  /* Compatibilidade somente de leitura durante a transição dos dados de teste. */
+  ChecksDocumento: null,
+  RevisoesPorCiclo: null,
 };
+const MVP_LIST_NAMES = [
+  'Clientes', 'Projetos', 'PCs', 'Ciclos', 'Itens',
+  'AnalisesItemCiclo', 'HistoricoStatusCiclo', 'FontesPC',
+];
+const LEGACY_LIST_NAMES = ['ChecksDocumento', 'RevisoesPorCiclo'];
+let listIdsResolved = false;
 
 let msalApp = null;
 let msalAccount = null;
@@ -748,6 +754,27 @@ async function graphGetAllItems(listId) {
      é metadado do próprio item) — usado como "data de cadastro" sem precisar de coluna extra. */
   return out.map(it => ({ id: it.id, _createdAt: it.createdDateTime || null, ...it.fields }));
 }
+async function resolveListIds() {
+  if (listIdsResolved) return;
+  const data = await graphFetch(`/sites/${SITE_ID}/lists?$select=id,name,displayName&$top=200`);
+  const byName = new Map();
+  (data.value || []).forEach(list => {
+    [list.name, list.displayName].filter(Boolean).forEach(name => byName.set(String(name).toLowerCase(), list.id));
+  });
+  [...MVP_LIST_NAMES, ...LEGACY_LIST_NAMES].forEach(name => {
+    const resolved = byName.get(name.toLowerCase());
+    if (resolved) LIST_IDS[name] = resolved;
+  });
+  const missing = MVP_LIST_NAMES.filter(name => !LIST_IDS[name]);
+  if (missing.length) throw new Error(`Listas MVP não encontradas no SharePoint: ${missing.join(', ')}`);
+  listIdsResolved = true;
+}
+async function graphGetOptionalItems(listName) {
+  const listId = LIST_IDS[listName];
+  if (!listId) return [];
+  try { return await graphGetAllItems(listId); }
+  catch (e) { console.warn(`Lista opcional ${listName} não pôde ser carregada`, e); return []; }
+}
 async function graphCreateItem(listId, fields) {
   const data = await graphFetch(`/sites/${SITE_ID}/lists/${listId}/items`, { method: 'POST', body: JSON.stringify({ fields }) });
   return data.id;
@@ -757,6 +784,36 @@ async function graphUpdateItem(listId, itemId, fields) {
 }
 async function graphDeleteItem(listId, itemId) {
   await graphFetch(`/sites/${SITE_ID}/lists/${listId}/items/${itemId}`, { method: 'DELETE' });
+}
+async function ensureMvpAnalysis(item, entry, cicloIdx) {
+  if (entry && entry._gid && !entry._legacy) return entry._gid;
+  const ciclo = DATA && DATA.meta && DATA.meta.ciclos[cicloIdx];
+  if (!item || !entry || !isRealGid(item.id) || !ciclo || !isRealGid(ciclo._gid)) return null;
+  entry._gid = await graphCreateItem(LIST_IDS.AnalisesItemCiclo, {
+    Title: item.title || `Item ${item.id}`, ItemId: item.id, CicloId: ciclo._gid,
+    ReviewStatus: itemStatusToChoice(entry.status), HasDoubt: !!entry.duvida,
+    InternalComment: entry.comentarioAnalista || '', ExecutorComment: entry.comentarioExecutor || '',
+    ExecutorResponse: entry.executorResponse || '',
+  });
+  entry._legacy = false;
+  saveStore();
+  return entry._gid;
+}
+async function syncCicloStatusHistory(pcId, ciclo, newStatus, changedAt) {
+  if (!isRealGid(pcId) || !ciclo || !isRealGid(ciclo._gid)) return;
+  const history = ciclo.statusHistory || (ciclo.statusHistory = []);
+  const openEntry = history.find(entry => !entry.exitedAt);
+  if (openEntry && isRealGid(openEntry._gid)) {
+    await graphUpdateItem(LIST_IDS.HistoricoStatusCiclo, openEntry._gid, { ExitedAt: changedAt });
+    openEntry.exitedAt = changedAt;
+  }
+  const newId = await graphCreateItem(LIST_IDS.HistoricoStatusCiclo, {
+    Title: `${cicloLabel(ciclo.numero)} - ${cicloStatusToChoice(newStatus)}`,
+    PCId: pcId, CicloId: ciclo._gid, Status: cicloStatusToChoice(newStatus),
+    EnteredAt: changedAt, EventNotes: '',
+  });
+  history.push({ _gid: newId, pcId: String(pcId), status: newStatus, enteredAt: changedAt, exitedAt: null, notes: '' });
+  saveStore();
 }
 async function graphBatch(requests) {
   if (!requests.length) return [];
@@ -778,12 +835,30 @@ async function graphBatch(requests) {
 
 /* ===== Vocabulário: escolha (SharePoint, em PT) <-> código interno do app ===== */
 function choiceToCicloStatus(v) {
-  const map = { 'Aguardando análise': 'AGUARDANDO_ANALISE', 'Em análise': 'EM_ANALISE', 'Em revisão': 'EM_REVISAO', 'Com o executor': 'COM_EXECUTOR', 'Encerrado': 'ENCERRADO' };
+  const map = {
+    'Aguardando análise': 'AGUARDANDO_ANALISE', 'Em análise': 'EM_ANALISE',
+    'Em revisão': 'EM_REVISAO', 'Pronta para envio': 'PRONTA_ENVIO',
+    'Com executor': 'COM_EXECUTOR', 'Com o executor': 'COM_EXECUTOR',
+    'Com operadora': 'COM_OPERADORA', 'Encerrado': 'ENCERRADO',
+  };
   return map[v] || 'AGUARDANDO_ANALISE';
 }
 function cicloStatusToChoice(v) {
-  const map = { AGUARDANDO_ANALISE: 'Aguardando análise', EM_ANALISE: 'Em análise', EM_REVISAO: 'Em revisão', COM_EXECUTOR: 'Com o executor', ENCERRADO: 'Encerrado' };
+  const map = {
+    AGUARDANDO_ANALISE: 'Aguardando análise', EM_ANALISE: 'Em análise', EM_REVISAO: 'Em revisão',
+    PRONTA_ENVIO: 'Pronta para envio', COM_EXECUTOR: 'Com executor',
+    COM_OPERADORA: 'Com operadora', ENCERRADO: 'Encerrado',
+  };
   return map[v] || 'Aguardando análise';
+}
+function choiceToPcStatus(v, concludedFallback) {
+  const normalized = String(v || '').toLowerCase();
+  if (normalized === 'planejada') return 'PLANEJADA';
+  if (normalized === 'concluida' || normalized === 'concluída' || concludedFallback) return 'CONCLUIDA';
+  return 'ATIVA';
+}
+function pcStatusToChoice(v) {
+  return ({ PLANEJADA: 'Planejada', ATIVA: 'Ativa', CONCLUIDA: 'Concluida' })[v] || 'Ativa';
 }
 function choiceToItemStatus(v) {
   const map = { 'Aguardando análise': 'AGUARDANDO_ANALISE', 'Aberto': 'ABERTO', 'Fechado': 'FECHADO' };
@@ -792,44 +867,103 @@ function choiceToItemStatus(v) {
 function itemStatusToChoice(v) {
   const map = { AGUARDANDO_ANALISE: 'Aguardando análise', ABERTO: 'Aberto', FECHADO: 'Fechado' };
   return map[v] || 'Aguardando análise';
-}
-function categoriaInfoById(id) {
+}function categoriaInfoById(id) {
   const found = Object.values(CATEGORIA_MAP).find(v => v.id === id);
   return found || { id, label: id, docsFixed: ['Comprovante'] };
 }
+function parseJsonObject(value, fallback = {}) {
+  if (!value) return { ...fallback };
+  if (typeof value === 'object' && !Array.isArray(value)) return { ...value };
+  try {
+    const parsed = JSON.parse(value);
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : { ...fallback };
+  } catch (e) {
+    console.warn('JSON inválido recebido do SharePoint', e);
+    return { ...fallback };
+  }
+}
+function serializeJsonObject(value) {
+  return JSON.stringify(value && typeof value === 'object' ? value : {});
+}
+function toIsoDateCell(value) {
+  if (value === null || value === undefined || value === '') return null;
+  let date = value instanceof Date ? value : null;
+  if (!date && typeof value === 'number') date = new Date(Math.round((value - 25569) * 86400 * 1000));
+  if (!date) {
+    const parsed = new Date(value);
+    if (!isNaN(parsed.getTime())) date = parsed;
+  }
+  return date && !isNaN(date.getTime()) ? date.toISOString().slice(0, 10) : null;
+}
 
-/* ===== Carrega STORE inteiro a partir das 11 listas do SharePoint, fazendo o "join" (por
-   <Entidade>Id) no código — não existe coluna de Pesquisa nativa, ver docs/Guia_Configuracao_SharePoint.md ===== */
+/* ===== Carrega STORE a partir das 8 listas MVP e monta o view model usado pela UI. ===== */
 async function loadStoreFromGraph() {
-  const [clientesRaw, projetosRaw, pcsRaw, ciclosRaw, itensRaw, checksRaw, revisoesRaw] = await Promise.all([
+  await resolveListIds();
+  const [clientesRaw, projetosRaw, pcsRaw, ciclosRaw, itensRaw, analisesMvpRaw, historicosRaw, fontesRaw, checksLegacyRaw, revisoesLegacyRaw] = await Promise.all([
     graphGetAllItems(LIST_IDS.Clientes),
     graphGetAllItems(LIST_IDS.Projetos),
     graphGetAllItems(LIST_IDS.PCs),
     graphGetAllItems(LIST_IDS.Ciclos),
     graphGetAllItems(LIST_IDS.Itens),
-    graphGetAllItems(LIST_IDS.ChecksDocumento),
-    graphGetAllItems(LIST_IDS.RevisoesPorCiclo),
+    graphGetAllItems(LIST_IDS.AnalisesItemCiclo),
+    graphGetAllItems(LIST_IDS.HistoricoStatusCiclo),
+    graphGetAllItems(LIST_IDS.FontesPC),
+    graphGetOptionalItems('ChecksDocumento'),
+    graphGetOptionalItems('RevisoesPorCiclo'),
   ]);
+  const analisesRaw = [
+    ...revisoesLegacyRaw.map(analysis => ({ ...analysis, _legacySource: true })),
+    ...analisesMvpRaw.map(analysis => ({ ...analysis, _legacySource: false })),
+  ];
 
-  const clients = clientesRaw.map(c => ({ _gid: c.id, client: c.Title || c.ShortName || '(sem nome)', code: c.ShortName || '', projects: [] }));
-  const clientByGid = new Map(clients.map(c => [c._gid, c]));
+  const clients = clientesRaw.map(c => ({
+    _gid: c.id, client: c.Title || c.ShortName || '(sem nome)', code: c.ShortName || '',
+    active: c.Active !== false, projects: [],
+  }));
+  const clientByGid = new Map(clients.map(c => [String(c._gid), c]));
 
   const projByGid = new Map();
   projetosRaw.forEach(p => {
     const cliente = clientByGid.get(String(p.ClienteId));
     if (!cliente) return;
-    const proj = { _gid: p.id, name: p.ProjectCode || p.Title || '', executor: p.ExecutorName || '', fundacao: p.FundacaoName || '', pcs: [] };
+    const proj = {
+      _gid: p.id, name: p.ProjectCode || p.Title || '', executor: p.ExecutorName || '',
+      fundacao: p.FundacaoName || '', active: p.Active !== false, notes: p.Notes || '', pcs: [],
+    };
     cliente.projects.push(proj);
-    projByGid.set(proj._gid, proj);
+    projByGid.set(String(proj._gid), proj);
+  });
+
+  const historicosByCiclo = new Map();
+  historicosRaw.forEach(h => {
+    const cicloId = String(h.CicloId);
+    if (!historicosByCiclo.has(cicloId)) historicosByCiclo.set(cicloId, []);
+    historicosByCiclo.get(cicloId).push({
+      _gid: h.id, pcId: h.PCId ? String(h.PCId) : null, status: choiceToCicloStatus(h.Status),
+      enteredAt: h.EnteredAt || null, exitedAt: h.ExitedAt || null, notes: h.EventNotes || '',
+    });
+  });
+  const fontesByPc = new Map();
+  fontesRaw.forEach(f => {
+    const pcId = String(f.PCId);
+    if (!fontesByPc.has(pcId)) fontesByPc.set(pcId, []);
+    fontesByPc.get(pcId).push({
+      _gid: f.id, cicloId: f.CicloId ? String(f.CicloId) : null, fileType: f.FileType || '',
+      fileName: f.FileName || '', importedAt: f.ImportedAt || null, notes: f.Notes || '', title: f.Title || '',
+    });
   });
 
   const ciclosByPc = new Map();
   ciclosRaw.forEach(c => {
     const pcId = String(c.PCId);
     if (!ciclosByPc.has(pcId)) ciclosByPc.set(pcId, []);
-    /* 16/07: StatusChangedAt já existia no schema e já era gravado a cada troca de status
-       (ver updateCicloStatus), só nunca tinha sido lido de volta pro STORE — agora entra aqui. */
-    ciclosByPc.get(pcId).push({ _gid: c.id, numero: Number(c.CycleNumber) || 1, status: choiceToCicloStatus(c.Status), analista: c.AnalystName || '', statusChangedAt: c.StatusChangedAt || null });
+    ciclosByPc.get(pcId).push({
+      _gid: c.id, numero: Number(c.CycleNumber) || 1, status: choiceToCicloStatus(c.Status),
+      analista: c.AnalystName || '', statusChangedAt: c.StatusChangedAt || null,
+      generalInternalComment: c.GeneralInternalComment || '', generalExecutorComment: c.GeneralExecutorComment || '',
+      manualQueuePosition: c.ManualQueuePosition == null ? null : Number(c.ManualQueuePosition),
+      statusHistory: historicosByCiclo.get(String(c.id)) || [],
+    });
   });
   ciclosByPc.forEach(list => list.sort((a, b) => a.numero - b.numero));
 
@@ -837,81 +971,90 @@ async function loadStoreFromGraph() {
   pcsRaw.forEach(p => {
     const proj = projByGid.get(String(p.ProjetoId));
     if (!proj) return;
-    const ciclos = ciclosByPc.get(p.id) || [{ _gid: null, numero: 1, status: 'AGUARDANDO_ANALISE', analista: '', statusChangedAt: null }];
+    const pcStatus = choiceToPcStatus(p.PCStatus, !!p.Concluded);
+    const ciclos = ciclosByPc.get(String(p.id)) || [];
+    const safeCiclos = ciclos.length ? ciclos : [{
+      _gid: null, numero: 1, status: 'AGUARDANDO_ANALISE', analista: '', statusChangedAt: null,
+      generalInternalComment: '', generalExecutorComment: '', manualQueuePosition: null, statusHistory: [],
+    }];
+    const pcNumber = p.PCNumber || String(p.Title || '').replace(/^PC/i, '');
     const pc = {
-      label: p.PCNumber ? `PC${p.PCNumber}` : (p.Title || 'PC'),
-      real: true,
-      _gid: p.id,
+      label: pcNumber ? `PC${pcNumber}` : (p.Title || 'PC'), real: true, _gid: p.id,
       data: {
         meta: {
-          cliente: '', projeto: proj.name, pc: p.PCNumber ? `PC${p.PCNumber}` : '', executor: proj.executor,
-          periodo: '', ciclos: ciclos.map(c => ({ numero: c.numero, status: c.status, _gid: c._gid, analista: c.analista || '', statusChangedAt: c.statusChangedAt || null })),
-          concluida: !!p.Concluded,
-          dataCadastro: p._createdAt || null,
+          cliente: '', projeto: proj.name, pc: pcNumber ? `PC${pcNumber}` : '', executor: proj.executor,
+          fundacao: proj.fundacao, periodoInicio: p.PeriodStart || null, periodoFim: p.PeriodEnd || null,
+          periodo: [p.PeriodStart, p.PeriodEnd].filter(Boolean).map(v => fmtIsoDate(v)).join(' a '),
+          sourceType: p.SourceType || '', pcStatus, concluida: pcStatus === 'CONCLUIDA',
+          ciclos: safeCiclos, fontes: fontesByPc.get(String(p.id)) || [],
+          residualPendingNote: p.ResidualPendingNote || '', dataCadastro: p._createdAt || null,
         },
         categories: [],
       },
     };
     proj.pcs.push(pc);
-    pcByGid.set(p.id, pc);
+    pcByGid.set(String(p.id), pc);
   });
   clients.forEach(cl => cl.projects.forEach(pr => pr.pcs.forEach(pc => { pc.data.meta.cliente = cl.client; })));
 
-  const checksByItem = new Map();
-  checksRaw.forEach(ch => {
+  const checksLegacyByItem = new Map();
+  checksLegacyRaw.forEach(ch => {
     const itemId = String(ch.ItemId);
-    if (!checksByItem.has(itemId)) checksByItem.set(itemId, []);
-    checksByItem.get(itemId).push(ch);
+    if (!checksLegacyByItem.has(itemId)) checksLegacyByItem.set(itemId, []);
+    checksLegacyByItem.get(itemId).push(ch);
   });
-  const revisoesByItem = new Map();
-  revisoesRaw.forEach(r => {
-    const itemId = String(r.ItemId);
-    if (!revisoesByItem.has(itemId)) revisoesByItem.set(itemId, []);
-    revisoesByItem.get(itemId).push(r);
+  const analisesByItem = new Map();
+  analisesRaw.forEach(a => {
+    const itemId = String(a.ItemId);
+    if (!analisesByItem.has(itemId)) analisesByItem.set(itemId, []);
+    analisesByItem.get(itemId).push(a);
   });
-  const cicloNumeroByGid = new Map();
-  ciclosRaw.forEach(c => cicloNumeroByGid.set(c.id, Number(c.CycleNumber) || 1));
+  const cicloNumeroByGid = new Map(ciclosRaw.map(c => [String(c.id), Number(c.CycleNumber) || 1]));
 
   const categoriesByPc = new Map();
   itensRaw.forEach(it => {
     const pc = pcByGid.get(String(it.PCId));
     if (!pc) return;
     const catId = it.CategoryId || 'outros';
-    if (!categoriesByPc.has(pc._gid)) categoriesByPc.set(pc._gid, {});
-    const catsMap = categoriesByPc.get(pc._gid);
+    if (!categoriesByPc.has(String(pc._gid))) categoriesByPc.set(String(pc._gid), {});
+    const catsMap = categoriesByPc.get(String(pc._gid));
     if (!catsMap[catId]) {
       const info = categoriaInfoById(catId);
-      catsMap[catId] = { id: catId, label: info.label, docsFixed: info.docsFixed, items: [] };
+      catsMap[catId] = { id: catId, label: info.label, docsFixed: info.docsFixed || info.docsDefault || ['Comprovante'], items: [] };
     }
+
     const numCiclos = pc.data.meta.ciclos.length;
     const ciclosStatus = new Array(numCiclos);
-    (revisoesByItem.get(it.id) || []).forEach(r => {
-      const numero = cicloNumeroByGid.get(String(r.CicloId)) || 1;
+    (analisesByItem.get(String(it.id)) || []).forEach(a => {
+      const numero = cicloNumeroByGid.get(String(a.CicloId)) || 1;
       ciclosStatus[numero - 1] = {
-        _gid: r.id, numero,
-        status: choiceToItemStatus(r.ReviewStatus),
-        comentarioAnalista: r.InternalComment || '',
-        comentarioExecutor: r.ExecutorComment || '',
-        duvida: !!r.HasDoubt,
+        _gid: a.id, _legacy: !!a._legacySource, numero, status: choiceToItemStatus(a.ReviewStatus),
+        comentarioAnalista: a.InternalComment || '', comentarioExecutor: a.ExecutorComment || '',
+        executorResponse: a.ExecutorResponse || '', duvida: !!a.HasDoubt,
       };
     });
     for (let i = 0; i < numCiclos; i++) {
-      if (!ciclosStatus[i]) ciclosStatus[i] = { numero: i + 1, status: 'AGUARDANDO_ANALISE', comentarioAnalista: '', comentarioExecutor: '', duvida: false, _gid: null };
+      if (!ciclosStatus[i]) ciclosStatus[i] = {
+        numero: i + 1, status: 'AGUARDANDO_ANALISE', comentarioAnalista: '',
+        comentarioExecutor: '', executorResponse: '', duvida: false, _gid: null, _legacy: false,
+      };
     }
-    const checks = {}, checksGid = {};
-    (checksByItem.get(it.id) || []).forEach(ch => {
-      checks[ch.DocumentTypeId] = ch.Status || 'PND';
-      checksGid[ch.DocumentTypeId] = ch.id;
-    });
+
+    const checks = parseJsonObject(it.DocumentChecks);
+    if (!Object.keys(checks).length) {
+      (checksLegacyByItem.get(String(it.id)) || []).forEach(ch => { checks[ch.DocumentTypeId || ch.Title] = ch.Status || 'PND'; });
+    }
+    (catsMap[catId].docsFixed || []).forEach(doc => { if (!checks[doc]) checks[doc] = 'PND'; });
+
     catsMap[catId].items.push({
-      id: it.id,
-      title: it.BudgetItem || it.Description || 'Item sem descrição',
-      subtitle: it.Description || '',
-      tipoLabel: it.BudgetItem || null,
+      id: it.id, title: it.BudgetItem || it.Description || it.Title || 'Item sem descrição',
+      subtitle: it.Description || '', tipoLabel: it.BudgetItem || null,
       valor: (it.Amount !== undefined && it.Amount !== null && it.Amount !== '') ? String(it.Amount) : null,
-      checks, _checksGid: checksGid,
-      ciclosStatus,
-      possivelRemovido: !!it.PossibleRemoved,
+      checks, ciclosStatus, possivelRemovido: !!it.PossibleRemoved,
+      canonicalData: parseJsonObject(it.CanonicalDataJson), sourceItemKey: it.SourceItemKey || '',
+      sourceSheetName: it.SourceSheetName || '', sourceRowNumber: it.SourceRowNumber || null,
+      importWarnings: it.ImportWarnings || '', payeeName: it.PayeeName || '',
+      payeeDocumentMasked: it.PayeeDocumentMasked || '',
       importado: {
         dataPagamento: it.PaymentDate ? new Date(it.PaymentDate).toLocaleDateString('pt-BR') : '',
         dataDocumento: it.DocumentDate ? new Date(it.DocumentDate).toLocaleDateString('pt-BR') : '',
@@ -919,11 +1062,10 @@ async function loadStoreFromGraph() {
       },
     });
   });
-  categoriesByPc.forEach((catsMap, pcGid) => { pcByGid.get(pcGid).data.categories = Object.values(catsMap); });
+  categoriesByPc.forEach((catsMap, pcGid) => { pcByGid.get(String(pcGid)).data.categories = Object.values(catsMap); });
 
-  return { clients };
+  return { clients, syncState: 'synced', loadedAt: new Date().toISOString() };
 }
-
 
 
 /* biblioteca segmentada por categoria (fake, ilustrativo) */
@@ -933,7 +1075,7 @@ async function loadStoreFromGraph() {
 const TEMPLATES_BY_CAT = {};
 
 /* ===== Persistência local (localStorage) — sem backend/banco nesta fase, é só pra testar ===== */
-const STORAGE_KEY = 'painelPC_store_v1';
+const STORAGE_KEY = 'painelPC_store_v2';
 let STORE = null;
 
 async function loadStore() {
@@ -949,7 +1091,11 @@ async function loadStore() {
   }
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) { STORE = JSON.parse(raw); return; }
+    if (raw) {
+      STORE = JSON.parse(raw);
+      STORE.syncState = 'cache_fallback';
+      return;
+    }
   } catch (e) { console.warn('Falha ao ler localStorage, recarregando dado padrão', e); }
   /* 08/07: dado fake removido — sem login e sem cache local, começa vazio (pede login) */
   STORE = { clients: [] };
@@ -1061,12 +1207,11 @@ async function toggleDuvida(itemId) {
   saveStore();
   renderList();
   renderDetail();
-  if (entry._gid) {
-    try { await graphUpdateItem(LIST_IDS.RevisoesPorCiclo, entry._gid, { HasDoubt: entry.duvida }); }
-    catch (e) { console.warn(e); showToast('Não consegui sincronizar a dúvida com o SharePoint.'); }
-  }
+  try {
+    const analysisId = await ensureMvpAnalysis(found.item, entry, selectedCicloIdx);
+    if (analysisId) await graphUpdateItem(LIST_IDS.AnalisesItemCiclo, analysisId, { HasDoubt: entry.duvida });
+  } catch (e) { console.warn(e); showToast('Não consegui sincronizar a dúvida com o SharePoint.'); }
 }
-
 function catProgress(cat) {
   const total = cat.items.length;
   const done = cat.items.filter(isAnalyzed).length;
@@ -1127,15 +1272,17 @@ const CICLO_STATUS_LABELS = {
   AGUARDANDO_ANALISE: 'Aguardando análise',
   EM_ANALISE: 'Em análise',
   EM_REVISAO: 'Em revisão',
-  COM_EXECUTOR: 'Com o executor',
+  PRONTA_ENVIO: 'Pronta para envio',
+  COM_EXECUTOR: 'Com executor',
+  COM_OPERADORA: 'Com operadora',
   ENCERRADO: 'Encerrado',
 };
-const CICLO_STATUS_ORDER = ['AGUARDANDO_ANALISE', 'EM_ANALISE', 'EM_REVISAO', 'COM_EXECUTOR'];
+const CICLO_STATUS_ORDER = ['AGUARDANDO_ANALISE', 'EM_ANALISE', 'EM_REVISAO', 'PRONTA_ENVIO', 'COM_EXECUTOR', 'COM_OPERADORA', 'ENCERRADO'];
 function cicloBadgeClass(status) {
   if (status === 'ENCERRADO') return 'badge-slate';
   if (status === 'EM_ANALISE') return 'badge-amber';
-  if (status === 'EM_REVISAO') return 'badge-teal';
-  if (status === 'COM_EXECUTOR') return 'badge-outline';
+  if (status === 'EM_REVISAO' || status === 'PRONTA_ENVIO') return 'badge-teal';
+  if (status === 'COM_EXECUTOR' || status === 'COM_OPERADORA') return 'badge-outline';
   return 'badge-slate';
 }
 
@@ -1257,22 +1404,25 @@ function isRealGid(id) { return !!id && !String(id).startsWith('tmp-'); }
 async function graphDeletePCCascade(pc) {
   for (const cat of pc.data.categories) {
     for (const item of cat.items) {
-      for (const rev of (item.ciclosStatus || [])) {
-        if (isRealGid(rev._gid)) await graphDeleteItem(LIST_IDS.RevisoesPorCiclo, rev._gid).catch(e => console.warn('Falha ao apagar revisão', e));
-      }
-      for (const docKey in (item._checksGid || {})) {
-        const gid = item._checksGid[docKey];
-        if (isRealGid(gid)) await graphDeleteItem(LIST_IDS.ChecksDocumento, gid).catch(e => console.warn('Falha ao apagar check', e));
+      for (const analysis of (item.ciclosStatus || [])) {
+        if (isRealGid(analysis._gid) && !analysis._legacy) {
+          await graphDeleteItem(LIST_IDS.AnalisesItemCiclo, analysis._gid).catch(e => console.warn('Falha ao apagar análise', e));
+        }
       }
       if (isRealGid(item.id)) await graphDeleteItem(LIST_IDS.Itens, item.id).catch(e => console.warn('Falha ao apagar item', e));
     }
   }
+  for (const source of (pc.data.meta.fontes || [])) {
+    if (isRealGid(source._gid)) await graphDeleteItem(LIST_IDS.FontesPC, source._gid).catch(e => console.warn('Falha ao apagar fonte', e));
+  }
   for (const ciclo of pc.data.meta.ciclos) {
+    for (const history of (ciclo.statusHistory || [])) {
+      if (isRealGid(history._gid)) await graphDeleteItem(LIST_IDS.HistoricoStatusCiclo, history._gid).catch(e => console.warn('Falha ao apagar histórico', e));
+    }
     if (isRealGid(ciclo._gid)) await graphDeleteItem(LIST_IDS.Ciclos, ciclo._gid).catch(e => console.warn('Falha ao apagar ciclo', e));
   }
   await graphDeleteItem(LIST_IDS.PCs, pc._gid);
 }
-
 function deletePC(ci, pi, pci) {
   const project = STORE.clients[ci].projects[pi];
   const pc = project.pcs[pci];
@@ -1665,8 +1815,9 @@ function renderCicloCards() {
 
   document.getElementById('cicloAnalistaWrap').innerHTML = `<input type="text" class="analista-input" value="${escapeHtml(sel.analista || '')}" placeholder="Nome do analista" oninput="updateCicloAnalista(this.value)">`;
 
-  document.getElementById('pcStatusBadge').className = 'badge ' + (DATA.meta.concluida ? 'badge-green' : 'badge-slate');
-  document.getElementById('pcStatusBadge').textContent = DATA.meta.concluida ? 'Concluída' : 'Em andamento';
+  const pcStatus = DATA.meta.pcStatus || (DATA.meta.concluida ? 'CONCLUIDA' : 'ATIVA');
+  document.getElementById('pcStatusBadge').className = 'badge ' + (pcStatus === 'CONCLUIDA' ? 'badge-green' : 'badge-slate');
+  document.getElementById('pcStatusBadge').textContent = ({ PLANEJADA: 'Planejada', ATIVA: 'Ativa', CONCLUIDA: 'Concluída' })[pcStatus] || 'Ativa';
 
   const actions = document.getElementById('pcStatusActions');
   actions.innerHTML = '';
@@ -1697,17 +1848,23 @@ function selectCiclo(idx) {
 
 async function updateCicloStatus(newStatus) {
   const ciclo = DATA.meta.ciclos[selectedCicloIdx];
+  const pc = currentPC ? pcAt(currentPC.ci, currentPC.pi, currentPC.pci) : null;
+  const changedAt = new Date().toISOString();
   ciclo.status = newStatus;
+  ciclo.statusChangedAt = changedAt;
   saveStore();
   renderCicloCards();
   renderList();
   renderProgress();
-  if (ciclo._gid) {
-    try { await graphUpdateItem(LIST_IDS.Ciclos, ciclo._gid, { Status: cicloStatusToChoice(newStatus), StatusChangedAt: new Date().toISOString() }); }
-    catch (e) { console.warn(e); showToast('Não consegui sincronizar o status do ciclo com o SharePoint.'); }
+  if (!ciclo._gid) return;
+  try {
+    await graphUpdateItem(LIST_IDS.Ciclos, ciclo._gid, { Status: cicloStatusToChoice(newStatus), StatusChangedAt: changedAt });
+  } catch (e) {
+    console.warn(e); showToast('Não consegui sincronizar o status do ciclo com o SharePoint.'); return;
   }
+  try { await syncCicloStatusHistory(pc && pc._gid, ciclo, newStatus, changedAt); }
+  catch (e) { console.warn(e); showToast('Status salvo, mas o histórico do ciclo não pôde ser atualizado.'); }
 }
-
 /* ===== Analista responsável pelo ciclo/retorno (08/07): seleção manual, não é o usuário logado —
    às vezes uma pessoa mexe no sistema em nome de outra, e o analista pode mudar de retorno pra
    retorno da mesma PC. Mesmo padrão de debounce dos comentários (updateComentario/syncComentario),
@@ -1736,20 +1893,23 @@ async function adicionarCiclo() {
   const u = ultimoCiclo();
   if (u.status !== 'COM_EXECUTOR' || DATA.meta.concluida) return;
   const pc = currentPC ? pcAt(currentPC.ci, currentPC.pi, currentPC.pci) : null;
+  const changedAt = new Date().toISOString();
   u.status = 'ENCERRADO';
+  u.statusChangedAt = changedAt;
   const novoNumero = u.numero + 1;
-  const novoCiclo = { numero: novoNumero, status: 'AGUARDANDO_ANALISE', _gid: null, analista: '' };
+  const novoCiclo = {
+    numero: novoNumero, status: 'AGUARDANDO_ANALISE', _gid: null, analista: '',
+    statusChangedAt: changedAt, generalInternalComment: '', generalExecutorComment: '',
+    manualQueuePosition: null, statusHistory: [],
+  };
   DATA.meta.ciclos.push(novoCiclo);
   const pendentes = [];
   DATA.categories.forEach(cat => {
     cat.items.forEach(item => {
       const last = item.ciclosStatus[item.ciclosStatus.length - 1];
-      let novaEntry;
-      if (last && last.status === 'FECHADO') {
-        novaEntry = { numero: novoNumero, status: 'FECHADO', comentarioAnalista: last.comentarioAnalista, comentarioExecutor: last.comentarioExecutor, duvida: false, _gid: null };
-      } else {
-        novaEntry = { numero: novoNumero, status: 'AGUARDANDO_ANALISE', comentarioAnalista: '', comentarioExecutor: '', duvida: false, _gid: null };
-      }
+      const novaEntry = last && last.status === 'FECHADO'
+        ? { numero: novoNumero, status: 'FECHADO', comentarioAnalista: last.comentarioAnalista, comentarioExecutor: last.comentarioExecutor, executorResponse: '', duvida: false, _gid: null, _legacy: false }
+        : { numero: novoNumero, status: 'AGUARDANDO_ANALISE', comentarioAnalista: '', comentarioExecutor: '', executorResponse: '', duvida: false, _gid: null, _legacy: false };
       item.ciclosStatus.push(novaEntry);
       pendentes.push({ item, entry: novaEntry });
     });
@@ -1757,52 +1917,65 @@ async function adicionarCiclo() {
   selectedCicloIdx = DATA.meta.ciclos.length - 1;
   saveStore();
   renderCicloCards(); renderList(); renderDetail(); renderProgress();
-  showToast(`${cicloLabel(u.numero)} encerrada — ${cicloLabel(novoNumero)} criado: itens fechados foram mantidos, os demais voltaram para "Aguardando análise"`);
+  showToast(`${cicloLabel(u.numero)} encerrada — ${cicloLabel(novoNumero)} criado.`);
 
   if (!pc || !u._gid) return;
   try {
-    await graphUpdateItem(LIST_IDS.Ciclos, u._gid, { Status: 'Encerrado' });
-    novoCiclo._gid = await graphCreateItem(LIST_IDS.Ciclos, { Title: `${pc.label} - Ciclo ${novoNumero}`, PCId: pc._gid, CycleNumber: novoNumero, Status: 'Aguardando análise' });
+    await graphUpdateItem(LIST_IDS.Ciclos, u._gid, { Status: 'Encerrado', StatusChangedAt: changedAt });
+    try { await syncCicloStatusHistory(pc._gid, u, 'ENCERRADO', changedAt); }
+    catch (historyError) { console.warn('Falha ao registrar encerramento no histórico', historyError); }
+    novoCiclo._gid = await graphCreateItem(LIST_IDS.Ciclos, {
+      Title: `${pc.label} - ${cicloLabel(novoNumero)}`, PCId: pc._gid,
+      CycleNumber: novoNumero, Status: 'Aguardando análise', StatusChangedAt: changedAt,
+      GeneralInternalComment: '', GeneralExecutorComment: '',
+    });
+    await syncCicloStatusHistory(pc._gid, novoCiclo, 'AGUARDANDO_ANALISE', changedAt);
     saveStore();
     const requests = pendentes.map((p, i) => ({
       id: String(i + 1), method: 'POST',
-      url: `/sites/${SITE_ID}/lists/${LIST_IDS.RevisoesPorCiclo}/items`,
+      url: `/sites/${SITE_ID}/lists/${LIST_IDS.AnalisesItemCiclo}/items`,
       headers: { 'Content-Type': 'application/json' },
       body: { fields: {
         Title: p.item.title, ItemId: p.item.id, CicloId: novoCiclo._gid,
         ReviewStatus: itemStatusToChoice(p.entry.status), HasDoubt: false,
         InternalComment: p.entry.comentarioAnalista || '', ExecutorComment: p.entry.comentarioExecutor || '',
+        ExecutorResponse: '',
       } },
     }));
     const results = await graphBatch(requests);
     results.forEach(r => {
       const idx = Number(r.id) - 1;
       if (r.status >= 200 && r.status < 300 && r.body && r.body.id) pendentes[idx].entry._gid = r.body.id;
-      else console.warn('Falha ao criar revisão do novo ciclo no Graph', r);
+      else console.warn('Falha ao criar análise do novo ciclo no Graph', r);
     });
     saveStore();
   } catch (e) {
     console.warn(e);
-    showToast('Ciclo criado localmente, mas houve erro sincronizando com o SharePoint — use "Recarregar do SharePoint" pra conferir.');
+    showToast('Ciclo criado localmente, mas houve erro sincronizando com o SharePoint — recarregue para conferir.');
   }
 }
-
 async function concluirPC() {
   const u = ultimoCiclo();
   if (u.status !== 'COM_EXECUTOR' || DATA.meta.concluida) return;
   const pc = currentPC ? pcAt(currentPC.ci, currentPC.pi, currentPC.pci) : null;
+  const changedAt = new Date().toISOString();
   u.status = 'ENCERRADO';
+  u.statusChangedAt = changedAt;
+  DATA.meta.pcStatus = 'CONCLUIDA';
   DATA.meta.concluida = true;
   saveStore();
   renderCicloCards();
   showToast(`PC concluída — ${cicloLabel(u.numero)} foi o último`);
   if (!pc) return;
   try {
-    if (u._gid) await graphUpdateItem(LIST_IDS.Ciclos, u._gid, { Status: 'Encerrado' });
-    if (pc._gid) await graphUpdateItem(LIST_IDS.PCs, pc._gid, { Concluded: true, ConcludedAt: new Date().toISOString() });
+    if (u._gid) {
+      await graphUpdateItem(LIST_IDS.Ciclos, u._gid, { Status: 'Encerrado', StatusChangedAt: changedAt });
+      try { await syncCicloStatusHistory(pc._gid, u, 'ENCERRADO', changedAt); }
+      catch (historyError) { console.warn('Falha ao registrar encerramento no histórico', historyError); }
+    }
+    if (pc._gid) await graphUpdateItem(LIST_IDS.PCs, pc._gid, { PCStatus: pcStatusToChoice('CONCLUIDA'), ConcludedAt: changedAt });
   } catch (e) { console.warn(e); showToast('PC concluída localmente, mas houve erro sincronizando com o SharePoint.'); }
 }
-
 function renderProgress() {
   const g = globalProgress();
   document.getElementById('progressNum').textContent = g.pct + '%';
@@ -1893,13 +2066,11 @@ async function cycleCheck(itemId, docKey) {
   renderDetail();
   renderList();
   renderProgress();
-  const gid = found.item._checksGid && found.item._checksGid[docKey];
-  if (gid) {
-    try { await graphUpdateItem(LIST_IDS.ChecksDocumento, gid, { Status: novo }); }
+  if (isRealGid(found.item.id)) {
+    try { await graphUpdateItem(LIST_IDS.Itens, found.item.id, { DocumentChecks: serializeJsonObject(found.item.checks) }); }
     catch (e) { console.warn(e); showToast('Não consegui sincronizar esse documento com o SharePoint.'); }
   }
 }
-
 const _comentarioSyncTimers = {};
 function updateComentario(itemId, field, value) {
   const found = findItem(itemId);
@@ -1916,11 +2087,11 @@ async function syncComentario(itemId, cicloIdx, field, value) {
   if (!found) return;
   const entry = found.item.ciclosStatus[cicloIdx];
   if (!entry || !entry._gid) return;
-  const fieldMap = field === 'comentarioAnalista'
-    ? { InternalComment: value, InternalCommentAt: new Date().toISOString() }
-    : { ExecutorComment: value, ExecutorCommentAt: new Date().toISOString() };
-  try { await graphUpdateItem(LIST_IDS.RevisoesPorCiclo, entry._gid, fieldMap); }
-  catch (e) { console.warn(e); showToast('Não consegui sincronizar o comentário com o SharePoint.'); }
+  const fieldMap = field === 'comentarioAnalista' ? { InternalComment: value } : { ExecutorComment: value };
+  try {
+    const analysisId = await ensureMvpAnalysis(found.item, entry, cicloIdx);
+    if (analysisId) await graphUpdateItem(LIST_IDS.AnalisesItemCiclo, analysisId, fieldMap);
+  } catch (e) { console.warn(e); showToast('Não consegui sincronizar o comentário com o SharePoint.'); }
 }
 
 async function updateStatus(itemId, value) {
@@ -1933,10 +2104,10 @@ async function updateStatus(itemId, value) {
   renderList();
   renderDetail();
   renderProgress();
-  if (entry._gid) {
-    try { await graphUpdateItem(LIST_IDS.RevisoesPorCiclo, entry._gid, { ReviewStatus: itemStatusToChoice(value) }); }
-    catch (e) { console.warn(e); showToast('Não consegui sincronizar o status com o SharePoint.'); }
-  }
+  try {
+    const analysisId = await ensureMvpAnalysis(found.item, entry, selectedCicloIdx);
+    if (analysisId) await graphUpdateItem(LIST_IDS.AnalisesItemCiclo, analysisId, { ReviewStatus: itemStatusToChoice(value) });
+  } catch (e) { console.warn(e); showToast('Não consegui sincronizar o status com o SharePoint.'); }
 }
 
 function renderDetail() {
@@ -2304,136 +2475,175 @@ async function confirmImport() {
   const executorNome = document.getElementById('impExecutor').value.trim();
   const fundacaoNome = document.getElementById('impFundacao').value.trim();
   const checked = [...document.querySelectorAll('#impPcList input[type=checkbox]:checked')].map(i => i.value);
-  if (checked.length === 0) { showToast('Selecione ao menos uma PC.'); return; }
+  if (!checked.length) { showToast('Selecione ao menos uma PC.'); return; }
   if (!projetoNum) { showToast('Informe o número do projeto.'); return; }
 
-  showToast('Importando… isso pode levar alguns segundos (grava tudo no SharePoint).');
-
+  showToast('Importando… isso pode levar alguns segundos.');
   let client = STORE.clients.find(c => c.client.toLowerCase() === clientName.toLowerCase());
-  if (!client) { client = { client: clientName, code: clientName.slice(0, 3).toUpperCase(), projects: [], _gid: null }; STORE.clients.push(client); }
+  if (!client) {
+    client = { client: clientName, code: clientName.slice(0, 3).toUpperCase(), active: true, projects: [], _gid: null };
+    STORE.clients.push(client);
+  }
   let project = client.projects.find(p => p.name === projetoNum);
-  if (!project) { project = { name: projetoNum, executor: executorNome, fundacao: fundacaoNome, pcs: [], _gid: null }; client.projects.push(project); }
+  if (!project) {
+    project = { name: projetoNum, executor: executorNome, fundacao: fundacaoNome, active: true, notes: '', pcs: [], _gid: null };
+    client.projects.push(project);
+  }
 
   if (msalAccount) {
     try {
       if (!client._gid) client._gid = await graphCreateItem(LIST_IDS.Clientes, { Title: client.client, ShortName: client.code, Active: true });
-      if (!project._gid) project._gid = await graphCreateItem(LIST_IDS.Projetos, { Title: project.name, ClienteId: client._gid, ProjectCode: project.name, ExecutorName: project.executor, FundacaoName: project.fundacao, Active: true });
+      if (!project._gid) project._gid = await graphCreateItem(LIST_IDS.Projetos, {
+        Title: project.name, ClienteId: client._gid, ProjectCode: project.name,
+        ExecutorName: project.executor, FundacaoName: project.fundacao, Active: true,
+      });
     } catch (e) {
-      console.warn(e); showToast('Erro criando Empresa/Projeto no SharePoint — importação cancelada.'); return;
+      console.warn(e); showToast('Erro criando cliente/projeto no SharePoint — importação cancelada.'); return;
     }
   }
 
-  let importados = 0, pulados = 0, primeiroImportado = null;
+  let importados = 0, pulados = 0, parciais = 0, primeiroImportado = null;
   for (const n of checked) {
     const pcLabel = `PC${n}`;
-    if (project.pcs.some(pc => pc.label === pcLabel && pc.real)) { pulados++; continue; }
-    const rows = importCtx.byPc.get(n);
+    if (project.pcs.some(existingPc => existingPc.label === pcLabel && existingPc.real)) { pulados++; continue; }
+    const rows = importCtx.byPc.get(n) || [];
     const categoriesById = {};
     const itemsFlat = [];
     rows.forEach((r, i) => {
       const elementoCusto = r[1], itemOrcamento = r[2], detalhamento = r[4];
       const dataPag = r[5], dataDoc = r[6], valor = r[7], rendimentos = r[8];
       const info = categoriaInfo(elementoCusto);
-      if (!categoriesById[info.id]) categoriesById[info.id] = { id: info.id, label: info.label, docsFixed: info.docsFixed, items: [] };
-      const docsList = (info.docsFixed || info.docsDefault || ['Comprovante']);
-      const checks = {}, checksGid = {};
-      docsList.forEach(d => { checks[d] = 'PND'; });
+      if (!categoriesById[info.id]) categoriesById[info.id] = {
+        id: info.id, label: info.label, docsFixed: info.docsFixed || info.docsDefault || ['Comprovante'], items: [],
+      };
+      const docsList = info.docsFixed || info.docsDefault || ['Comprovante'];
+      const checks = {};
+      docsList.forEach(doc => { checks[doc] = 'PND'; });
+      const paymentIso = toIsoDateCell(dataPag);
+      const documentIso = toIsoDateCell(dataDoc);
+      const canonicalData = {
+        source: 'Prompt', executor: r[0] || '', category: elementoCusto || '', pcNumber: n,
+        budgetItem: itemOrcamento || '', description: detalhamento || '',
+        paymentDate: paymentIso, documentDate: documentIso,
+        amount: valor == null || valor === '' ? null : Number(String(valor).replace(',', '.')),
+        incomeAmount: rendimentos == null || rendimentos === '' ? null : Number(String(rendimentos).replace(',', '.')),
+      };
+      const sourceKey = [n, info.id, itemOrcamento, detalhamento, paymentIso, documentIso, valor]
+        .map(value => String(value == null ? '' : value).trim().toLowerCase()).join('|').slice(0, 255);
       const item = {
-        id: `tmp-${n}-${i}-${Date.now()}`,
-        title: itemOrcamento || detalhamento || 'Item sem descrição',
-        subtitle: detalhamento || '',
-        tipoLabel: itemOrcamento || null,
-        valor: (valor !== undefined && valor !== null && valor !== '') ? String(valor) : null,
-        checks, _checksGid: checksGid,
-        ciclosStatus: [{ numero: 1, status: 'AGUARDANDO_ANALISE', comentarioAnalista: '', comentarioExecutor: '', duvida: false, _gid: null }],
-        possivelRemovido: false,
-        importado: {
-          dataPagamento: fmtDateCell(dataPag),
-          dataDocumento: fmtDateCell(dataDoc),
-          rendimentos: (rendimentos !== undefined && rendimentos !== null) ? String(rendimentos) : null,
-        },
-        _categoryId: info.id, _docsList: docsList, _rawValor: valor, _rawRendimentos: rendimentos,
+        id: `tmp-${n}-${i}-${Date.now()}`, title: itemOrcamento || detalhamento || 'Item sem descrição',
+        subtitle: detalhamento || '', tipoLabel: itemOrcamento || null,
+        valor: valor == null || valor === '' ? null : String(valor), checks,
+        ciclosStatus: [{ numero: 1, status: 'AGUARDANDO_ANALISE', comentarioAnalista: '', comentarioExecutor: '', executorResponse: '', duvida: false, _gid: null, _legacy: false }],
+        possivelRemovido: false, canonicalData, sourceItemKey: sourceKey,
+        sourceSheetName: 'Todas as Despesas', sourceRowNumber: i + 1, importWarnings: '',
+        importado: { dataPagamento: fmtDateCell(dataPag), dataDocumento: fmtDateCell(dataDoc), rendimentos: rendimentos == null ? null : String(rendimentos) },
+        _categoryId: info.id, _rawValor: valor, _rawRendimentos: rendimentos,
+        _paymentIso: paymentIso, _documentIso: documentIso,
       };
       categoriesById[info.id].items.push(item);
       itemsFlat.push(item);
     });
+
+    const changedAt = new Date().toISOString();
+    const initialCycle = {
+      numero: 1, status: 'EM_ANALISE', _gid: null, analista: '', statusChangedAt: changedAt,
+      generalInternalComment: '', generalExecutorComment: '', manualQueuePosition: null, statusHistory: [],
+    };
     const pcData = {
-      meta: { cliente: client.client, projeto: projetoNum, pc: pcLabel, executor: executorNome, periodo: '', ciclos: [{ numero: 1, status: 'EM_ANALISE', _gid: null, analista: '' }], concluida: false },
+      meta: {
+        cliente: client.client, projeto: projetoNum, pc: pcLabel, executor: executorNome, fundacao: fundacaoNome,
+        periodo: '', periodoInicio: null, periodoFim: null, sourceType: 'Prompt', pcStatus: 'ATIVA',
+        ciclos: [initialCycle], fontes: [], residualPendingNote: '', concluida: false, dataCadastro: changedAt,
+      },
       categories: Object.values(categoriesById),
     };
     const pc = { label: pcLabel, real: true, data: pcData, _gid: null };
 
     if (msalAccount) {
       try {
-        pc._gid = await graphCreateItem(LIST_IDS.PCs, { Title: pcLabel, ProjetoId: project._gid, PCNumber: n, SourceType: 'Prompt', SourceFileName: importCtx.fileName, Concluded: false });
-        pcData.meta.ciclos[0]._gid = await graphCreateItem(LIST_IDS.Ciclos, { Title: `${pcLabel} - Ciclo 1`, PCId: pc._gid, CycleNumber: 1, Status: 'Em análise' });
+        pc._gid = await graphCreateItem(LIST_IDS.PCs, {
+          Title: pcLabel, ProjetoId: project._gid, PCNumber: n, SourceType: 'Prompt', PCStatus: 'Ativa',
+        });
+        initialCycle._gid = await graphCreateItem(LIST_IDS.Ciclos, {
+          Title: `${pcLabel} - 1ª análise`, PCId: pc._gid, CycleNumber: 1,
+          Status: 'Em análise', StatusChangedAt: changedAt,
+          GeneralInternalComment: '', GeneralExecutorComment: '',
+        });
+        await syncCicloStatusHistory(pc._gid, initialCycle, 'EM_ANALISE', changedAt);
 
-        const itemReqs = itemsFlat.map((it, i) => ({
-          id: String(i + 1), method: 'POST',
-          url: `/sites/${SITE_ID}/lists/${LIST_IDS.Itens}/items`,
+        const itemReqs = itemsFlat.map((item, i) => ({
+          id: String(i + 1), method: 'POST', url: `/sites/${SITE_ID}/lists/${LIST_IDS.Itens}/items`,
           headers: { 'Content-Type': 'application/json' },
           body: { fields: {
-            Title: it.title, PCId: pc._gid, CategoryId: it._categoryId,
-            BudgetItem: it.tipoLabel || '', Description: it.subtitle || '',
-            Amount: it._rawValor != null && it._rawValor !== '' ? (Number(String(it._rawValor).replace(',', '.')) || 0) : null,
-            IncomeAmount: it._rawRendimentos != null && it._rawRendimentos !== '' ? (Number(String(it._rawRendimentos).replace(',', '.')) || 0) : null,
-            PossibleRemoved: false,
+            Title: item.title, PCId: pc._gid, SourceItemKey: item.sourceItemKey,
+            CategoryId: item._categoryId, BudgetItem: item.tipoLabel || '', Description: item.subtitle || '',
+            PaymentDate: item._paymentIso, DocumentDate: item._documentIso,
+            Amount: item._rawValor == null || item._rawValor === '' ? null : (Number(String(item._rawValor).replace(',', '.')) || 0),
+            IncomeAmount: item._rawRendimentos == null || item._rawRendimentos === '' ? null : (Number(String(item._rawRendimentos).replace(',', '.')) || 0),
+            DocumentChecks: serializeJsonObject(item.checks), SourceSheetName: item.sourceSheetName,
+            SourceRowNumber: item.sourceRowNumber, CanonicalDataJson: serializeJsonObject(item.canonicalData),
+            ImportWarnings: '', PossibleRemoved: false,
           } },
         }));
         const itemResults = await graphBatch(itemReqs);
-        itemResults.forEach(r => {
-          const idx = Number(r.id) - 1;
-          if (r.status >= 200 && r.status < 300 && r.body && r.body.id) itemsFlat[idx].id = r.body.id;
-          else console.warn('Falha ao criar item no Graph', r);
+        itemResults.forEach(result => {
+          const idx = Number(result.id) - 1;
+          if (result.status >= 200 && result.status < 300 && result.body && result.body.id) itemsFlat[idx].id = result.body.id;
+          else console.warn('Falha ao criar item no Graph', result);
+        });
+        const failedItems = itemsFlat.filter(item => !isRealGid(item.id));
+        if (failedItems.length) throw new Error(`${failedItems.length} item(ns) não foram criados no SharePoint`);
+
+        const analysisReqs = itemsFlat.map((item, i) => ({
+          id: String(i + 1), method: 'POST', url: `/sites/${SITE_ID}/lists/${LIST_IDS.AnalisesItemCiclo}/items`,
+          headers: { 'Content-Type': 'application/json' },
+          body: { fields: {
+            Title: item.title, ItemId: item.id, CicloId: initialCycle._gid,
+            ReviewStatus: 'Aguardando análise', HasDoubt: false,
+            InternalComment: '', ExecutorComment: '', ExecutorResponse: '',
+          } },
+        }));
+        const analysisResults = await graphBatch(analysisReqs);
+        analysisResults.forEach(result => {
+          const idx = Number(result.id) - 1;
+          if (result.status >= 200 && result.status < 300 && result.body && result.body.id) itemsFlat[idx].ciclosStatus[0]._gid = result.body.id;
+          else console.warn('Falha ao criar análise no Graph', result);
         });
 
-        const checkReqs = [], revReqs = [], checkMeta = [], revMeta = [];
-        let reqSeq = 1;
-        itemsFlat.forEach(it => {
-          (it._docsList || []).forEach(docKey => {
-            const rid = String(reqSeq++);
-            checkReqs.push({ id: rid, method: 'POST', url: `/sites/${SITE_ID}/lists/${LIST_IDS.ChecksDocumento}/items`, headers: { 'Content-Type': 'application/json' }, body: { fields: { Title: docKey, ItemId: it.id, DocumentTypeId: docKey, Status: 'PND' } } });
-            checkMeta.push({ item: it, docKey, rid });
-          });
-          const rid2 = String(reqSeq++);
-          revReqs.push({ id: rid2, method: 'POST', url: `/sites/${SITE_ID}/lists/${LIST_IDS.RevisoesPorCiclo}/items`, headers: { 'Content-Type': 'application/json' }, body: { fields: { Title: it.title, ItemId: it.id, CicloId: pcData.meta.ciclos[0]._gid, ReviewStatus: 'Aguardando análise', HasDoubt: false, InternalComment: '', ExecutorComment: '' } } });
-          revMeta.push({ item: it, rid: rid2 });
+        const sourceId = await graphCreateItem(LIST_IDS.FontesPC, {
+          Title: `${pcLabel} - ${importCtx.fileName}`, PCId: pc._gid, CicloId: initialCycle._gid,
+          FileType: 'Prompt', FileName: importCtx.fileName, ImportedAt: changedAt,
+          Notes: `${itemsFlat.length} item(ns) importado(s).`,
         });
-        const allResults = await graphBatch([...checkReqs, ...revReqs]);
-        const resultById = new Map(allResults.map(r => [r.id, r]));
-        checkMeta.forEach(cm => {
-          const r = resultById.get(cm.rid);
-          if (r && r.status >= 200 && r.status < 300 && r.body && r.body.id) cm.item._checksGid[cm.docKey] = r.body.id;
+        pcData.meta.fontes.push({
+          _gid: sourceId, cicloId: String(initialCycle._gid), fileType: 'Prompt',
+          fileName: importCtx.fileName, importedAt: changedAt, notes: `${itemsFlat.length} item(ns) importado(s).`,
+          title: `${pcLabel} - ${importCtx.fileName}`,
         });
-        revMeta.forEach(rm => {
-          const r = resultById.get(rm.rid);
-          if (r && r.status >= 200 && r.status < 300 && r.body && r.body.id) rm.item.ciclosStatus[0]._gid = r.body.id;
-        });
-
-        await graphCreateItem(LIST_IDS.ImportacoesLote, { Title: `${pcLabel} - ${importCtx.fileName}`, PCId: pc._gid, SourceType: 'Prompt', SourceFileName: importCtx.fileName, Status: 'Importada', OkCount: itemsFlat.length, WarningCount: 0, ErrorCount: 0, ImportedAt: new Date().toISOString() });
       } catch (e) {
+        parciais++;
         console.warn(e);
-        showToast(`Erro sincronizando ${pcLabel} com o SharePoint — os dados podem estar parcialmente salvos. Confira antes de continuar.`);
+        showToast(`A importação de ${pcLabel} ficou parcial no SharePoint. Recarregue e confira antes de continuar.`);
       }
     }
 
     project.pcs.push(pc);
     importados++;
-    if (!primeiroImportado) primeiroImportado = { ci: STORE.clients.indexOf(client), pi: client.projects.indexOf(project), pci: project.pcs.length - 1 };
+    if (!primeiroImportado) primeiroImportado = {
+      ci: STORE.clients.indexOf(client), pi: client.projects.indexOf(project), pci: project.pcs.length - 1,
+    };
   }
 
   saveStore();
   closeImportModal();
   renderTree();
   filaOrder = null;
-  showToast(`${importados} PC(s) importada(s)${pulados ? `, ${pulados} pulada(s) por ja existir` : ''}.`);
-  if (primeiroImportado) {
-    handlePcClick(primeiroImportado.ci, primeiroImportado.pi, primeiroImportado.pci);
-  } else if (currentView === 'gestao') {
-    renderGestao();
-  }
+  const partialText = parciais ? `, ${parciais} parcial(is)` : '';
+  showToast(`${importados} PC(s) processada(s)${pulados ? `, ${pulados} pulada(s) por já existir` : ''}${partialText}.`);
+  if (primeiroImportado) handlePcClick(primeiroImportado.ci, primeiroImportado.pi, primeiroImportado.pci);
+  else if (currentView === 'gestao') renderGestao();
 }
-
 /* ===== Sidebar retratil (03/07) ===== */
 function toggleSidebar() {
   const el = document.getElementById('sidebarEl');
