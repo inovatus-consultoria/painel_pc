@@ -2,7 +2,7 @@
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
-<title>Painel PC — VA.9 (SharePoint Lists)</title>
+<title>Painel PC — VA.10 (SharePoint Lists)</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
@@ -446,6 +446,147 @@
 .loading-text { font-size: 13.5px; color: var(--ink2); }
 #app { display: none; }
 #app.show { display: block; }
+
+  /* ===== Marco 2: Carteira, Detalhe da PC e fluxo operacional ===== */
+  .contextual-nav { border-top: 1px solid rgba(255,255,255,.08); margin-top: 6px; padding-top: 10px; }
+  .icon-btn { width: 34px; height: 34px; display: inline-flex; align-items: center; justify-content: center; border: 1px solid var(--border); background: var(--surface); color: var(--ink2); border-radius: 8px; cursor: pointer; flex-shrink: 0; }
+  .icon-btn:hover { background: var(--surface2); color: var(--ink); }
+  .icon-btn svg { width: 16px; height: 16px; }
+  .icon-btn:disabled { opacity: .4; cursor: not-allowed; }
+
+  .portfolio-kpis { display: grid; grid-template-columns: repeat(4, minmax(130px, 1fr)); gap: 10px; margin-bottom: 18px; }
+  .portfolio-kpi { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 13px 14px; min-height: 72px; }
+  .portfolio-kpi-value { font-size: 22px; font-weight: 800; color: var(--ink); line-height: 1; }
+  .portfolio-kpi-label { font-size: 10.5px; font-weight: 700; color: var(--ink3); text-transform: uppercase; margin-top: 8px; }
+  .portfolio-kpi.attention .portfolio-kpi-value { color: var(--amber); }
+  .portfolio-kpi.positive .portfolio-kpi-value { color: var(--accent2); }
+  .portfolio-toolbar { display: flex; align-items: center; gap: 8px; margin-bottom: 18px; flex-wrap: wrap; }
+  .portfolio-search { min-width: 230px; flex: 1; position: relative; }
+  .portfolio-search input { width: 100%; height: 36px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--ink); padding: 0 12px 0 34px; font: inherit; }
+  .portfolio-search svg { position: absolute; left: 11px; top: 10px; width: 15px; height: 15px; color: var(--ink3); }
+  .portfolio-toolbar select, .analysis-filter-bar select { height: 36px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--ink2); padding: 0 30px 0 10px; font: inherit; font-size: 12px; }
+  .portfolio-toggle, .filter-toggle { min-height: 36px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--ink2); padding: 0 11px; font: inherit; font-size: 11.5px; font-weight: 700; cursor: pointer; }
+  .portfolio-toggle.active, .filter-toggle.active { background: var(--ink); color: #fff; border-color: var(--ink); }
+  .portfolio-section { margin: 0 0 24px; }
+  .portfolio-section-head { display: flex; align-items: center; gap: 9px; margin-bottom: 8px; }
+  .portfolio-section-title { font-size: 13px; font-weight: 800; color: var(--ink2); text-transform: uppercase; }
+  .portfolio-count { font-size: 10px; font-weight: 700; color: var(--ink3); background: var(--surface2); padding: 2px 7px; border-radius: 99px; }
+  .portfolio-table-wrap { border: 1px solid var(--border); border-radius: 8px; overflow-x: auto; background: var(--surface); }
+  .portfolio-table { width: 100%; border-collapse: collapse; min-width: 980px; }
+  .portfolio-table th { text-align: left; padding: 9px 12px; font-size: 9.5px; text-transform: uppercase; color: var(--ink3); background: var(--bg); border-bottom: 1px solid var(--border); }
+  .portfolio-table td { padding: 10px 12px; font-size: 12px; border-bottom: 1px solid var(--surface2); white-space: nowrap; }
+  .portfolio-table tr:last-child td { border-bottom: 0; }
+  .portfolio-table tbody tr { cursor: pointer; }
+  .portfolio-table tbody tr:hover { background: var(--surface2); }
+  .portfolio-primary { font-weight: 800; color: var(--ink); }
+  .portfolio-muted { color: var(--ink3); }
+  .inline-progress { display: flex; align-items: center; gap: 7px; min-width: 130px; }
+  .inline-progress .track { width: 58px; height: 5px; background: var(--surface2); border-radius: 99px; overflow: hidden; }
+  .inline-progress .fill { height: 100%; background: var(--accent2); }
+  .inline-progress span { font-size: 10.5px; font-weight: 700; color: var(--ink2); }
+  .portfolio-empty { padding: 24px; color: var(--ink3); text-align: center; border: 1px dashed var(--border); border-radius: 8px; }
+
+  .detail-page-topbar { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 18px; }
+  .detail-page-heading { min-width: 0; flex: 1; }
+  .detail-eyebrow { font-size: 10.5px; font-weight: 700; text-transform: uppercase; color: var(--ink3); margin-bottom: 3px; }
+  .pc-detail-header { border-top: 3px solid var(--accent); border-bottom: 1px solid var(--border); background: var(--surface); padding: 18px 20px; margin-bottom: 18px; }
+  .pc-context-grid { display: grid; grid-template-columns: repeat(6, minmax(105px, 1fr)); gap: 14px; }
+  .context-label { font-size: 9.5px; font-weight: 700; color: var(--ink3); text-transform: uppercase; }
+  .context-value { font-size: 12.5px; font-weight: 700; color: var(--ink); margin-top: 3px; overflow-wrap: anywhere; }
+  .detail-alerts { display: flex; flex-wrap: wrap; gap: 7px; margin-bottom: 18px; }
+  .detail-alert { display: inline-flex; align-items: center; gap: 6px; min-height: 30px; border: 1px solid var(--border); border-radius: 7px; padding: 5px 9px; font-size: 11px; color: var(--ink2); background: var(--surface); }
+  .detail-alert.warning { border-color: #E8C86A; background: var(--amber-light); color: #7D5A16; }
+  .detail-alert.info { border-color: #B8D0EF; background: #EAF1FB; color: #2E5C99; }
+  .detail-alert.success { border-color: #BEE0D6; background: var(--green-light); color: var(--green); }
+  .detail-alert svg { width: 13px; height: 13px; }
+  .detail-section { padding: 0 0 20px; margin: 0 0 20px; border-bottom: 1px solid var(--border); }
+  .detail-section:last-child { border-bottom: 0; }
+  .detail-section-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+  .detail-section-title { font-size: 14px; font-weight: 800; color: var(--ink); }
+  .detail-section-note { font-size: 11px; color: var(--ink3); }
+  .cycle-timeline { display: flex; gap: 0; overflow-x: auto; padding: 2px 0 5px; }
+  .timeline-cycle { position: relative; min-width: 150px; border: 1px solid var(--border); background: var(--surface); padding: 10px 12px; cursor: pointer; }
+  .timeline-cycle + .timeline-cycle { border-left: 0; }
+  .timeline-cycle:first-child { border-radius: 8px 0 0 8px; }
+  .timeline-cycle:last-child { border-radius: 0 8px 8px 0; }
+  .timeline-cycle.selected { box-shadow: inset 0 -3px 0 var(--accent); background: var(--green-light); }
+  .timeline-cycle-title { font-size: 11.5px; font-weight: 800; color: var(--ink); }
+  .timeline-cycle-meta { font-size: 10.5px; color: var(--ink3); margin-top: 4px; }
+  .cycle-control-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 12px; }
+  .cycle-control-row .spacer { flex: 1; }
+  .detail-action-row { display: flex; gap: 8px; flex-wrap: wrap; }
+  .detail-action-row .btn:disabled { opacity: .42; cursor: not-allowed; }
+  .summary-grid { display: grid; grid-template-columns: repeat(3, minmax(180px, 1fr)); gap: 8px 18px; }
+  .summary-row { padding: 9px 0; border-bottom: 1px solid var(--surface2); }
+  .summary-row-head { display: flex; justify-content: space-between; gap: 8px; font-size: 11.5px; }
+  .summary-row-name { font-weight: 700; color: var(--ink2); }
+  .summary-row-count { color: var(--ink3); }
+  .summary-row .track { height: 4px; background: var(--surface2); margin-top: 6px; border-radius: 99px; overflow: hidden; }
+  .summary-row .fill { height: 100%; background: var(--accent2); }
+  .cycle-comments-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .cycle-comment-field label { display: block; font-size: 10px; font-weight: 700; text-transform: uppercase; color: var(--ink3); margin-bottom: 5px; }
+  .cycle-comment-field textarea, .modal-field textarea { width: 100%; min-height: 82px; resize: vertical; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--ink); padding: 10px 11px; font: inherit; font-size: 12.5px; line-height: 1.45; }
+  .cycle-comment-field.internal textarea { background: var(--surface2); }
+  .cycle-comments-panel { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 13px 14px; margin-bottom: 12px; }
+  .cycle-comments-panel .detail-section-head { margin-bottom: 9px; }
+  .source-history-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+  .compact-list { display: flex; flex-direction: column; }
+  .compact-list-row { display: flex; justify-content: space-between; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--surface2); font-size: 11.5px; }
+  .compact-list-row:last-child { border-bottom: 0; }
+  .compact-list-row span:last-child { color: var(--ink3); text-align: right; }
+
+  .analysis-filter-bar { display: flex; align-items: center; gap: 7px; margin: -8px 0 14px; flex-wrap: wrap; }
+  .analysis-filter-bar .filter-clear { margin-left: auto; }
+  .analysis-empty { background: var(--surface); border: 1px dashed var(--border); border-radius: 8px; padding: 38px 20px; text-align: center; color: var(--ink3); }
+  .analysis-empty-actions { display: flex; justify-content: center; gap: 8px; margin-top: 15px; }
+
+  .form-modal-box { width: 640px; }
+  .form-grid { display: grid; gap: 0 12px; }
+  .form-grid.two-cols { grid-template-columns: 1fr 1fr; }
+  .form-grid .full-span { grid-column: 1 / -1; }
+  .modal-field input[type=date], .modal-field input[type=text], .modal-field select { width: 100%; min-height: 38px; padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); color: var(--ink); font: inherit; font-size: 13px; }
+  .modal-field select:disabled, .modal-field input:disabled { opacity: .65; }
+  .segmented-control { display: inline-flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+  .segmented-control label { margin: 0; }
+  .segmented-control input { position: absolute; opacity: 0; pointer-events: none; }
+  .segmented-control span { display: block; padding: 8px 16px; color: var(--ink2); background: var(--surface); cursor: pointer; font-size: 12px; font-weight: 700; }
+  .segmented-control input:checked + span { background: var(--ink); color: #fff; }
+  .form-error { color: var(--red); background: var(--red-light); border: 1px solid #E8B8B8; border-radius: 8px; padding: 9px 11px; font-size: 12px; margin-top: 8px; }
+
+  @media (max-width: 1100px) {
+    .portfolio-kpis { grid-template-columns: repeat(2, 1fr); }
+    .pc-context-grid { grid-template-columns: repeat(3, 1fr); }
+    .summary-grid { grid-template-columns: repeat(2, 1fr); }
+  }
+  @media (max-width: 760px) {
+    .main { padding: 20px 16px 32px; }
+    .topbar, .detail-page-topbar { flex-wrap: wrap; }
+    .topbar-actions { width: 100%; overflow-x: auto; }
+    .portfolio-kpis { grid-template-columns: 1fr 1fr; }
+    .portfolio-kpi { min-width: 0; }
+    .pc-context-grid { grid-template-columns: 1fr 1fr; }
+    .summary-grid, .cycle-comments-grid, .source-history-grid, .form-grid.two-cols { grid-template-columns: 1fr; }
+    .form-grid .full-span { grid-column: auto; }
+    .portfolio-toolbar > * { flex: 1 1 150px; }
+    .detail-top-actions { width: 100%; }
+  }
+
+  /* Refinamentos da validação visual do Marco 2 */
+  body * { letter-spacing: 0 !important; }
+  .cycle-comment-field textarea:disabled { color: var(--ink2); opacity: 1; cursor: default; }
+  @media (max-width: 760px) {
+    .sidebar { width: 60px; padding-left: 8px; padding-right: 8px; }
+    .sidebar .sidebar-top { justify-content: center; }
+    .sidebar .sidebar-toggle svg { transform: rotate(180deg); }
+    .sidebar .brand-logo { padding: 0 0 4px; }
+    .sidebar .brand-logo img { max-width: 26px; }
+    .sidebar .brand-logo small,
+    .sidebar .tree-section-label,
+    .sidebar .tree,
+    .sidebar .sidebar-foot,
+    .sidebar .view-nav-item .nav-label { display: none; }
+    .sidebar .view-nav-item { justify-content: center; padding: 8px; }
+  }
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://alcdn.msauth.net/browser/2.38.1/js/msal-browser.min.js"></script>
@@ -461,7 +602,7 @@
       Entrar com Microsoft
     </button>
   </div>
-  <div class="login-version">Painel PC · VA.9 · SharePoint Lists</div>
+  <div class="login-version">Painel PC · VA.10 · SharePoint Lists</div>
 </div>
 
 <div id="loading-overlay">
@@ -484,15 +625,15 @@
       <small>Checklist PC</small>
     </div>
     <div class="view-nav">
-      <div class="view-nav-item" id="navTrabalho" onclick="setView('trabalho')" title="Área de Trabalho">
+      <div class="view-nav-item" id="navTrabalho" onclick="setView('trabalho')" title="Carteira">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
-        <span class="nav-label">Área de Trabalho</span>
+        <span class="nav-label">Carteira</span>
       </div>
-      <div class="view-nav-item" id="navGestao" onclick="setView('gestao')" title="Gestão">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg>
-        <span class="nav-label">Gestão</span>
+      <div class="view-nav-item" id="navGestao" onclick="setView('gestao')" title="Fila e Gestão">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h10"/></svg>
+        <span class="nav-label">Fila / Gestão</span>
       </div>
-      <div class="view-nav-item" id="navWorkspace" onclick="setView('workspace')" title="Área de Análise">
+      <div class="view-nav-item contextual-nav" id="navWorkspace" onclick="setView('workspace')" title="Área de Análise">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 12h6M9 16h6M9 8h6M5 3h14a2 2 0 012 2v14a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2z"/></svg>
         <span class="nav-label">Área de Análise</span>
       </div>
@@ -501,21 +642,45 @@
     <div class="tree" id="treeCol"></div>
     <div class="sidebar-foot">
       <div id="authStatus" style="margin-bottom:8px;"></div>
-      VA.9 · dado em SharePoint Lists (Microsoft Graph)<br>importe o Excel do Prompt pra trazer PCs novas
+      VA.10 · SharePoint Lists · Microsoft Graph
     </div>
   </aside>
 
   <main class="main">
     <div id="trabalhoView" class="hidden">
-      <div class="topbar">
+      <div class="topbar carteira-topbar">
         <div>
-          <h1 class="page-title">Área de Trabalho</h1>
-          <div class="meta-row"><span>Todas as PCs, separadas por empresa e projeto — clique numa para entrar na Área de Análise</span></div>
+          <h1 class="page-title">Carteira</h1>
+          <div class="meta-row"><span>Visão operacional das prestações de contas</span></div>
+        </div>
+        <div class="topbar-actions">
+          <button class="btn btn-ghost" onclick="resetStore()" title="Recarregar dados do SharePoint">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 109-9 9.75 9.75 0 00-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+            Recarregar
+          </button>
+          <button class="btn btn-primary" onclick="openPCForm()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+            Nova PC
+          </button>
         </div>
       </div>
       <div id="trabalhoContent"></div>
     </div>
 
+
+    <div id="pcDetailView" class="hidden">
+      <div class="detail-page-topbar">
+        <button class="icon-btn" onclick="setView('trabalho')" title="Voltar para a Carteira">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5m7 7l-7-7 7-7"/></svg>
+        </button>
+        <div class="detail-page-heading">
+          <div class="detail-eyebrow" id="detailBreadcrumb"></div>
+          <h1 class="page-title" id="detailPcTitle">Detalhe da PC</h1>
+        </div>
+        <div class="topbar-actions" id="detailTopActions"></div>
+      </div>
+      <div id="pcDetailContent"></div>
+    </div>
     <div id="gestaoView" class="hidden">
       <div class="topbar">
         <div>
@@ -547,13 +712,17 @@
         <div class="meta-row" id="metaRow"></div>
       </div>
       <div class="topbar-actions">
-        <button class="btn btn-ghost">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18"/></svg>
-          Ver capa
+        <button class="btn btn-ghost" onclick="setView('detail')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5m7 7l-7-7 7-7"/></svg>
+          Detalhe da PC
         </button>
-        <button class="btn btn-primary">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v14m0 0l-5-5m5 5l5-5M4 21h16"/></svg>
-          Exportar
+        <button class="btn btn-ghost" onclick="openImportModal()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 21V9m0 0l-5 5m5-5l5 5M4 3h16"/></svg>
+          Importar
+        </button>
+        <button class="btn btn-primary" onclick="openManualItemModal()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+          Adicionar item
         </button>
       </div>
 
@@ -580,11 +749,26 @@
       <div class="pc-status-actions" id="pcStatusActions"></div>
     </div>
 
+    <div class="cycle-comments-panel" id="workspaceGeneralComments"></div>
+
     <div class="search-bar">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg>
-      <input id="searchInput" type="text" placeholder="Buscar por nome, documento, comentário ou executor…">
-      <button class="filtro-duvida-toggle" id="filtroDuvidaBtn" onclick="toggleFiltroDuvida()" title="Mostrar só itens marcados com dúvida, pendentes de revisão">Só dúvida</button>
+      <input id="searchInput" type="text" placeholder="Buscar descrição, favorecido ou item de orçamento">
       <span class="search-count" id="searchCount"></span>
+    </div>
+    <div class="analysis-filter-bar">
+      <select id="analysisCategoryFilter" onchange="setAnalysisFilter('category', this.value)" title="Filtrar por categoria"></select>
+      <select id="analysisStatusFilter" onchange="setAnalysisFilter('status', this.value)" title="Filtrar por status do item">
+        <option value="">Todos os status</option>
+        <option value="AGUARDANDO_ANALISE">Aguardando análise</option>
+        <option value="ABERTO">Aberto</option>
+        <option value="FECHADO">Fechado</option>
+      </select>
+      <button class="filter-toggle" id="filtroDuvidaBtn" onclick="toggleFiltroDuvida()">Com dúvida</button>
+      <button class="filter-toggle" id="filtroDocumentoBtn" onclick="toggleFiltroDocumento()">Documento pendente</button>
+      <button class="icon-btn filter-clear" onclick="clearAnalysisFilters()" title="Limpar filtros">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 12h8M10 18h4"/></svg>
+      </button>
     </div>
 
     <div class="workspace">
@@ -602,6 +786,62 @@
   </main>
 </div>
 
+
+<div class="modal-overlay hidden" id="pcFormOverlay">
+  <div class="modal-box form-modal-box">
+    <div class="modal-header">
+      <h2 id="pcFormTitle">Nova PC</h2>
+      <button class="modal-close" onclick="closePCForm()">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-grid two-cols">
+        <div class="modal-field"><label>Cliente</label><select id="pcFormClient" onchange="updatePCProjectOptions()"></select></div>
+        <div class="modal-field"><label>Projeto</label><select id="pcFormProject"></select></div>
+        <div class="modal-field"><label>Número/identificação</label><input type="text" id="pcFormNumber" placeholder="Ex.: 5"></div>
+        <div class="modal-field"><label>Fonte prevista</label><select id="pcFormSource"><option value="Prompt">Prompt</option><option value="REF">REF</option></select></div>
+        <div class="modal-field"><label>Início do período</label><input type="date" id="pcFormStart"></div>
+        <div class="modal-field"><label>Fim do período</label><input type="date" id="pcFormEnd"></div>
+      </div>
+      <div class="modal-field" id="pcFormStatusField">
+        <label>Estado inicial</label>
+        <div class="segmented-control">
+          <label><input type="radio" name="pcFormStatus" value="PLANEJADA" checked><span>Planejada</span></label>
+          <label><input type="radio" name="pcFormStatus" value="ATIVA"><span>Ativa</span></label>
+        </div>
+      </div>
+      <div class="form-error hidden" id="pcFormError"></div>
+      <div class="modal-actions">
+        <button class="btn btn-ghost" onclick="closePCForm()">Cancelar</button>
+        <button class="btn btn-primary" id="pcFormSubmit" onclick="submitPCForm()">Criar PC</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay hidden" id="manualItemOverlay">
+  <div class="modal-box form-modal-box">
+    <div class="modal-header">
+      <h2>Adicionar item</h2>
+      <button class="modal-close" onclick="closeManualItemModal()">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-grid two-cols">
+        <div class="modal-field"><label>Categoria/rubrica</label><select id="manualCategory"></select></div>
+        <div class="modal-field"><label>Item de orçamento/tipo</label><input type="text" id="manualBudgetItem" placeholder="Identificação do item"></div>
+        <div class="modal-field full-span"><label>Descrição</label><textarea id="manualDescription" placeholder="Descrição da despesa"></textarea></div>
+        <div class="modal-field full-span"><label>Favorecido</label><input type="text" id="manualPayee" placeholder="Nome do favorecido, se aplicável"></div>
+        <div class="modal-field"><label>Data de pagamento</label><input type="date" id="manualPaymentDate"></div>
+        <div class="modal-field"><label>Data do documento</label><input type="date" id="manualDocumentDate"></div>
+        <div class="modal-field"><label>Valor</label><input type="text" inputmode="decimal" id="manualAmount" placeholder="0,00"></div>
+      </div>
+      <div class="form-error hidden" id="manualItemError"></div>
+      <div class="modal-actions">
+        <button class="btn btn-ghost" onclick="closeManualItemModal()">Cancelar</button>
+        <button class="btn btn-primary" onclick="submitManualItem()">Adicionar item</button>
+      </div>
+    </div>
+  </div>
+</div>
 <div class="modal-overlay hidden" id="importOverlay">
   <div class="modal-box">
     <div class="modal-header">
@@ -973,10 +1213,9 @@ async function loadStoreFromGraph() {
     if (!proj) return;
     const pcStatus = choiceToPcStatus(p.PCStatus, !!p.Concluded);
     const ciclos = ciclosByPc.get(String(p.id)) || [];
-    const safeCiclos = ciclos.length ? ciclos : [{
-      _gid: null, numero: 1, status: 'AGUARDANDO_ANALISE', analista: '', statusChangedAt: null,
-      generalInternalComment: '', generalExecutorComment: '', manualQueuePosition: null, statusHistory: [],
-    }];
+    /* PC planejada pode existir sem ciclo. PC ativa sem ciclo é mostrada com ação de recuperação
+       no Detalhe da PC, sem fabricar um ciclo que não existe no SharePoint. */
+    const safeCiclos = ciclos;
     const pcNumber = p.PCNumber || String(p.Title || '').replace(/^PC/i, '');
     const pc = {
       label: pcNumber ? `PC${pcNumber}` : (p.Title || 'PC'), real: true, _gid: p.id,
@@ -1240,6 +1479,8 @@ function matchesSearch(item, cat, term) {
 
 /* ===== Pendência ativa num ciclo: pelo menos 1 item com comentário ao executor preenchido ===== */
 function cicloTemPendencia(idx) {
+  const ciclo = DATA.meta.ciclos[idx];
+  if (ciclo && (ciclo.generalExecutorComment || '').trim()) return true;
   return DATA.categories.some(c => c.items.some(it => {
     const entry = it.ciclosStatus[idx];
     return entry && entry.comentarioExecutor && entry.comentarioExecutor.trim().length > 0;
@@ -2659,6 +2900,712 @@ document.getElementById('searchInput').addEventListener('input', (e) => {
   searchTerm = e.target.value.trim();
   renderList();
 });
+
+
+/* =====================================================================================
+   MARCO 2 — Fluxo operacional completo
+   Carteira -> Detalhe da PC -> Área de Análise, com criação/ativação de PC, comentários
+   gerais, item manual e ciclo de vida conectado às listas MVP.
+   ===================================================================================== */
+
+let portfolioSearch = '';
+let portfolioClient = '';
+let portfolioCycleStatus = '';
+let portfolioShowPlanned = false;
+let portfolioShowCompleted = false;
+let analysisFilterCategory = '';
+let analysisFilterStatus = '';
+let filtroDocumento = false;
+let pcFormMode = 'create';
+const _generalCommentTimers = {};
+
+function pcStatusOf(pc) {
+  if (!pc || !pc.data) return 'ATIVA';
+  return pc.data.meta.pcStatus || (pc.data.meta.concluida ? 'CONCLUIDA' : 'ATIVA');
+}
+
+function latestCycleOf(pc) {
+  const ciclos = pc && pc.data && pc.data.meta ? (pc.data.meta.ciclos || []) : [];
+  return ciclos.length ? ciclos[ciclos.length - 1] : null;
+}
+
+function pcCycleMetrics(pc, cycleIdx) {
+  const categories = (pc && pc.data && pc.data.categories) || [];
+  let total = 0, done = 0, open = 0, doubts = 0, pendingDocs = 0;
+  categories.forEach(cat => {
+    cat.items.forEach(item => {
+      total++;
+      const entry = item.ciclosStatus && item.ciclosStatus[cycleIdx];
+      const status = entry ? entry.status : 'AGUARDANDO_ANALISE';
+      if (status === 'ABERTO' || status === 'FECHADO') done++;
+      if (status === 'ABERTO') open++;
+      if (entry && entry.duvida) doubts++;
+      if (Object.values(item.checks || {}).some(value => value !== 'OK')) pendingDocs++;
+    });
+  });
+  return { total, done, open, doubts, pendingDocs, pct: total ? Math.round(done / total * 100) : 0 };
+}
+
+function categoryMetrics(pc, cycleIdx, cat) {
+  let done = 0, open = 0;
+  cat.items.forEach(item => {
+    const entry = item.ciclosStatus && item.ciclosStatus[cycleIdx];
+    const status = entry ? entry.status : 'AGUARDANDO_ANALISE';
+    if (status === 'ABERTO' || status === 'FECHADO') done++;
+    if (status === 'ABERTO') open++;
+  });
+  const total = cat.items.length;
+  return { total, done, open, pct: total ? Math.round(done / total * 100) : 0 };
+}
+
+function allPCsFlat() {
+  const rows = [];
+  STORE.clients.forEach((client, ci) => {
+    client.projects.forEach((project, pi) => {
+      project.pcs.forEach((pc, pci) => rows.push({ client, project, pc, ci, pi, pci }));
+    });
+  });
+  return rows;
+}
+
+function formatPCPeriod(meta) {
+  if (meta.period) return meta.period;
+  const parts = [meta.periodoInicio, meta.periodoFim].filter(Boolean).map(fmtIsoDate);
+  return parts.length ? parts.join(' a ') : 'Não informado';
+}
+
+function portfolioMatches(row) {
+  const status = pcStatusOf(row.pc);
+  const latest = latestCycleOf(row.pc);
+  if (portfolioClient && row.client.client !== portfolioClient) return false;
+  if (portfolioCycleStatus && (!latest || latest.status !== portfolioCycleStatus)) return false;
+  if (portfolioSearch) {
+    const term = portfolioSearch.toLowerCase();
+    const haystack = [row.client.client, row.project.name, row.project.executor, row.project.fundacao,
+      row.pc.label, row.pc.data.meta.pc, formatPCPeriod(row.pc.data.meta), latest && latest.analista]
+      .filter(Boolean).join(' ').toLowerCase();
+    if (!haystack.includes(term)) return false;
+  }
+  return status === 'ATIVA' || status === 'PLANEJADA' || status === 'CONCLUIDA';
+}
+
+function renderPortfolioRow(row) {
+  const { pc, project, client, ci, pi, pci } = row;
+  const status = pcStatusOf(pc);
+  const latest = latestCycleOf(pc);
+  const idx = latest ? pc.data.meta.ciclos.length - 1 : 0;
+  const metrics = pcCycleMetrics(pc, idx);
+  const statusText = status === 'PLANEJADA' ? 'Planejada' : status === 'CONCLUIDA' ? 'Concluída' : (latest ? CICLO_STATUS_LABELS[latest.status] : 'Sem ciclo');
+  const badgeClass = status === 'PLANEJADA' ? 'badge-slate' : status === 'CONCLUIDA' ? 'badge-green' : (latest ? cicloBadgeClass(latest.status) : 'badge-amber');
+  return `<tr onclick="handlePcClick(${ci},${pi},${pci})">
+    <td><span class="portfolio-primary">${escapeHtml(pc.label)}</span></td>
+    <td>${escapeHtml(client.client)}</td>
+    <td>${escapeHtml(project.name)}</td>
+    <td class="portfolio-muted">${escapeHtml(formatPCPeriod(pc.data.meta))}</td>
+    <td class="portfolio-muted">${escapeHtml(project.executor || '—')}</td>
+    <td class="portfolio-muted">${escapeHtml(project.fundacao || '—')}</td>
+    <td>${latest ? escapeHtml(cicloLabel(latest.numero)) : '—'}</td>
+    <td><span class="badge ${badgeClass}">${escapeHtml(statusText)}</span></td>
+    <td class="portfolio-muted">${escapeHtml(latest && latest.analista ? latest.analista : '—')}</td>
+    <td><div class="inline-progress"><div class="track"><div class="fill" style="width:${metrics.pct}%"></div></div><span>${metrics.pct}% · ${metrics.done}/${metrics.total}</span></div></td>
+  </tr>`;
+}
+
+function renderPortfolioSection(title, rows) {
+  return `<section class="portfolio-section">
+    <div class="portfolio-section-head"><span class="portfolio-section-title">${escapeHtml(title)}</span><span class="portfolio-count">${rows.length}</span></div>
+    ${rows.length ? `<div class="portfolio-table-wrap"><table class="portfolio-table">
+      <thead><tr><th>PC</th><th>Cliente</th><th>Projeto</th><th>Período</th><th>Executor</th><th>Fundação</th><th>Ciclo</th><th>Status</th><th>Analista</th><th>Progresso</th></tr></thead>
+      <tbody>${rows.map(renderPortfolioRow).join('')}</tbody>
+    </table></div>` : `<div class="portfolio-empty">Nenhuma PC nesta seção.</div>`}
+  </section>`;
+}
+
+function renderAreaTrabalho() {
+  const el = document.getElementById('trabalhoContent');
+  const all = allPCsFlat();
+  const latest = row => latestCycleOf(row.pc);
+  const active = all.filter(row => pcStatusOf(row.pc) === 'ATIVA');
+  const planned = all.filter(row => pcStatusOf(row.pc) === 'PLANEJADA');
+  const completed = all.filter(row => pcStatusOf(row.pc) === 'CONCLUIDA');
+  const awaitingUnassigned = active.filter(row => latest(row) && latest(row).status === 'AGUARDANDO_ANALISE' && !(latest(row).analista || '').trim()).length;
+  const inAnalysis = active.filter(row => latest(row) && latest(row).status === 'EM_ANALISE').length;
+  const inReview = active.filter(row => latest(row) && latest(row).status === 'EM_REVISAO').length;
+  const readyOrExternal = active.filter(row => latest(row) && ['PRONTA_ENVIO','COM_EXECUTOR','COM_OPERADORA'].includes(latest(row).status)).length;
+  const clients = STORE.clients.map(client => client.client);
+  const filtered = all.filter(portfolioMatches);
+  const activeRows = filtered.filter(row => pcStatusOf(row.pc) === 'ATIVA');
+  const plannedRows = filtered.filter(row => pcStatusOf(row.pc) === 'PLANEJADA');
+  const completedRows = filtered.filter(row => pcStatusOf(row.pc) === 'CONCLUIDA');
+
+  el.innerHTML = `<div class="portfolio-kpis">
+    <div class="portfolio-kpi positive"><div class="portfolio-kpi-value">${active.length}</div><div class="portfolio-kpi-label">PCs ativas</div></div>
+    <div class="portfolio-kpi attention"><div class="portfolio-kpi-value">${awaitingUnassigned}</div><div class="portfolio-kpi-label">Sem analista</div></div>
+    <div class="portfolio-kpi"><div class="portfolio-kpi-value">${inAnalysis + inReview}</div><div class="portfolio-kpi-label">Análise / revisão</div></div>
+    <div class="portfolio-kpi"><div class="portfolio-kpi-value">${readyOrExternal}</div><div class="portfolio-kpi-label">Envio / externo</div></div>
+  </div>
+  <div class="portfolio-toolbar">
+    <div class="portfolio-search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg><input type="text" value="${escapeHtml(portfolioSearch)}" oninput="setPortfolioFilter('search', this.value)" placeholder="Buscar PC, cliente, projeto ou analista"></div>
+    <select onchange="setPortfolioFilter('client', this.value)"><option value="">Todos os clientes</option>${clients.map(name => `<option value="${escapeHtml(name)}" ${portfolioClient === name ? 'selected' : ''}>${escapeHtml(name)}</option>`).join('')}</select>
+    <select onchange="setPortfolioFilter('status', this.value)"><option value="">Todos os status</option>${CICLO_STATUS_ORDER.filter(s => s !== 'ENCERRADO').map(s => `<option value="${s}" ${portfolioCycleStatus === s ? 'selected' : ''}>${CICLO_STATUS_LABELS[s]}</option>`).join('')}</select>
+    <button class="portfolio-toggle ${portfolioShowPlanned ? 'active' : ''}" onclick="togglePortfolioSection('planned')">Planejadas · ${planned.length}</button>
+    <button class="portfolio-toggle ${portfolioShowCompleted ? 'active' : ''}" onclick="togglePortfolioSection('completed')">Concluídas · ${completed.length}</button>
+  </div>
+  ${renderPortfolioSection('Ativas', activeRows)}
+  ${portfolioShowPlanned ? renderPortfolioSection('Planejadas', plannedRows) : ''}
+  ${portfolioShowCompleted ? renderPortfolioSection('Concluídas', completedRows) : ''}`;
+}
+
+let _portfolioSearchTimer = null;
+function setPortfolioFilter(type, value) {
+  if (type === 'search') {
+    portfolioSearch = value;
+    clearTimeout(_portfolioSearchTimer);
+    _portfolioSearchTimer = setTimeout(renderAreaTrabalho, 250);
+    return;
+  }
+  if (type === 'client') portfolioClient = value;
+  if (type === 'status') portfolioCycleStatus = value;
+  renderAreaTrabalho();
+}
+
+function togglePortfolioSection(section) {
+  if (section === 'planned') portfolioShowPlanned = !portfolioShowPlanned;
+  if (section === 'completed') portfolioShowCompleted = !portfolioShowCompleted;
+  renderAreaTrabalho();
+}
+
+function handlePcClick(ci, pi, pci) {
+  const pc = pcAt(ci, pi, pci);
+  if (!pc || !pc.real) { showToast('Esta PC não está disponível para operação.'); return; }
+  currentPC = { ci, pi, pci };
+  DATA = pc.data;
+  selectedItemId = null;
+  searchTerm = '';
+  analysisFilterCategory = '';
+  analysisFilterStatus = '';
+  filtroDuvida = false;
+  filtroDocumento = false;
+  const searchInput = document.getElementById('searchInput');
+  if (searchInput) searchInput.value = '';
+  selectedCicloIdx = Math.max(0, (DATA.meta.ciclos || []).length - 1);
+  setView('detail');
+}
+
+function setView(view) {
+  if (view === 'workspace') {
+    if (!DATA || !currentPC) { showToast('Selecione uma PC na Carteira primeiro.'); return setView('trabalho'); }
+    if (pcStatusOf(pcAt(currentPC.ci, currentPC.pi, currentPC.pci)) !== 'ATIVA') { showToast('Ative a PC antes de iniciar a análise.'); return setView('detail'); }
+    if (!DATA.meta.ciclos.length) { showToast('Crie o ciclo inicial antes de entrar na análise.'); return setView('detail'); }
+  }
+  if (view === 'detail' && (!DATA || !currentPC)) return setView('trabalho');
+  currentView = view;
+  document.getElementById('trabalhoView').classList.toggle('hidden', view !== 'trabalho');
+  document.getElementById('pcDetailView').classList.toggle('hidden', view !== 'detail');
+  document.getElementById('gestaoView').classList.toggle('hidden', view !== 'gestao');
+  document.getElementById('workspaceView').classList.toggle('hidden', view !== 'workspace');
+  document.getElementById('navTrabalho').classList.toggle('active', view === 'trabalho');
+  document.getElementById('navGestao').classList.toggle('active', view === 'gestao');
+  document.getElementById('navWorkspace').classList.toggle('active', view === 'workspace');
+  if (view === 'trabalho') renderAreaTrabalho();
+  if (view === 'detail') renderPCDetail();
+  if (view === 'gestao') renderGestao();
+  if (view === 'workspace') {
+    renderMeta(); renderCicloCards(); renderWorkspaceGeneralComments(); renderAnalysisFilters();
+    renderList(); renderDetail(); renderProgress();
+  }
+  window.scrollTo({ top: 0, behavior: 'instant' });
+}
+
+function renderMeta() {
+  if (!DATA) return;
+  const m = DATA.meta;
+  const ciclo = m.ciclos[selectedCicloIdx];
+  document.getElementById('metaRow').innerHTML = `
+    <span><b>${escapeHtml(m.cliente)}</b></span><span class="sep">·</span>
+    <span>Projeto ${escapeHtml(m.projeto)}</span><span class="sep">·</span>
+    <span>${escapeHtml(m.pc)}</span><span class="sep">·</span>
+    <span>${escapeHtml(ciclo ? cicloLabel(ciclo.numero) : '')}</span><span class="sep">·</span>
+    <span>${escapeHtml(m.executor || 'executor não informado')}</span><span class="sep">·</span>
+    <span>${escapeHtml(formatPCPeriod(m))}</span>`;
+}
+
+function renderDetailAlerts(pc, cycle, metrics) {
+  const alerts = [];
+  const icon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 8v4m0 4h.01"/></svg>';
+  if (STORE.syncState === 'cache_fallback') alerts.push(`<span class="detail-alert warning">${icon}Dados carregados do cache</span>`);
+  if (pcStatusOf(pc) === 'ATIVA' && !cycle) alerts.push(`<span class="detail-alert warning">${icon}PC ativa sem ciclo</span>`);
+  if (cycle && !(cycle.analista || '').trim()) alerts.push(`<span class="detail-alert warning">${icon}Ciclo sem analista</span>`);
+  if (cycle && metrics.total === 0) alerts.push(`<span class="detail-alert warning">${icon}PC sem itens</span>`);
+  if (metrics.doubts) alerts.push(`<span class="detail-alert info">${icon}${metrics.doubts} item(ns) com dúvida</span>`);
+  if (metrics.open) alerts.push(`<span class="detail-alert warning">${icon}${metrics.open} item(ns) aberto(s)</span>`);
+  if (cycle && cycle.status === 'PRONTA_ENVIO') alerts.push(`<span class="detail-alert success">${icon}Ciclo pronto para envio</span>`);
+  return alerts.join('');
+}
+
+function renderCycleCommentsFields(cycle) {
+  if (!cycle) return '<div class="portfolio-empty">Ative a PC para criar o primeiro ciclo.</div>';
+  const pc = currentPC ? pcAt(currentPC.ci, currentPC.pi, currentPC.pci) : null;
+  const editable = pc && pcStatusOf(pc) !== 'CONCLUIDA';
+  const internalAttrs = editable ? `oninput="updateGeneralComment('generalInternalComment', this.value)"` : 'disabled';
+  const executorAttrs = editable ? `oninput="updateGeneralComment('generalExecutorComment', this.value)"` : 'disabled';
+  return `<div class="cycle-comments-grid">
+    <div class="cycle-comment-field internal"><label>Comentário geral interno</label><textarea ${internalAttrs} placeholder="Observação interna do ciclo">${escapeHtml(cycle.generalInternalComment || '')}</textarea></div>
+    <div class="cycle-comment-field"><label>Comentário geral ao executor</label><textarea ${executorAttrs} placeholder="Pendência geral que deve alimentar a saída">${escapeHtml(cycle.generalExecutorComment || '')}</textarea></div>
+  </div>`;
+}
+
+function renderPCDetail() {
+  const pc = pcAt(currentPC.ci, currentPC.pi, currentPC.pci);
+  DATA = pc.data;
+  const m = DATA.meta;
+  const status = pcStatusOf(pc);
+  if (DATA.meta.ciclos.length) selectedCicloIdx = Math.min(selectedCicloIdx, DATA.meta.ciclos.length - 1);
+  else selectedCicloIdx = 0;
+  const cycle = DATA.meta.ciclos[selectedCicloIdx] || null;
+  const latest = latestCycleOf(pc);
+  const metrics = pcCycleMetrics(pc, selectedCicloIdx);
+  document.getElementById('detailBreadcrumb').textContent = `${m.cliente} · Projeto ${m.projeto}`;
+  document.getElementById('detailPcTitle').textContent = m.pc || pc.label;
+
+  const topActions = document.getElementById('detailTopActions');
+  topActions.innerHTML = status === 'PLANEJADA'
+    ? `<button class="btn btn-primary" onclick="openActivationForm()">Ativar PC</button>`
+    : status === 'ATIVA'
+      ? `<button class="btn btn-ghost" onclick="openImportModal()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 21V9m0 0l-5 5m5-5l5 5M4 3h16"/></svg>Importar</button>
+         <button class="btn btn-primary" onclick="openAnalysis()" ${cycle ? '' : 'disabled'}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 12h6M9 16h6M9 8h6M5 3h14a2 2 0 012 2v14a2 2 0 01-2 2H5a2 2 0 012-2V5a2 2 0 012-2z"/></svg>Abrir análise</button>`
+      : `<span class="badge badge-green">Consulta</span>`;
+
+  const timeline = DATA.meta.ciclos.length
+    ? `<div class="cycle-timeline">${DATA.meta.ciclos.map((c, idx) => `<button class="timeline-cycle ${idx === selectedCicloIdx ? 'selected' : ''}" onclick="selectDetailCiclo(${idx})"><div class="timeline-cycle-title">${escapeHtml(cicloLabel(c.numero))}</div><div class="timeline-cycle-meta">${escapeHtml(CICLO_STATUS_LABELS[c.status])} · ${pcCycleMetrics(pc, idx).pct}%</div></button>`).join('')}</div>`
+    : `<div class="portfolio-empty">Nenhum ciclo criado.</div>`;
+
+  const categorySummary = DATA.categories.length
+    ? `<div class="summary-grid">${DATA.categories.map(cat => { const cm = categoryMetrics(pc, selectedCicloIdx, cat); return `<div class="summary-row"><div class="summary-row-head"><span class="summary-row-name">${escapeHtml(cat.label)}</span><span class="summary-row-count">${cm.open} abertos / ${cm.total} · ${cm.pct}%</span></div><div class="track"><div class="fill" style="width:${cm.pct}%"></div></div></div>`; }).join('')}</div>`
+    : `<div class="portfolio-empty">Nenhum item nesta PC.</div>`;
+
+  const sources = (m.fontes || []).length
+    ? m.fontes.map(source => `<div class="compact-list-row"><span>${escapeHtml(source.fileName || source.title || source.fileType || 'Fonte')}</span><span>${escapeHtml(source.fileType || '')} · ${fmtIsoDate(source.importedAt)}</span></div>`).join('')
+    : '<div class="compact-list-row"><span>Nenhuma fonte registrada</span><span>—</span></div>';
+  const histories = cycle && (cycle.statusHistory || []).length
+    ? [...cycle.statusHistory].sort((a,b) => String(b.enteredAt || '').localeCompare(String(a.enteredAt || ''))).map(history => `<div class="compact-list-row"><span>${escapeHtml(CICLO_STATUS_LABELS[history.status] || history.status)}</span><span>${fmtIsoDate(history.enteredAt)}</span></div>`).join('')
+    : '<div class="compact-list-row"><span>Sem histórico registrado</span><span>—</span></div>';
+
+  const canReturn = status === 'ATIVA' && latest && latest.status === 'COM_EXECUTOR';
+  const canConclude = canReturn;
+  const cycleControls = cycle ? (status === 'CONCLUIDA'
+    ? `<div class="cycle-control-row"><span class="badge ${cicloBadgeClass(cycle.status)}">${escapeHtml(CICLO_STATUS_LABELS[cycle.status])}</span><span class="portfolio-muted">Analista: ${escapeHtml(cycle.analista || '—')}</span></div>`
+    : `<div class="cycle-control-row">
+        <label class="context-label">Status</label><select class="status-select" onchange="updateCicloStatus(this.value)">${CICLO_STATUS_ORDER.map(s => `<option value="${s}" ${s === cycle.status ? 'selected' : ''}>${CICLO_STATUS_LABELS[s]}</option>`).join('')}</select>
+        <label class="context-label">Analista</label><input class="analista-input" value="${escapeHtml(cycle.analista || '')}" placeholder="Nome" oninput="updateCicloAnalista(this.value)">
+        <span class="spacer"></span>
+        <button class="btn btn-ghost" onclick="adicionarCiclo()" ${canReturn ? '' : 'disabled'}>Adicionar retorno</button>
+        <button class="btn btn-primary" onclick="concluirPC()" ${canConclude ? '' : 'disabled'}>Concluir PC</button>
+      </div>`)
+    : (status === 'ATIVA' ? `<div class="detail-action-row"><button class="btn btn-primary" onclick="createInitialCycleForCurrentPC()">Criar ciclo inicial</button></div>` : '');
+
+  document.getElementById('pcDetailContent').innerHTML = `
+    <div class="pc-detail-header"><div class="pc-context-grid">
+      <div><div class="context-label">Cliente</div><div class="context-value">${escapeHtml(m.cliente)}</div></div>
+      <div><div class="context-label">Projeto</div><div class="context-value">${escapeHtml(m.projeto)}</div></div>
+      <div><div class="context-label">Executor</div><div class="context-value">${escapeHtml(m.executor || '—')}</div></div>
+      <div><div class="context-label">Fundação</div><div class="context-value">${escapeHtml(m.fundacao || '—')}</div></div>
+      <div><div class="context-label">Fonte</div><div class="context-value">${escapeHtml(m.sourceType || '—')}</div></div>
+      <div><div class="context-label">Período</div><div class="context-value">${escapeHtml(formatPCPeriod(m))}</div></div>
+    </div></div>
+    <div class="detail-alerts">${renderDetailAlerts(pc, cycle, metrics)}</div>
+    <section class="detail-section"><div class="detail-section-head"><div><div class="detail-section-title">Ciclos e retornos</div><div class="detail-section-note">${status === 'PLANEJADA' ? 'PC planejada' : `${metrics.pct}% analisado · ${metrics.done}/${metrics.total} itens`}</div></div><span class="badge ${status === 'CONCLUIDA' ? 'badge-green' : 'badge-slate'}">${status === 'PLANEJADA' ? 'Planejada' : status === 'CONCLUIDA' ? 'Concluída' : 'Ativa'}</span></div>${timeline}${cycleControls}</section>
+    <section class="detail-section"><div class="detail-section-head"><div><div class="detail-section-title">Pendências e progresso por rubrica</div><div class="detail-section-note">${cycle ? escapeHtml(cicloLabel(cycle.numero)) : 'Sem ciclo selecionado'}</div></div></div>${categorySummary}</section>
+    <section class="detail-section"><div class="detail-section-head"><div><div class="detail-section-title">Comentários gerais do ciclo</div><div class="detail-section-note">Interno e executor permanecem separados</div></div></div>${renderCycleCommentsFields(cycle)}</section>
+    <section class="detail-section"><div class="detail-section-head"><div><div class="detail-section-title">Ações</div><div class="detail-section-note">Operação da PC e do ciclo selecionado</div></div></div><div class="detail-action-row">
+      ${status === 'PLANEJADA' ? '<button class="btn btn-primary" onclick="openActivationForm()">Ativar PC</button>' : status === 'ATIVA' ? `<button class="btn btn-primary" onclick="openAnalysis()" ${cycle ? '' : 'disabled'}>Analisar itens</button><button class="btn btn-ghost" onclick="openImportModal()">Importar arquivo</button><button class="btn btn-ghost" onclick="openManualItemModal()" ${cycle ? '' : 'disabled'}>Adicionar item</button>` : '<span class="portfolio-muted">PC concluída disponível para consulta.</span>'}
+    </div></section>
+    <section class="detail-section"><div class="source-history-grid"><div><div class="detail-section-title">Fontes</div><div class="compact-list">${sources}</div></div><div><div class="detail-section-title">Histórico do ciclo</div><div class="compact-list">${histories}</div></div></div></section>`;
+}
+
+function selectDetailCiclo(idx) {
+  selectedCicloIdx = idx;
+  selectedItemId = null;
+  renderPCDetail();
+}
+
+function openAnalysis() {
+  if (!DATA || !DATA.meta.ciclos.length) return showToast('Crie o ciclo inicial antes de analisar.');
+  setView('workspace');
+}
+
+function renderWorkspaceGeneralComments() {
+  const cycle = DATA.meta.ciclos[selectedCicloIdx];
+  document.getElementById('workspaceGeneralComments').innerHTML = `<div class="detail-section-head"><div><div class="detail-section-title">Comentários gerais</div><div class="detail-section-note">${escapeHtml(cicloLabel(cycle.numero))}</div></div></div>${renderCycleCommentsFields(cycle)}`;
+}
+
+function updateGeneralComment(field, value) {
+  const cycle = DATA.meta.ciclos[selectedCicloIdx];
+  if (!cycle) return;
+  cycle[field] = value;
+  saveStore();
+  const key = `${cycle._gid || selectedCicloIdx}:${field}`;
+  clearTimeout(_generalCommentTimers[key]);
+  _generalCommentTimers[key] = setTimeout(async () => {
+    if (!cycle._gid) return;
+    const payload = field === 'generalInternalComment' ? { GeneralInternalComment: value } : { GeneralExecutorComment: value };
+    try { await graphUpdateItem(LIST_IDS.Ciclos, cycle._gid, payload); }
+    catch (e) { console.warn(e); showToast('Não consegui sincronizar o comentário geral com o SharePoint.'); }
+  }, 700);
+}
+
+function renderCicloCards() {
+  const row = document.getElementById('cicloCardsRow');
+  row.innerHTML = DATA.meta.ciclos.map((c, idx) => {
+    const cor = cicloCardColor(c.status, idx);
+    return `<button class="ciclo-card-mini cor-${cor}${idx === selectedCicloIdx ? ' selected' : ''}" onclick="selectCiclo(${idx})" title="${escapeHtml(cicloLabel(c.numero))} — ${escapeHtml(CICLO_STATUS_LABELS[c.status])}">${escapeHtml(cicloShortLabel(c.numero))}</button>`;
+  }).join('');
+  const cycle = DATA.meta.ciclos[selectedCicloIdx];
+  document.getElementById('cicloSelectedStatusWrap').innerHTML = `<select class="status-select" onchange="updateCicloStatus(this.value)">${CICLO_STATUS_ORDER.map(s => `<option value="${s}" ${s === cycle.status ? 'selected' : ''}>${CICLO_STATUS_LABELS[s]}</option>`).join('')}</select>`;
+  document.getElementById('cicloAnalistaWrap').innerHTML = `<input type="text" class="analista-input" value="${escapeHtml(cycle.analista || '')}" placeholder="Nome do analista" oninput="updateCicloAnalista(this.value)">`;
+  document.getElementById('pcStatusBadge').className = 'badge badge-slate';
+  document.getElementById('pcStatusBadge').textContent = 'Ativa';
+  const latest = ultimoCiclo();
+  const canClose = latest.status === 'COM_EXECUTOR' && !DATA.meta.concluida;
+  document.getElementById('pcStatusActions').innerHTML = `<button class="btn btn-ghost" onclick="setView('detail')">Detalhe</button><button class="btn btn-ghost" onclick="adicionarCiclo()" ${canClose ? '' : 'disabled'}>Adicionar retorno</button><button class="btn btn-primary" onclick="concluirPC()" ${canClose ? '' : 'disabled'}>Concluir PC</button>`;
+}
+
+function selectCiclo(idx) {
+  selectedCicloIdx = idx;
+  selectedItemId = null;
+  renderMeta(); renderCicloCards(); renderWorkspaceGeneralComments(); renderAnalysisFilters();
+  renderList(); renderDetail(); renderProgress();
+}
+
+function itemHasPendingDocument(item) {
+  return Object.values(item.checks || {}).some(value => value !== 'OK');
+}
+
+function matchesSearch(item, cat, term) {
+  if (!term) return true;
+  const t = term.toLowerCase();
+  const history = (item.ciclosStatus || []).map(c => `${c.comentarioAnalista || ''} ${c.comentarioExecutor || ''}`).join(' ');
+  return [item.title, item.subtitle, item.payeeName, item.tipoLabel, cat.label, history, ...Object.keys(item.checks || {})].filter(Boolean).join(' ').toLowerCase().includes(t);
+}
+
+function renderAnalysisFilters() {
+  const select = document.getElementById('analysisCategoryFilter');
+  const categories = DATA.categories.map(cat => ({ id: cat.id, label: cat.label }));
+  if (analysisFilterCategory && !categories.some(cat => cat.id === analysisFilterCategory)) analysisFilterCategory = '';
+  select.innerHTML = `<option value="">Todas as categorias</option>${categories.map(cat => `<option value="${escapeHtml(cat.id)}" ${analysisFilterCategory === cat.id ? 'selected' : ''}>${escapeHtml(cat.label)}</option>`).join('')}`;
+  document.getElementById('analysisStatusFilter').value = analysisFilterStatus;
+  document.getElementById('filtroDuvidaBtn').classList.toggle('active', filtroDuvida);
+  document.getElementById('filtroDocumentoBtn').classList.toggle('active', filtroDocumento);
+}
+
+function setAnalysisFilter(type, value) {
+  if (type === 'category') analysisFilterCategory = value;
+  if (type === 'status') analysisFilterStatus = value;
+  renderList();
+}
+
+function toggleFiltroDuvida() {
+  filtroDuvida = !filtroDuvida;
+  document.getElementById('filtroDuvidaBtn').classList.toggle('active', filtroDuvida);
+  renderList();
+}
+
+function toggleFiltroDocumento() {
+  filtroDocumento = !filtroDocumento;
+  document.getElementById('filtroDocumentoBtn').classList.toggle('active', filtroDocumento);
+  renderList();
+}
+
+function clearAnalysisFilters() {
+  analysisFilterCategory = '';
+  analysisFilterStatus = '';
+  filtroDuvida = false;
+  filtroDocumento = false;
+  searchTerm = '';
+  document.getElementById('searchInput').value = '';
+  renderAnalysisFilters();
+  renderList();
+}
+
+function renderList() {
+  const col = document.getElementById('listCol');
+  let totalShown = 0, totalAll = 0, html = '';
+  DATA.categories.forEach(cat => {
+    totalAll += cat.items.length;
+    if (analysisFilterCategory && cat.id !== analysisFilterCategory) return;
+    const visibleItems = cat.items.filter(item => {
+      if (!matchesSearch(item, cat, searchTerm)) return false;
+      if (filtroDuvida && !itemTemDuvida(item, selectedCicloIdx)) return false;
+      if (filtroDocumento && !itemHasPendingDocument(item)) return false;
+      if (analysisFilterStatus && itemCicloStatus(item, selectedCicloIdx) !== analysisFilterStatus) return false;
+      return true;
+    });
+    totalShown += visibleItems.length;
+    if (visibleItems.length === 0) return;
+    const prog = catProgress(cat);
+    html += `<div class="cat-group" data-cat="${escapeHtml(cat.id)}"><div class="cat-header" onclick="toggleCat('${cat.id}')"><div class="cat-header-left"><span class="cat-chevron"></span><span class="cat-title">${escapeHtml(cat.label)}</span></div><div class="cat-header-right"><span class="cat-pct">${prog.pct}%</span><div class="cat-mini-bar"><div class="cat-mini-fill" style="width:${prog.pct}%"></div></div><span class="cat-count">${visibleItems.length}</span></div></div><div class="cat-items">`;
+    visibleItems.forEach(item => {
+      const status = itemCicloStatus(item, selectedCicloIdx);
+      html += `<div class="item-card${item.id === selectedItemId ? ' selected' : ''}" onclick="selectItem('${item.id}')"><span class="item-status-dot ${dotClass(status)}"></span><div class="item-card-body"><div class="item-card-title">${escapeHtml(item.title)}</div><div class="item-card-sub">${escapeHtml(item.payeeName || item.subtitle || 'Sem detalhamento')}</div></div><div class="item-card-badges">${itemTemDuvida(item, selectedCicloIdx) ? '<span class="badge badge-duvida">? Dúvida</span>' : ''}${itemHasPendingDocument(item) ? '<span class="badge badge-amber">Doc. pendente</span>' : ''}<span class="badge ${statusBadgeClass(status)}">${STATUS_LABELS[status]}</span></div></div>`;
+    });
+    html += '</div></div>';
+  });
+  if (!totalAll) {
+    html = `<div class="analysis-empty"><strong>Nenhum item nesta PC</strong><div>Importe um arquivo ou adicione a primeira despesa manualmente.</div><div class="analysis-empty-actions"><button class="btn btn-ghost" onclick="openImportModal()">Importar arquivo</button><button class="btn btn-primary" onclick="openManualItemModal()">Adicionar item</button></div></div>`;
+  } else if (!totalShown) {
+    html = `<div class="analysis-empty"><strong>Nenhum item encontrado</strong><div>Ajuste ou limpe os filtros aplicados.</div><div class="analysis-empty-actions"><button class="btn btn-ghost" onclick="clearAnalysisFilters()">Limpar filtros</button></div></div>`;
+  }
+  col.innerHTML = html;
+  document.getElementById('searchCount').textContent = totalShown === totalAll ? `${totalAll} itens` : `${totalShown} de ${totalAll} itens`;
+}
+
+function showFormError(id, message) {
+  const el = document.getElementById(id);
+  el.textContent = message || '';
+  el.classList.toggle('hidden', !message);
+}
+
+function openPCForm() {
+  pcFormMode = 'create';
+  document.getElementById('pcFormTitle').textContent = 'Nova PC';
+  document.getElementById('pcFormSubmit').textContent = 'Criar PC';
+  document.getElementById('pcFormStatusField').classList.remove('hidden');
+  ['pcFormClient','pcFormProject','pcFormNumber','pcFormSource'].forEach(id => document.getElementById(id).disabled = false);
+  document.getElementById('pcFormClient').innerHTML = STORE.clients.filter(c => c.active !== false).map((client, ci) => `<option value="${ci}">${escapeHtml(client.client)}</option>`).join('');
+  document.getElementById('pcFormNumber').value = '';
+  document.getElementById('pcFormSource').value = 'Prompt';
+  document.getElementById('pcFormStart').value = '';
+  document.getElementById('pcFormEnd').value = '';
+  const planned = document.querySelector('input[name="pcFormStatus"][value="PLANEJADA"]');
+  if (planned) planned.checked = true;
+  updatePCProjectOptions();
+  showFormError('pcFormError', '');
+  document.getElementById('pcFormOverlay').classList.remove('hidden');
+}
+
+function openActivationForm() {
+  const pc = pcAt(currentPC.ci, currentPC.pi, currentPC.pci);
+  pcFormMode = 'activate';
+  document.getElementById('pcFormTitle').textContent = `Ativar ${pc.label}`;
+  document.getElementById('pcFormSubmit').textContent = 'Ativar PC';
+  document.getElementById('pcFormStatusField').classList.add('hidden');
+  document.getElementById('pcFormClient').innerHTML = `<option value="${currentPC.ci}">${escapeHtml(DATA.meta.cliente)}</option>`;
+  document.getElementById('pcFormProject').innerHTML = `<option value="${currentPC.ci}|${currentPC.pi}">${escapeHtml(DATA.meta.projeto)}</option>`;
+  document.getElementById('pcFormNumber').value = String(DATA.meta.pc || pc.label).replace(/^PC/i, '');
+  document.getElementById('pcFormSource').value = DATA.meta.sourceType || 'Prompt';
+  document.getElementById('pcFormStart').value = DATA.meta.periodoInicio || '';
+  document.getElementById('pcFormEnd').value = DATA.meta.periodoFim || '';
+  ['pcFormClient','pcFormProject','pcFormNumber','pcFormSource'].forEach(id => document.getElementById(id).disabled = true);
+  showFormError('pcFormError', '');
+  document.getElementById('pcFormOverlay').classList.remove('hidden');
+}
+
+function updatePCProjectOptions() {
+  if (pcFormMode !== 'create') return;
+  const ci = Number(document.getElementById('pcFormClient').value);
+  const client = STORE.clients[ci];
+  document.getElementById('pcFormProject').innerHTML = client
+    ? client.projects.filter(p => p.active !== false).map((project, pi) => `<option value="${ci}|${client.projects.indexOf(project)}">${escapeHtml(project.name)} · ${escapeHtml(project.executor || 'sem executor')}</option>`).join('')
+    : '';
+}
+
+function closePCForm() {
+  document.getElementById('pcFormOverlay').classList.add('hidden');
+}
+
+function normalizePCNumber(value) {
+  return String(value || '').trim().replace(/^PC\s*/i, '');
+}
+
+function newCycleObject(gid, changedAt) {
+  return { _gid: gid || null, numero: 1, status: 'AGUARDANDO_ANALISE', analista: '', statusChangedAt: changedAt,
+    generalInternalComment: '', generalExecutorComment: '', manualQueuePosition: null, statusHistory: [] };
+}
+
+async function submitPCForm() {
+  const start = document.getElementById('pcFormStart').value || null;
+  const end = document.getElementById('pcFormEnd').value || null;
+  if ((start && !end) || (!start && end)) return showFormError('pcFormError', 'Preencha as duas datas do período ou deixe ambas vazias.');
+  if (start && end && start > end) return showFormError('pcFormError', 'A data inicial não pode ser posterior à data final.');
+  if (pcFormMode === 'activate') {
+    if (!start || !end) return showFormError('pcFormError', 'O período é obrigatório para ativar a PC.');
+    closePCForm();
+    return activateCurrentPC(start, end);
+  }
+
+  const projectValue = document.getElementById('pcFormProject').value;
+  const number = normalizePCNumber(document.getElementById('pcFormNumber').value);
+  const sourceType = document.getElementById('pcFormSource').value;
+  const status = document.querySelector('input[name="pcFormStatus"]:checked').value;
+  if (!projectValue) return showFormError('pcFormError', 'Selecione um projeto.');
+  if (!number) return showFormError('pcFormError', 'Informe o número ou identificação da PC.');
+  if (status === 'ATIVA' && (!start || !end)) return showFormError('pcFormError', 'O período é obrigatório para criar uma PC ativa.');
+  const [ci, pi] = projectValue.split('|').map(Number);
+  const client = STORE.clients[ci], project = client && client.projects[pi];
+  if (!project) return showFormError('pcFormError', 'Projeto inválido.');
+  const label = `PC${number}`;
+  if (project.pcs.some(pc => pc.label.toLowerCase() === label.toLowerCase())) return showFormError('pcFormError', 'Já existe uma PC com essa identificação neste projeto.');
+
+  showLoadingGate('Criando PC no SharePoint...');
+  closePCForm();
+  let createdPcId = null, cycle = null, partial = false;
+  const changedAt = new Date().toISOString();
+  try {
+    const fields = { Title: label, ProjetoId: project._gid, PCNumber: number, SourceType: sourceType, PCStatus: pcStatusToChoice(status) };
+    if (start) fields.PeriodStart = start;
+    if (end) fields.PeriodEnd = end;
+    createdPcId = await graphCreateItem(LIST_IDS.PCs, fields);
+    if (status === 'ATIVA') {
+      try {
+        const cycleId = await graphCreateItem(LIST_IDS.Ciclos, { Title: `${label} - ${cicloLabel(1)}`, PCId: createdPcId, CycleNumber: 1, Status: 'Aguardando análise', AnalystName: '', GeneralInternalComment: '', GeneralExecutorComment: '', StatusChangedAt: changedAt });
+        cycle = newCycleObject(cycleId, changedAt);
+        await syncCicloStatusHistory(createdPcId, cycle, 'AGUARDANDO_ANALISE', changedAt);
+      } catch (cycleError) { console.warn(cycleError); partial = true; }
+    }
+    const pc = { label, real: true, _gid: createdPcId, data: { meta: {
+      cliente: client.client, projeto: project.name, pc: label, executor: project.executor, fundacao: project.fundacao,
+      periodoInicio: start, periodoFim: end, periodo: [start, end].filter(Boolean).map(fmtIsoDate).join(' a '), sourceType,
+      pcStatus: status, concluida: false, ciclos: cycle ? [cycle] : [], fontes: [], residualPendingNote: '', dataCadastro: changedAt,
+    }, categories: [] } };
+    project.pcs.push(pc);
+    saveStore(); renderTree(); filaOrder = null;
+    currentPC = { ci, pi, pci: project.pcs.length - 1 }; DATA = pc.data; selectedCicloIdx = 0; selectedItemId = null;
+    setView('detail');
+    showToast(partial ? 'PC criada, mas o ciclo inicial precisa ser criado novamente.' : `${label} criada.`);
+  } catch (e) {
+    console.warn(e); showToast('Não consegui criar a PC no SharePoint.');
+  } finally { hideLoadingGate(); }
+}
+
+async function activateCurrentPC(start, end) {
+  const pc = pcAt(currentPC.ci, currentPC.pi, currentPC.pci);
+  const changedAt = new Date().toISOString();
+  showLoadingGate('Ativando PC...');
+  let cycle = null, partial = false;
+  try {
+    await graphUpdateItem(LIST_IDS.PCs, pc._gid, { PCStatus: pcStatusToChoice('ATIVA'), PeriodStart: start, PeriodEnd: end });
+    try {
+      const cycleId = await graphCreateItem(LIST_IDS.Ciclos, { Title: `${pc.label} - ${cicloLabel(1)}`, PCId: pc._gid, CycleNumber: 1, Status: 'Aguardando análise', AnalystName: '', GeneralInternalComment: '', GeneralExecutorComment: '', StatusChangedAt: changedAt });
+      cycle = newCycleObject(cycleId, changedAt);
+      await syncCicloStatusHistory(pc._gid, cycle, 'AGUARDANDO_ANALISE', changedAt);
+    } catch (cycleError) { console.warn(cycleError); partial = true; }
+    DATA.meta.pcStatus = 'ATIVA'; DATA.meta.concluida = false;
+    DATA.meta.periodoInicio = start; DATA.meta.periodoFim = end; DATA.meta.periodo = `${fmtIsoDate(start)} a ${fmtIsoDate(end)}`;
+    DATA.meta.ciclos = cycle ? [cycle] : [];
+    selectedCicloIdx = 0; saveStore(); renderTree(); filaOrder = null; renderPCDetail();
+    showToast(partial ? 'PC ativada; falta criar o ciclo inicial.' : 'PC ativada e 1ª análise criada.');
+  } catch (e) { console.warn(e); showToast('Não consegui ativar a PC no SharePoint.'); }
+  finally { hideLoadingGate(); }
+}
+
+async function createInitialCycleForCurrentPC() {
+  const pc = pcAt(currentPC.ci, currentPC.pi, currentPC.pci);
+  if (pcStatusOf(pc) !== 'ATIVA' || DATA.meta.ciclos.length) return;
+  const changedAt = new Date().toISOString();
+  showLoadingGate('Criando ciclo inicial...');
+  try {
+    const cycleId = await graphCreateItem(LIST_IDS.Ciclos, { Title: `${pc.label} - ${cicloLabel(1)}`, PCId: pc._gid, CycleNumber: 1, Status: 'Aguardando análise', AnalystName: '', GeneralInternalComment: '', GeneralExecutorComment: '', StatusChangedAt: changedAt });
+    const cycle = newCycleObject(cycleId, changedAt);
+    DATA.meta.ciclos.push(cycle);
+    selectedCicloIdx = 0; saveStore(); filaOrder = null; renderPCDetail();
+    try { await syncCicloStatusHistory(pc._gid, cycle, 'AGUARDANDO_ANALISE', changedAt); saveStore(); showToast('1ª análise criada.'); }
+    catch (historyError) { console.warn(historyError); showToast('Ciclo criado; o histórico precisa ser conferido.'); }
+  } catch (e) { console.warn(e); showToast('Não consegui criar o ciclo inicial.'); }
+  finally { hideLoadingGate(); }
+}
+
+function openManualItemModal() {
+  if (!DATA || pcStatusOf(pcAt(currentPC.ci, currentPC.pi, currentPC.pci)) !== 'ATIVA' || !DATA.meta.ciclos.length) return showToast('Ative a PC e crie o ciclo antes de adicionar itens.');
+  document.getElementById('manualCategory').innerHTML = RUBRICA_SCHEMA.map(cat => `<option value="${cat.id}">${escapeHtml(cat.label)}</option>`).join('') + '<option value="outros">Outros</option>';
+  ['manualBudgetItem','manualDescription','manualPayee','manualPaymentDate','manualDocumentDate','manualAmount'].forEach(id => document.getElementById(id).value = '');
+  showFormError('manualItemError', '');
+  document.getElementById('manualItemOverlay').classList.remove('hidden');
+}
+
+function closeManualItemModal() { document.getElementById('manualItemOverlay').classList.add('hidden'); }
+
+function parseAmountInput(value) {
+  const clean = String(value || '').trim().replace(/\./g, '').replace(',', '.');
+  if (!clean) return null;
+  const number = Number(clean);
+  return Number.isFinite(number) ? number : NaN;
+}
+
+async function submitManualItem() {
+  const categoryId = document.getElementById('manualCategory').value;
+  const budgetItem = document.getElementById('manualBudgetItem').value.trim();
+  const description = document.getElementById('manualDescription').value.trim();
+  const payee = document.getElementById('manualPayee').value.trim();
+  const paymentDate = document.getElementById('manualPaymentDate').value || null;
+  const documentDate = document.getElementById('manualDocumentDate').value || null;
+  const amount = parseAmountInput(document.getElementById('manualAmount').value);
+  if (!budgetItem && !description) return showFormError('manualItemError', 'Informe o item de orçamento ou a descrição.');
+  if (Number.isNaN(amount)) return showFormError('manualItemError', 'Informe um valor válido.');
+  const pc = pcAt(currentPC.ci, currentPC.pi, currentPC.pci);
+  const cycle = DATA.meta.ciclos[selectedCicloIdx];
+  const categoryInfo = categoriaInfoById(categoryId);
+  const docs = categoryInfo.docsFixed || categoryInfo.docsDefault || ['Comprovante'];
+  const checks = Object.fromEntries(docs.map(doc => [doc, 'PND']));
+  const sourceKey = `manual-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const title = budgetItem || description.slice(0, 80);
+  closeManualItemModal(); showLoadingGate('Adicionando item...');
+  let itemId = null, analysisId = null, partial = false;
+  try {
+    const fields = { Title: title, PCId: pc._gid, SourceItemKey: sourceKey, CategoryId: categoryId, ExpenseTypeId: 'Manual', BudgetItem: budgetItem || title,
+      Description: description, PayeeName: payee, DocumentChecks: serializeJsonObject(checks), SourceSheetName: 'Manual', CanonicalDataJson: serializeJsonObject({ origem: 'Manual', categoria: categoryId }), PossibleRemoved: false };
+    if (paymentDate) fields.PaymentDate = paymentDate;
+    if (documentDate) fields.DocumentDate = documentDate;
+    if (amount !== null) fields.Amount = amount;
+    itemId = await graphCreateItem(LIST_IDS.Itens, fields);
+    try {
+      analysisId = await graphCreateItem(LIST_IDS.AnalisesItemCiclo, { Title: title, ItemId: itemId, CicloId: cycle._gid, ReviewStatus: 'Aguardando análise', HasDoubt: false, InternalComment: '', ExecutorComment: '', ExecutorResponse: '' });
+    } catch (analysisError) { console.warn(analysisError); partial = true; }
+
+    let category = DATA.categories.find(cat => cat.id === categoryId);
+    if (!category) {
+      category = { id: categoryId, label: categoryInfo.label || categoryId, docsFixed: docs, items: [] };
+      DATA.categories.push(category);
+    }
+    const ciclosStatus = DATA.meta.ciclos.map((c, idx) => ({ numero: c.numero, status: idx === selectedCicloIdx ? 'AGUARDANDO_ANALISE' : 'FECHADO', comentarioAnalista: '', comentarioExecutor: '', executorResponse: '', duvida: false, _gid: idx === selectedCicloIdx ? analysisId : null, _legacy: false }));
+    const item = { id: itemId, title, subtitle: description, tipoLabel: budgetItem || null, valor: amount, checks, ciclosStatus, possivelRemovido: false,
+      canonicalData: { origem: 'Manual', categoria: categoryId }, sourceItemKey: sourceKey, sourceSheetName: 'Manual', sourceRowNumber: null,
+      importWarnings: partial ? 'Análise do ciclo não foi criada no primeiro envio.' : '', payeeName: payee, payeeDocumentMasked: '', importado: { dataPagamento: paymentDate ? fmtIsoDate(paymentDate) : '', dataDocumento: documentDate ? fmtIsoDate(documentDate) : '', rendimentos: null } };
+    category.items.push(item); selectedItemId = itemId; saveStore();
+    renderAnalysisFilters(); renderList(); renderDetail(); renderProgress();
+    showToast(partial ? 'Item criado; a análise será sincronizada na próxima edição.' : 'Item adicionado.');
+  } catch (e) { console.warn(e); showToast('Não consegui adicionar o item no SharePoint.'); }
+  finally { hideLoadingGate(); }
+}
+
+const marco2BaseUpdateCicloStatus = updateCicloStatus;
+updateCicloStatus = async function(newStatus) {
+  await marco2BaseUpdateCicloStatus(newStatus);
+  renderTree(); filaOrder = null;
+  if (currentView === 'detail') renderPCDetail();
+  if (currentView === 'trabalho') renderAreaTrabalho();
+};
+
+const marco2BaseAdicionarCiclo = adicionarCiclo;
+adicionarCiclo = async function() {
+  const latest = DATA && DATA.meta.ciclos.length ? ultimoCiclo() : null;
+  if (!latest || latest.status !== 'COM_EXECUTOR' || DATA.meta.concluida) return;
+  if (!confirm(`Encerrar ${cicloLabel(latest.numero)} e criar o próximo retorno?`)) return;
+  await marco2BaseAdicionarCiclo();
+  renderTree(); filaOrder = null;
+  if (currentView === 'detail') renderPCDetail();
+  else { renderWorkspaceGeneralComments(); renderAnalysisFilters(); }
+};
+
+const marco2BaseConcluirPC = concluirPC;
+concluirPC = async function() {
+  const latest = DATA && DATA.meta.ciclos.length ? ultimoCiclo() : null;
+  if (!latest || latest.status !== 'COM_EXECUTOR' || DATA.meta.concluida) return;
+  if (!confirm(`Concluir ${DATA.meta.pc}? O ciclo atual será encerrado.`)) return;
+  await marco2BaseConcluirPC();
+  renderTree(); filaOrder = null;
+  if (currentView === 'detail') renderPCDetail();
+  else setView('detail');
+};
 
 async function initApp() {
   try {
