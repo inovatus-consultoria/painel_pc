@@ -2,7 +2,7 @@
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
-<title>Painel PC — VA.12 (SharePoint Lists)</title>
+<title>Painel PC — VA.13 (SharePoint Lists)</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
@@ -764,7 +764,7 @@
       Entrar com Microsoft
     </button>
   </div>
-  <div class="login-version">Painel PC · VA.12 · SharePoint Lists</div>
+  <div class="login-version">Painel PC · VA.13 · SharePoint Lists</div>
 </div>
 
 <div id="loading-overlay">
@@ -804,7 +804,7 @@
     <div class="tree" id="treeCol"></div>
     <div class="sidebar-foot">
       <div id="authStatus" style="margin-bottom:8px;"></div>
-      VA.12 · SharePoint Lists · Microsoft Graph
+      VA.13 · SharePoint Lists · Microsoft Graph
     </div>
   </aside>
 
@@ -5436,6 +5436,135 @@ function va12AddDeleteAction() {
 const va12DeleteBaseRenderPCDetail = renderPCDetail;
 renderPCDetail = function() { va12DeleteBaseRenderPCDetail(); va12AddDeleteAction(); };
 
+/* ===== VA.13 — Importação de análises legadas (checklist acumulativo) ===== */
+const va13BaseOpenImportModal = openImportModal;
+const va13BaseSetImportSource = setImportSource;
+const va13BaseProcessWorkbook = processWorkbook;
+const va13BaseParseRefImportDraft = parseRefImportDraft;
+
+function va13FileVersion(name) {
+  const match = String(name || '').match(/(?:^|[._\-\s])v(?:ers[aã]o)?\s*([0-9]+)(?:$|[._\-\s])/i);
+  return match ? `v${match[1]}` : '';
+}
+function va13Text(value) { return String(value == null ? '' : value).trim(); }
+function va13CellValue(value) { return typeof value === 'string' && value.startsWith('=') ? '' : value; }
+function va13CategoryCode(value) { const match = foldText(value).match(/^([A-Z])(?:\s|\.|-|$)/); return match ? match[1] : ''; }
+function va13ItemKey(value) { return foldText(value).replace(/^VIAGENS?\s*/, 'VIAGEM ').replace(/\s+/g, ' ').trim(); }
+function va13Status(value, executorComment, internalComment) {
+  const raw = foldText(va13CellValue(value));
+  if (raw.includes('FECH')) return 'FECHADO';
+  if (raw.includes('ABER')) return 'ABERTO';
+  if (va13Text(executorComment)) return 'ABERTO';
+  return va13Text(internalComment) ? 'FECHADO' : 'AGUARDANDO_ANALISE';
+}
+function va13SheetRows(workbook, name) { return XLSX.utils.sheet_to_json(workbook.Sheets[name], { header: 1, defval: null, raw: true }); }
+function va13FindChecklistHeader(rows) {
+  return rows.findIndex(row => foldText(row && row[1]) === 'RUBRICA' && foldText(row && row[2]) === 'ITEM');
+}
+function va13CycleColumns(headers) {
+  const cycles = new Map();
+  const ensure = number => { const key = Number(number) || 1; if (!cycles.has(key)) cycles.set(key, { number:key, internal:-1, executor:-1, response:-1, status:-1 }); return cycles.get(key); };
+  headers.forEach((head, index) => {
+    const text = foldText(head); if (!text) return;
+    const number = Number((text.match(/(?:^|\s)([1-9][0-9]*)[ºªO]?\s*(?:COMENTARIO|RESPOSTA|STATUS)/) || [])[1]) || 1;
+    const entry = ensure(number);
+    if (text.includes('COMENTARIO') && (text.includes('ANALISTA') || text.includes('INTERNO'))) entry.internal = index;
+    else if (text.includes('COMENTARIO') && (text.includes('INOVATUS') || text.includes('EXECUTOR'))) entry.executor = index;
+    else if (text.includes('RESPOSTA') && text.includes('EXECUTOR')) entry.response = index;
+    else if (text.startsWith('STATUS')) entry.status = index;
+  });
+  return [...cycles.values()].filter(entry => entry.internal >= 0 || entry.executor >= 0 || entry.response >= 0);
+}
+function va13ChecklistChecks(headers, row, cycle) {
+  const firstComment = [cycle.internal, cycle.executor, cycle.response, cycle.status].filter(index => index >= 0).sort((a,b) => a-b)[0];
+  const limit = firstComment == null ? headers.length : firstComment;
+  const checks = {};
+  for (let i = 3; i < limit; i++) {
+    const value = foldText(va13CellValue(row[i]));
+    if (!['OK','PND','NA'].includes(value)) continue;
+    const label = va13Text(headers[i]).replace(/\s+/g, ' ');
+    if (label && !/^COLUNA\d+$/i.test(label)) checks[label] = value;
+  }
+  return checks;
+}
+function parseChecklistImportDraft(workbook) {
+  const cycles = new Map(); const records = []; const warnings = [];
+  workbook.SheetNames.forEach(sheetName => {
+    const rows = va13SheetRows(workbook, sheetName); const headerIndex = va13FindChecklistHeader(rows);
+    if (headerIndex < 0) return;
+    const headers = rows[headerIndex].map(value => va13Text(value)); const cycleDefs = va13CycleColumns(headers);
+    if (!cycleDefs.length) return;
+    rows.slice(headerIndex + 1).forEach((row, offset) => {
+      const category = va13Text(row[1]); const itemKey = va13Text(row[2]);
+      if (!category || !itemKey || ['NA','N/A','-'].includes(foldText(itemKey))) return;
+      cycleDefs.forEach(cycle => {
+        const internalComment = va13Text(va13CellValue(row[cycle.internal]));
+        const executorComment = va13Text(va13CellValue(row[cycle.executor]));
+        const executorResponse = va13Text(va13CellValue(row[cycle.response]));
+        const statusRaw = va13CellValue(row[cycle.status]); const checks = va13ChecklistChecks(headers, row, cycle);
+        const hasMaterialCheck = Object.values(checks).some(value => value !== 'NA');
+        if (!internalComment && !executorComment && !executorResponse && !hasMaterialCheck) return;
+        if (!cycles.has(cycle.number)) cycles.set(cycle.number, []);
+        cycles.get(cycle.number).push({ sheetName, sourceRowNumber: headerIndex + offset + 2, category, categoryCode: va13CategoryCode(category), itemKey, normalizedItemKey: va13ItemKey(itemKey), checks, internalComment, executorComment, executorResponse, legacyStatus: va13Text(statusRaw), reviewStatus: va13Status(statusRaw, executorComment, internalComment), isGeneral: foldText(sheetName) === 'COMENTARIOS GERAIS' || foldText(itemKey).startsWith('GERAL') });
+      });
+    });
+  });
+  const groups = [...cycles.entries()].sort((a,b) => a[0]-b[0]).map(([number, entries]) => ({ key: String(number), label: `${number}º ciclo do checklist`, number, entries }));
+  if (!groups.length) warnings.push('Não encontrei comentários, respostas ou checks em abas de checklist reconhecíveis.');
+  return { groups, warnings };
+}
+function va13MatchChecklistRecord(record, target) {
+  if (record.isGeneral) return { state:'general', record, candidates:[] };
+  const candidates = target.pc.data.categories.flatMap(category => category.items.map(item => ({ category, item }))).filter(entry => {
+    const canonical = entry.item.canonicalData || {};
+    const keys = [canonical.item, entry.item.sourceItemKey, entry.item.budgetItem, entry.item.tipoLabel].map(va13ItemKey).filter(Boolean);
+    const sameKey = keys.includes(record.normalizedItemKey);
+    const sameCategory = !record.categoryCode || !va13CategoryCode(entry.item.sourceSheetName || entry.category.label) || va13CategoryCode(entry.item.sourceSheetName || entry.category.label) === record.categoryCode;
+    return sameKey && sameCategory;
+  });
+  if (candidates.length === 1) return { state:'matched', record, existing:candidates[0], candidates };
+  if (candidates.length > 1) return { state:'review', record, candidates };
+  return { state:'unmatched', record, candidates:[] };
+}
+function va13PrepareAnalysisComparison(group) {
+  const target = currentImportTarget(); if (!target) return null;
+  const rows = group.entries.map(record => va13MatchChecklistRecord(record, target));
+  return { group, rows, counts: { matched:rows.filter(row=>row.state==='matched').length, general:rows.filter(row=>row.state==='general').length, review:rows.filter(row=>row.state==='review').length, unmatched:rows.filter(row=>row.state==='unmatched').length } };
+}
+function va13SelectAnalysisCycle(key) { const group = controlledImport.analysisDraft.groups.find(group => group.key === String(key)); if (!group) return; controlledImport.analysisGroup = group; controlledImport.analysisComparison = va13PrepareAnalysisComparison(group); va13RenderAnalysisPreview(); }
+function va13AnalysisDecision(index, value) { const row = controlledImport.analysisComparison.rows[index]; if (row) row.decision = value; va13UpdateAnalysisConfirm(); }
+function va13RenderAnalysisCycleChoice() {
+  document.getElementById('controlledImportBody').innerHTML = `<h3>Escolha a rodada do checklist</h3><p class="modal-hint">Este arquivo é acumulativo. A rodada escolhida será importada somente para o ciclo do painel selecionado acima.</p><div class="import-group-list">${controlledImport.analysisDraft.groups.map(group => `<button class="import-group" onclick="va13SelectAnalysisCycle('${group.key}')"><b>${escapeHtml(group.label)}</b><span>${group.entries.length} registro(s) com check, comentário ou resposta</span></button>`).join('')}</div><div class="modal-actions"><button class="btn btn-ghost" onclick="closeImportModal()">Cancelar</button></div>`;
+}
+function va13RenderAnalysisPreview() {
+  const comparison = controlledImport.analysisComparison; const target = currentImportTarget(); if (!comparison || !target) return;
+  const c = comparison.counts;
+  document.getElementById('controlledImportBody').innerHTML = `<h3>Prévia da análise — ${escapeHtml(comparison.group.label)}</h3><p class="modal-hint">Destino: ${escapeHtml(target.pc.label)} · ${escapeHtml(cicloLabel(target.cycle.numero))}. A versão no nome do arquivo é apenas conferência; o vínculo é este ciclo escolhido.</p><div class="reconcile-summary"><div class="reconcile-stat"><b>${c.matched}</b><span>associados</span></div><div class="reconcile-stat"><b>${c.general}</b><span>gerais</span></div><div class="reconcile-stat review"><b>${c.review}</b><span>ambíguos</span></div><div class="reconcile-stat ${c.unmatched?'failed':''}"><b>${c.unmatched}</b><span>sem associação</span></div></div><div class="draft-table-wrap"><table class="draft-table"><thead><tr><th>Checklist</th><th>Associação</th><th>Dados a importar</th><th>Decisão</th></tr></thead><tbody>${comparison.rows.slice(0,250).map((row,index) => { const r=row.record; const match=row.existing; const data=[Object.keys(r.checks).length?`${Object.keys(r.checks).length} checks`:'',r.internalComment?'comentário interno':'',r.executorComment?'comentário ao executor':'',r.executorResponse?'resposta':''].filter(Boolean).join(' · ') || 'Sem conteúdo'; const destination=match?escapeHtml(match.item.title||match.item.tipoLabel||r.itemKey):row.state==='general'?'Comentário geral do ciclo':row.state==='review'?'Mais de um item possível':'Nenhum item encontrado'; const action=row.state==='review'?`<select onchange="va13AnalysisDecision(${index},this.value)"><option value="">Decidir...</option><option value="skip">Não importar</option></select>`:row.state==='unmatched'?`<select onchange="va13AnalysisDecision(${index},this.value)"><option value="">Decidir...</option><option value="skip">Não importar</option></select>`:'Importar'; return `<tr><td>${escapeHtml(r.category)} · ${escapeHtml(r.itemKey)}</td><td>${destination}</td><td>${escapeHtml(data)}</td><td>${action}</td></tr>`; }).join('')}</tbody></table></div><div class="import-blocked-note hidden" id="va13AnalysisBlocked"></div><div class="modal-actions"><button class="btn btn-ghost" onclick="va13RenderAnalysisCycleChoice()">Voltar</button><button class="btn btn-primary" id="va13ConfirmAnalysis" onclick="confirmAnalysisImport()">Confirmar importação da análise</button></div>`;
+  va13UpdateAnalysisConfirm();
+}
+function va13UpdateAnalysisConfirm() { const comparison=controlledImport&&controlledImport.analysisComparison; const button=document.getElementById('va13ConfirmAnalysis'); const note=document.getElementById('va13AnalysisBlocked'); if(!comparison||!button)return; const open=comparison.rows.filter(row=>['review','unmatched'].includes(row.state)&&!row.decision).length; button.disabled=open>0; if(note){note.classList.toggle('hidden',!open); note.textContent=open?`Decida ${open} associação(ões) antes de confirmar.`:'';} }
+async function va13UpdateAnalysisRow(row, target) {
+  const item=row.existing.item; const index=target.cycleIndex; let analysis=item.ciclosStatus[index];
+  if(!analysis){analysis={numero:target.cycle.numero,status:'AGUARDANDO_ANALISE',comentarioAnalista:'',comentarioExecutor:'',executorResponse:'',duvida:false,_gid:null,_legacy:false}; item.ciclosStatus[index]=analysis;}
+  analysis.status=row.record.reviewStatus; analysis.comentarioAnalista=row.record.internalComment; analysis.comentarioExecutor=row.record.executorComment; analysis.executorResponse=row.record.executorResponse; analysis.duvida=Object.values(row.record.checks).includes('PND');
+  const checks={...(item.checks||{}),...(row.record.checks||{})}; item.checks=checks;
+  if(isRealGid(item.id)) await graphUpdateItem(LIST_IDS.Itens,item.id,{DocumentChecks:serializeJsonObject(checks)});
+  if(!isRealGid(analysis._gid) && isRealGid(item.id)) analysis._gid=await graphCreateItem(LIST_IDS.AnalisesItemCiclo,{Title:item.title||item.tipoLabel||row.record.itemKey,ItemId:Number(item.id),CicloId:Number(target.cycle._gid),ReviewStatus:itemStatusToChoice(analysis.status),HasDoubt:!!analysis.duvida,InternalComment:analysis.comentarioAnalista,ExecutorComment:analysis.comentarioExecutor,ExecutorResponse:analysis.executorResponse});
+  else if(isRealGid(analysis._gid)) await graphUpdateItem(LIST_IDS.AnalisesItemCiclo,analysis._gid,{ReviewStatus:itemStatusToChoice(analysis.status),HasDoubt:!!analysis.duvida,InternalComment:analysis.comentarioAnalista,ExecutorComment:analysis.comentarioExecutor,ExecutorResponse:analysis.executorResponse});
+}
+async function confirmAnalysisImport() {
+  const target=currentImportTarget(), comparison=controlledImport&&controlledImport.analysisComparison; if(!target||!comparison)return; const button=document.getElementById('va13ConfirmAnalysis'); if(button)button.disabled=true; showLoadingGate('Importando análise do checklist...'); const result={items:0,general:0,skipped:0,failed:[]};
+  try { let internal=[], executor=[]; for(const row of comparison.rows){ try { if(['review','unmatched'].includes(row.state)){result.skipped++;continue;} if(row.state==='general'){const r=row.record; const prefix=`${r.category} · ${r.itemKey}`; if(r.internalComment)internal.push(`${prefix}: ${r.internalComment}`); if(r.executorComment)executor.push(`${prefix}: ${r.executorComment}`); if(r.executorResponse)internal.push(`${prefix} — resposta: ${r.executorResponse}`); result.general++; continue;} await va13UpdateAnalysisRow(row,target); result.items++; }catch(error){result.failed.push(`${row.record.itemKey}: ${graphErrorText(error)}`);} }
+    if((internal.length||executor.length)&&isRealGid(target.cycle._gid)){target.cycle.generalInternalComment=[target.cycle.generalInternalComment||'',...internal].filter(Boolean).join('\n'); target.cycle.generalExecutorComment=[target.cycle.generalExecutorComment||'',...executor].filter(Boolean).join('\n'); await graphUpdateItem(LIST_IDS.Ciclos,target.cycle._gid,{GeneralInternalComment:target.cycle.generalInternalComment,GeneralExecutorComment:target.cycle.generalExecutorComment});}
+    const notes=`Checklist ${controlledImport.fileName}; ${comparison.group.label}; ${result.items} item(ns), ${result.general} comentário(s) geral(is), ${result.skipped} ignorado(s), ${result.failed.length} falha(s).`;
+    if(isRealGid(target.pc._gid)&&isRealGid(target.cycle._gid)){const sourceId=await graphCreateItem(LIST_IDS.FontesPC,{Title:`${target.pc.label} - ${controlledImport.fileName}`.slice(0,250),PCId:String(target.pc._gid),CicloId:String(target.cycle._gid),FileType:'Checklist de análise',FileName:controlledImport.fileName,ImportedAt:new Date().toISOString(),Notes:notes}); DATA.meta.fontes.push({_gid:sourceId,cicloId:String(target.cycle._gid),fileType:'Checklist de análise',fileName:controlledImport.fileName,importedAt:new Date().toISOString(),notes,title:`${target.pc.label} - ${controlledImport.fileName}`});}
+    saveStore(); renderTree(); document.getElementById('controlledImportBody').innerHTML=`<div class="import-result"><h3>${result.failed.length?'Importação concluída com avisos':'Análise importada'}</h3><p>${result.items} item(ns) atualizados</p><p>${result.general} comentário(s) geral(is) importados</p><p>${result.skipped} registro(s) ignorados</p>${result.failed.length?`<div class="form-error">${result.failed.map(escapeHtml).join('<br>')}</div>`:''}</div><div class="modal-actions"><button class="btn btn-primary" onclick="closeImportModal();setView('detail')">Fechar</button></div>`;
+  } finally { hideLoadingGate(); }
+}
+openImportModal=function(){va13BaseOpenImportModal(); const segment=document.querySelector('#controlledImportBody .segmented-control'); if(segment&&!segment.querySelector('[value="Checklist"]'))segment.insertAdjacentHTML('beforeend','<label><input type="radio" name="importSource" value="Checklist" onchange="setImportSource(this.value)"><span>Análise anterior</span></label>');};
+setImportSource=function(sourceType){ if(sourceType!=='Checklist')return va13BaseSetImportSource(sourceType); controlledImport.sourceType='Checklist'; const hint=document.getElementById('importSourceHint'),drop=document.getElementById('importDropHint'); if(hint)hint.textContent='Use o checklist acumulativo. Depois escolha qual rodada do arquivo será importada neste ciclo do painel.'; if(drop)drop.textContent='Checklist de análise (.xlsx)'; };
+processWorkbook=function(workbook,fileName){ if(controlledImport.sourceType!=='Checklist')return va13BaseProcessWorkbook(workbook,fileName); const parsed=parseChecklistImportDraft(workbook); if(!parsed.groups.length){showToast(parsed.warnings[0]||'Não encontrei uma análise utilizável.');return;} controlledImport.fileName=fileName; controlledImport.fileVersion=va13FileVersion(fileName); controlledImport.analysisDraft=parsed; controlledImport.analysisGroup=null; controlledImport.analysisComparison=null; va13RenderAnalysisCycleChoice(); };
+parseRefImportDraft=function(workbook){const parsed=va13BaseParseRefImportDraft(workbook); parsed.groups.forEach(group=>group.items.forEach(item=>{if(va13CategoryCode(item.sourceSheetName)==='E')item.importWarnings=String(item.importWarnings||'').replace(/Valor não identificado automaticamente\.?\s*/g,'').trim();})); return parsed;};
 async function initApp() {
   try {
     initMsal();
