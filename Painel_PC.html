@@ -127,6 +127,19 @@
 
   .item-card { display: flex; align-items: center; gap: 10px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 11px 12px; cursor: pointer; transition: border-color 0.15s, box-shadow 0.15s; }
   .item-card:hover { border-color: var(--accent2); }
+
+  .bulk-action-bar { display:flex; align-items:center; gap:8px; flex-wrap:wrap; background:#F5F8F7; border:1px solid var(--border); border-radius:10px; padding:9px 12px; margin:0 0 12px; }
+  .bulk-action-bar.hidden { display:none; }
+  .bulk-selection-count { font-size:12px; font-weight:700; color:var(--accent); margin-right:2px; }
+  .bulk-action-bar select { min-height:32px; border:1px solid var(--border); border-radius:7px; background:var(--surface); color:var(--ink2); font:500 11.5px 'DM Sans',sans-serif; padding:5px 8px; }
+  .bulk-action-spacer { flex:1; }
+  .bulk-mini-btn { border:1px solid var(--border); background:var(--surface); color:var(--ink2); border-radius:7px; padding:6px 9px; font:600 11px 'DM Sans',sans-serif; cursor:pointer; }
+  .bulk-mini-btn:hover { background:var(--surface2); }
+  .item-multi-check { width:20px; height:20px; border:1.5px solid var(--border); border-radius:6px; background:var(--surface); color:transparent; flex:0 0 20px; padding:0; cursor:pointer; font-size:13px; font-weight:800; line-height:18px; }
+  .item-multi-check.checked { background:var(--accent); border-color:var(--accent); color:#fff; }
+  .item-card.bulk-selected { border-color:var(--accent2); background:#F1F8F5; }
+  @media (max-width: 760px) { .bulk-action-bar select { flex:1 1 145px; } .bulk-action-spacer { display:none; } }
+
   .item-card.selected { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); background: var(--green-light); }
   .item-status-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
   .dot-aberto { background: var(--red); }
@@ -931,6 +944,32 @@
       <button class="icon-btn filter-clear" onclick="clearAnalysisFilters()" title="Limpar filtros">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 12h8M10 18h4"/></svg>
       </button>
+    </div>
+
+
+    <div class="bulk-action-bar" id="bulkActionBar">
+      <span class="bulk-selection-count" id="bulkSelectionCount">0 selecionados</span>
+      <button class="bulk-mini-btn" onclick="selectAllVisibleItems()">Selecionar visíveis</button>
+      <button class="bulk-mini-btn" onclick="clearBulkSelection()">Limpar</button>
+      <span class="bulk-action-spacer"></span>
+      <select id="bulkStatusAction" aria-label="Alterar status dos itens selecionados">
+        <option value="">Status: não alterar</option>
+        <option value="AGUARDANDO_ANALISE">Status: Aguardando análise</option>
+        <option value="ABERTO">Status: Aberto</option>
+        <option value="FECHADO">Status: Fechado</option>
+      </select>
+      <select id="bulkDoubtAction" aria-label="Alterar dúvida dos itens selecionados">
+        <option value="">Dúvida: não alterar</option>
+        <option value="mark">Marcar dúvida</option>
+        <option value="clear">Remover dúvida</option>
+      </select>
+      <select id="bulkDocsAction" aria-label="Alterar documentos dos itens selecionados">
+        <option value="">Documentos: não alterar</option>
+        <option value="ok">Marcar todos OK</option>
+        <option value="pnd">Marcar todos pendentes</option>
+      </select>
+      <button class="btn btn-primary" onclick="applyBulkItemActions()">Aplicar</button>
+      <button class="btn btn-danger" onclick="deleteSelectedItems()">Excluir selecionados</button>
     </div>
 
     <div class="workspace">
@@ -2559,7 +2598,10 @@ function renderDetail() {
         <div class="detail-sub">${escapeHtml(cat.label)}${item.subtitle ? ' — ' + escapeHtml(item.subtitle) : ''}</div>
         ${item.tipoLabel ? `<span class="detail-tipo">${escapeHtml(item.tipoLabel)}</span>` : ''}
       </div>
-      ${valorFmt ? `<div class="detail-valor">${valorFmt}</div>` : ''}
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:flex-end;">
+        ${valorFmt ? `<div class="detail-valor">${valorFmt}</div>` : ''}
+        <button class="btn btn-ghost btn-danger" onclick="deleteItem('${item.id}')">Excluir item</button>
+      </div>
     </div>`;
 
   if (item.possivelRemovido) {
@@ -5743,6 +5785,217 @@ compareImportItems = function(items, sourceType) {
     removed: removed.length,
     warnings: rows.filter(row => row.imported.importWarnings).length,
   }};
+};
+
+
+/* ===== VA.14 — seleção múltipla e ações coletivas de análise ===== */
+let bulkSelectedItemIds = new Set();
+
+function bulkCardItemId(card) {
+  const match = String(card.getAttribute('onclick') || '').match(/selectItem\('([^']+)'\)/);
+  return match ? match[1] : '';
+}
+
+function renderBulkActionBar() {
+  const bar = document.getElementById('bulkActionBar');
+  const count = document.getElementById('bulkSelectionCount');
+  if (!bar || !count) return;
+  const validIds = [...bulkSelectedItemIds].filter(id => !!findItem(id));
+  if (validIds.length !== bulkSelectedItemIds.size) bulkSelectedItemIds = new Set(validIds);
+  count.textContent = validIds.length + (validIds.length === 1 ? ' selecionado' : ' selecionados');
+  bar.classList.remove('hidden');
+}
+
+function decorateBulkSelection() {
+  document.querySelectorAll('#listCol .item-card').forEach(card => {
+    const itemId = bulkCardItemId(card);
+    if (!itemId) return;
+    const checked = bulkSelectedItemIds.has(itemId);
+    card.classList.toggle('bulk-selected', checked);
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'item-multi-check' + (checked ? ' checked' : '');
+    button.textContent = checked ? '✓' : '';
+    button.setAttribute('aria-label', checked ? 'Remover item da seleção' : 'Adicionar item à seleção');
+    button.setAttribute('aria-pressed', checked ? 'true' : 'false');
+    button.addEventListener('click', event => {
+      event.stopPropagation();
+      toggleBulkItem(itemId);
+    });
+    card.prepend(button);
+  });
+}
+
+const va14BaseRenderListBulk = renderList;
+renderList = function() {
+  va14BaseRenderListBulk();
+  decorateBulkSelection();
+  renderBulkActionBar();
+};
+
+function toggleBulkItem(itemId) {
+  if (bulkSelectedItemIds.has(itemId)) bulkSelectedItemIds.delete(itemId);
+  else bulkSelectedItemIds.add(itemId);
+  renderList();
+}
+
+function selectAllVisibleItems() {
+  document.querySelectorAll('#listCol .item-card').forEach(card => {
+    const itemId = bulkCardItemId(card);
+    if (itemId) bulkSelectedItemIds.add(itemId);
+  });
+  renderList();
+}
+
+function clearBulkSelection() {
+  bulkSelectedItemIds.clear();
+  renderList();
+}
+
+async function applyBulkItemActions() {
+  const status = document.getElementById('bulkStatusAction').value;
+  const doubt = document.getElementById('bulkDoubtAction').value;
+  const docs = document.getElementById('bulkDocsAction').value;
+  const selected = [...bulkSelectedItemIds].map(id => findItem(id)).filter(Boolean);
+  if (!selected.length) { showToast('Selecione pelo menos um item.'); return; }
+  if (!status && !doubt && !docs) {
+    showToast('Escolha pelo menos uma alteração coletiva.');
+    return;
+  }
+
+  const changed = [];
+  selected.forEach(found => {
+    const item = found.item;
+    let entry = item.ciclosStatus[selectedCicloIdx];
+    if (!entry) {
+      entry = {
+        numero: DATA.meta.ciclos[selectedCicloIdx].numero,
+        status: 'AGUARDANDO_ANALISE', comentarioAnalista: '', comentarioExecutor: '',
+        executorResponse: '', duvida: false, _gid: null, _legacy: false,
+      };
+      item.ciclosStatus[selectedCicloIdx] = entry;
+    }
+    if (status) entry.status = status;
+    if (doubt === 'mark') entry.duvida = true;
+    if (doubt === 'clear') entry.duvida = false;
+    if (docs) {
+      const documentStatus = docs === 'ok' ? 'OK' : 'PND';
+      docsForItem(item, found.cat).forEach(doc => { item.checks[doc] = documentStatus; });
+    }
+    changed.push({ found, entry });
+  });
+
+  saveStore();
+  renderList();
+  renderDetail();
+  renderProgress();
+  renderTree();
+  showLoadingGate('Sincronizando ' + changed.length + ' item(ns)...');
+
+  let failures = 0;
+  for (const change of changed) {
+    const item = change.found.item;
+    try {
+      if (docs && isRealGid(item.id)) {
+        await graphUpdateItem(LIST_IDS.Itens, item.id, { DocumentChecks: serializeJsonObject(item.checks || {}) });
+      }
+      if (status || doubt) {
+        const analysisId = await ensureMvpAnalysis(item, change.entry, selectedCicloIdx);
+        if (analysisId) {
+          const payload = {};
+          if (status) payload.ReviewStatus = itemStatusToChoice(change.entry.status);
+          if (doubt) payload.HasDoubt = !!change.entry.duvida;
+          await graphUpdateItem(LIST_IDS.AnalisesItemCiclo, analysisId, payload);
+        }
+      }
+    } catch (error) {
+      console.warn(error);
+      failures++;
+    }
+  }
+
+  hideLoadingGate();
+  bulkSelectedItemIds.clear();
+  ['bulkStatusAction', 'bulkDoubtAction', 'bulkDocsAction'].forEach(id => {
+    const control = document.getElementById(id);
+    if (control) control.value = '';
+  });
+  saveStore();
+  renderList();
+  renderDetail();
+  renderProgress();
+  renderTree();
+  showToast(failures ? 'Alterações aplicadas; ' + failures + ' item(ns) não sincronizaram com o SharePoint.' : 'Alterações aplicadas a ' + changed.length + ' item(ns).');
+}
+
+async function deleteItemsByIds(itemIds) {
+  const targets = [...new Set(itemIds)].map(id => findItem(id)).filter(Boolean);
+  if (!targets.length) {
+    showToast('Selecione pelo menos um item.');
+    return;
+  }
+  const total = targets.length;
+  const message = total === 1
+    ? `Excluir "${targets[0].item.title}" definitivamente? O item e as análises de todos os ciclos desta PC serão apagados. Não é possível desfazer.`
+    : `Excluir ${total} itens definitivamente? Os itens e as análises de todos os ciclos desta PC serão apagados. Não é possível desfazer.`;
+  if (!confirm(message)) return;
+
+  showLoadingGate('Excluindo ' + total + (total === 1 ? ' item...' : ' itens...'));
+  const deletedIds = [];
+  const failures = [];
+  for (const target of targets) {
+    const { item, cat } = target;
+    try {
+      for (const analysis of (item.ciclosStatus || [])) {
+        if (!analysis) continue;
+        const analysisListId = analysis._legacy ? LIST_IDS.RevisoesPorCiclo : LIST_IDS.AnalisesItemCiclo;
+        await va12DeleteIfPresent(analysisListId, analysis._gid);
+      }
+      await va12DeleteIfPresent(LIST_IDS.Itens, item.id);
+      const index = cat.items.findIndex(candidate => String(candidate.id) === String(item.id));
+      if (index >= 0) cat.items.splice(index, 1);
+      deletedIds.push(String(item.id));
+    } catch (error) {
+      console.warn('Falha ao excluir item', item.id, error);
+      failures.push(item.title || String(item.id));
+    }
+  }
+
+  deletedIds.forEach(id => bulkSelectedItemIds.delete(id));
+  if (selectedItemId != null && deletedIds.includes(String(selectedItemId))) selectedItemId = null;
+  saveStore();
+  renderAnalysisFilters();
+  renderList();
+  renderDetail();
+  renderProgress();
+  renderTree();
+  hideLoadingGate();
+
+  if (failures.length) {
+    showToast(`${deletedIds.length} item(ns) excluído(s); ${failures.length} não puderam ser excluídos do SharePoint.`);
+  } else {
+    showToast(total === 1 ? 'Item excluído.' : total + ' itens excluídos.');
+  }
+}
+
+function deleteItem(itemId) {
+  return deleteItemsByIds([itemId]);
+}
+
+function deleteSelectedItems() {
+  return deleteItemsByIds([...bulkSelectedItemIds]);
+}
+
+const va14BaseSelectCicloBulk = selectCiclo;
+selectCiclo = function(idx) {
+  bulkSelectedItemIds.clear();
+  va14BaseSelectCicloBulk(idx);
+};
+
+const va14BaseOpenAnalysisBulk = openAnalysis;
+openAnalysis = function() {
+  bulkSelectedItemIds.clear();
+  return va14BaseOpenAnalysisBulk();
 };
 
 async function initApp() {
