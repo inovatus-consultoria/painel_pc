@@ -186,13 +186,18 @@
   .section-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em; color: var(--ink3); margin: 22px 0 10px; display: flex; align-items: center; gap: 8px; }
   .section-note { font-size: 10.5px; font-weight: 500; text-transform: none; letter-spacing: 0; color: var(--ink3); }
 
-  /* --- Document chips: editable, full-card color, OK/PND only --- */
-  .doc-grid { display: flex; flex-wrap: wrap; gap: 8px; }
-  .doc-chip { display: flex; align-items: center; gap: 8px; border-radius: 9px; padding: 9px 13px; font-size: 12.5px; font-weight: 600; cursor: pointer; border: 1.5px solid transparent; transition: filter 0.12s; user-select: none; }
+  /* --- Document chips: compactos, OK/PND e remoção por item --- */
+  .doc-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 5px; }
+  .doc-chip { min-width:0; display:flex; align-items:center; gap:5px; border-radius:7px; padding:5px 6px 5px 8px; font-size:10.5px; line-height:1.2; font-weight:600; cursor:pointer; border:1px solid transparent; transition:filter .12s; user-select:none; }
   .doc-chip:hover { filter: brightness(0.97); }
   .doc-chip.chip-ok { background: var(--green-light); color: var(--green); border-color: #BEE0D6; }
   .doc-chip.chip-pnd { background: var(--amber-light); color: #8A6010; border-color: #E8C86A; }
-  .doc-chip-icon { width: 15px; height: 15px; flex-shrink: 0; }
+  .doc-chip-icon { width:12px; height:12px; flex-shrink:0; }
+  .doc-chip-label { min-width:0; flex:1; overflow-wrap:anywhere; }
+  .doc-chip-remove { width:18px; height:18px; flex:0 0 18px; display:grid; place-items:center; padding:0; border:0; border-radius:50%; background:transparent; color:currentColor; opacity:.58; cursor:pointer; font:700 14px/1 'DM Sans',sans-serif; }
+  .doc-chip-remove:hover { opacity:1; background:rgba(255,255,255,.7); }
+  .doc-restore-btn { margin-left:auto; border:0; background:transparent; color:var(--accent); padding:2px 0; cursor:pointer; font:700 10.5px 'DM Sans',sans-serif; text-transform:none; letter-spacing:0; }
+  .doc-restore-btn:hover { text-decoration:underline; }
 
   .ciclo-card { border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; margin-bottom: 10px; background: var(--surface); }
   .ciclo-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 10px; }
@@ -941,13 +946,14 @@
       </select>
       <button class="filter-toggle" id="filtroDuvidaBtn" onclick="toggleFiltroDuvida()">Com dúvida</button>
       <button class="filter-toggle" id="filtroDocumentoBtn" onclick="toggleFiltroDocumento()">Documento pendente</button>
+      <button class="filter-toggle" id="bulkModeButton" onclick="toggleBulkSelectionMode()">Selecionar itens</button>
       <button class="icon-btn filter-clear" onclick="clearAnalysisFilters()" title="Limpar filtros">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 12h8M10 18h4"/></svg>
       </button>
     </div>
 
 
-    <div class="bulk-action-bar" id="bulkActionBar">
+    <div class="bulk-action-bar hidden" id="bulkActionBar">
       <span class="bulk-selection-count" id="bulkSelectionCount">0 selecionados</span>
       <button class="bulk-mini-btn" onclick="selectAllVisibleItems()">Selecionar visíveis</button>
       <button class="bulk-mini-btn" onclick="clearBulkSelection()">Limpar</button>
@@ -1329,7 +1335,8 @@ function itemStatusToChoice(v) {
   return map[v] || 'Aguardando análise';
 }function categoriaInfoById(id) {
   const found = Object.values(CATEGORIA_MAP).find(v => v.id === id);
-  return found || { id, label: id, docsFixed: ['Comprovante'] };
+  if (found) return found;
+  return { id, label: id, docsFixed: categoryDocumentCatalog(id) || ['Comprovante'] };
 }
 function parseJsonObject(value, fallback = {}) {
   if (!value) return { ...fallback };
@@ -1481,7 +1488,8 @@ async function loadStoreFromGraph() {
     if (!catsMap[catId]) {
       const info = categoriaInfoById(catId);
       const refLabel = canonicalData && canonicalData.category ? String(canonicalData.category).trim() : '';
-      catsMap[catId] = { id: catId, label: refLabel || info.label || catId, docsFixed: info.docsFixed || info.docsDefault || ['Comprovante'], items: [] };
+      const catalogDocs = categoryDocumentCatalog(catId, canonicalData && canonicalData.categoryCode);
+      catsMap[catId] = { id: catId, label: refLabel || info.label || catId, docsFixed: catalogDocs || info.docsFixed || info.docsDefault || ['Comprovante'], items: [] };
     }
 
     const numCiclos = pc.data.meta.ciclos.length;
@@ -1505,7 +1513,7 @@ async function loadStoreFromGraph() {
     if (!Object.keys(checks).length) {
       (checksLegacyByItem.get(String(it.id)) || []).forEach(ch => { checks[ch.DocumentTypeId || ch.Title] = ch.Status || 'PND'; });
     }
-    (catsMap[catId].docsFixed || []).forEach(doc => { if (!checks[doc]) checks[doc] = 'PND'; });
+    alignChecksToCatalog(checks, catsMap[catId].docsFixed || []);
 
     catsMap[catId].items.push({
       id: it.id, title: it.BudgetItem || it.Description || it.Title || 'Item sem descrição',
@@ -1685,7 +1693,8 @@ function globalProgress() {
 }
 
 function docsForItem(item, cat) {
-  return cat.docsFixed ? cat.docsFixed : Object.keys(item.checks);
+  const configured = cat && cat.docsFixed ? cat.docsFixed : Object.keys(item.checks || {});
+  return configured.filter(doc => (item.checks || {})[doc] !== 'NA');
 }
 
 function matchesSearch(item, cat, term) {
@@ -2534,6 +2543,39 @@ async function cycleCheck(itemId, docKey) {
     catch (e) { console.warn(e); showToast('Não consegui sincronizar esse documento com o SharePoint.'); }
   }
 }
+async function removeDocumentRequirement(itemId, docKey) {
+  const found = findItem(itemId);
+  if (!found) return;
+  found.item.checks[docKey] = 'NA';
+  saveStore();
+  renderDetail(); renderList(); renderProgress();
+  if (isRealGid(found.item.id)) {
+    try { await graphUpdateItem(LIST_IDS.Itens, found.item.id, { DocumentChecks: serializeJsonObject(found.item.checks) }); }
+    catch (error) { console.warn(error); showToast('Documento removido localmente, mas não consegui sincronizar com o SharePoint.'); return; }
+  }
+  showToast(`${docKey} removido deste item.`);
+}
+
+async function restoreRemovedDocuments(itemId) {
+  const found = findItem(itemId);
+  if (!found) return;
+  const configured = found.cat.docsFixed || Object.keys(found.item.checks || {});
+  let restored = 0;
+  configured.forEach(doc => {
+    if ((found.item.checks || {})[doc] === 'NA') {
+      found.item.checks[doc] = 'PND';
+      restored++;
+    }
+  });
+  if (!restored) return;
+  saveStore();
+  renderDetail(); renderList(); renderProgress();
+  if (isRealGid(found.item.id)) {
+    try { await graphUpdateItem(LIST_IDS.Itens, found.item.id, { DocumentChecks: serializeJsonObject(found.item.checks) }); }
+    catch (error) { console.warn(error); showToast('Documentos restaurados localmente, mas não consegui sincronizar com o SharePoint.'); return; }
+  }
+  showToast(restored + (restored === 1 ? ' documento restaurado.' : ' documentos restaurados.'));
+}
 const _comentarioSyncTimers = {};
 function updateComentario(itemId, field, value) {
   const found = findItem(itemId);
@@ -2586,6 +2628,8 @@ function renderDetail() {
   if (!found) return;
   const { item, cat } = found;
   const valorFmt = fmtValor(item.valor);
+  const configuredDocs = cat.docsFixed ? cat.docsFixed : Object.keys(item.checks || {});
+  const removedDocs = configuredDocs.filter(doc => (item.checks || {})[doc] === 'NA');
   const docs = docsForItem(item, cat);
   const editavel = isCicloEditavel(selectedCicloIdx);
   const entry = item.ciclosStatus[selectedCicloIdx] || { status: 'AGUARDANDO_ANALISE', comentarioAnalista: '', comentarioExecutor: '' };
@@ -2616,16 +2660,19 @@ function renderDetail() {
   }
 
   html += `<div class="section-label">Documentos exigidos
-    ${item.tipoLabel ? `<span class="section-note">— específico para "${escapeHtml(item.tipoLabel)}", clique para alternar OK/PND. Não reseta entre ciclos.</span>` : `<span class="section-note">— clique para alternar OK/PND. Não reseta entre ciclos.</span>`}
+    <span class="section-note">— clique no card para alternar OK/PND; use × quando não se aplicar a este item.</span>
+    ${removedDocs.length ? `<button class="doc-restore-btn" onclick="restoreRemovedDocuments('${item.id}')">Restaurar removidos (${removedDocs.length})</button>` : ''}
   </div><div class="doc-grid">`;
   docs.forEach(doc => {
     const status = item.checks[doc] || 'PND';
     const cls = status === 'OK' ? 'chip-ok' : 'chip-pnd';
+    const safeDoc = doc.replace(/'/g,"\\'");
     const icon = status === 'OK'
       ? `<svg class="doc-chip-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6L9 17l-5-5"/></svg>`
       : `<svg class="doc-chip-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="9"/><path d="M12 8v4m0 4h.01"/></svg>`;
-    html += `<div class="doc-chip ${cls}" onclick="cycleCheck('${item.id}','${doc.replace(/'/g,"\\'")}')">
-      ${icon}${escapeHtml(doc)}
+    html += `<div class="doc-chip ${cls}" onclick="cycleCheck('${item.id}','${safeDoc}')">
+      ${icon}<span class="doc-chip-label">${escapeHtml(doc)}</span>
+      <button type="button" class="doc-chip-remove" onclick="event.stopPropagation(); removeDocumentRequirement('${item.id}','${safeDoc}')" title="Remover este documento somente deste item" aria-label="Remover ${escapeHtml(doc)}">×</button>
     </div>`;
   });
   html += `</div>`;
@@ -2779,14 +2826,61 @@ function showToast(msg) {
    por linha, cobrindo todas as PCs existentes até o momento naquele projeto) + aba "Parâmetros"
    pros metadados do projeto. Ver MEMORY_v3.md, seção "Caminho de importação do Relatório Prompt".
    ===================================================================================== */
+const REF_DOCUMENTS_BY_CODE = Object.freeze({
+  F: ['Currículo', 'Detalhamento', 'Justificativa', 'Comp. PG', 'Recibo / pessoal', 'Demonstrativo Enc.', 'Declaração de benefício', 'Faturas do benefício (3)', 'Dem. Vinculado', 'Verificação no Extrato CC'],
+  G: ['Justificativa', 'Detalhamento', 'NF', 'Comp. PG', 'Contrato de câmbio', 'Invoice', 'DI', 'Carta de exclusividade', 'Justificativa da importação', 'Verificação no Extrato CC'],
+  H: ['Detalhamento', 'Justificativa', 'Aprovação da viagem', 'Comp. PG', 'Fatura da passagem', 'E-ticket', 'Relatório de viagem', 'Certificado', 'Verificação no Extrato CC'],
+  I: ['Detalhamento', 'Justificativa', 'Aprovação de viagem', 'Comp. PG', 'Passagem', 'E-ticket', 'Relatório de viagem', 'Certificado', 'Verificação no Extrato CC'],
+  J: ['Detalhamento', 'Justificativa', 'NF', 'Comp. PG – NF', 'Guia – Impostos', 'Comp. PG – Impostos', 'Relatório de execução / Entregáveis', 'Verificação no Extrato CC'],
+  L: ['NF / Invoice', 'Comp. PG', 'Contrato de câmbio', 'Taxa de câmbio', 'Cotações ou carta de exclusividade'],
+  M: ['Detalhamento', 'Justificativa', 'NF', 'Comp. PG – NF', 'Guia – Impostos', 'Comp. PG – Impostos', 'Contrato de serviço', 'Cotações', 'Verificação no Extrato CC'],
+  N: ['Detalhamento', 'Justificativa', 'NF / Invoice', 'Comp. PG', 'Contrato de câmbio', 'Taxa de câmbio', 'Cotações ou carta de exclusividade', 'Justificativa para importação', 'DI', 'Verificação no Extrato CC'],
+  O: ['Detalhamento', 'Justificativa', 'NF', 'Comp. PG – NF', 'Guia – Impostos', 'Comp. PG – Impostos', 'Verificação no Extrato CC'],
+  T: ['Detalhamento', 'Justificativa', 'NF', 'Comp. PG – NF', 'Memória de cálculo', 'Guia de imposto', 'Comp. PG – Imposto', 'Declaração de Importação — DI', 'Verificação no Extrato CC'],
+});
+const DOCUMENT_CODE_BY_CATEGORY_ID = Object.freeze({
+  equipe: 'F', ref_despesas_com_equipe_executora: 'F',
+  material_consumo: 'G', ref_despesas_com_material_de_consumo: 'G',
+  passagens: 'H', ref_despesas_com_passagens: 'H',
+  diaria: 'I', ref_despesas_com_diarias_e_ajuda_de_custo: 'I',
+  servicos: 'J', ref_despesas_com_servicos: 'J',
+  prototipo: 'L', ref_despesas_com_prototipo: 'L',
+  obras: 'M', ref_despesas_com_obras_e_instalacoes: 'M',
+  equipamento: 'N', ref_despesas_com_equipamentos_e_material_permanente: 'N',
+  outros_bens_direitos: 'O', ref_despesas_com_outros_bens_e_direitos: 'O',
+  outras_despesas: 'T', ref_outras_despesas: 'T',
+});
+function categoryDocumentCatalog(categoryId, categoryCode) {
+  const code = String(categoryCode || DOCUMENT_CODE_BY_CATEGORY_ID[categoryId] || '').toUpperCase();
+  return REF_DOCUMENTS_BY_CODE[code] ? [...REF_DOCUMENTS_BY_CODE[code]] : null;
+}
+function documentNameKey(value) {
+  return foldText(value).replace(/\b(DE|DA|DO|DAS|DOS)\b/g, ' ').replace(/[^A-Z0-9]+/g, ' ').replace(/\s+/g, ' ').trim();
+}
+function canonicalDocumentName(rawName, configuredDocs) {
+  const key = documentNameKey(rawName);
+  return (configuredDocs || []).find(doc => documentNameKey(doc) === key) || rawName;
+}
+function alignChecksToCatalog(checks, configuredDocs) {
+  const existingKeys = Object.keys(checks || {});
+  (configuredDocs || []).forEach(doc => {
+    if (checks[doc]) return;
+    const equivalent = existingKeys.find(oldDoc => canonicalDocumentName(oldDoc, [doc]) === doc);
+    checks[doc] = equivalent ? checks[equivalent] : 'PND';
+  });
+  return checks;
+}
 const CATEGORIA_MAP = {
-  'Equipe Executora': { id: 'equipe', label: 'Equipe Executora', docsFixed: null, docsDefault: ['Comp. PG', 'Recibo/pessoal'] },
-  'Serviços de Terceiros': { id: 'servicos', label: 'Serviços', docsFixed: ['RPA', 'Comp. PG - NF', 'Guia de Impostos', 'Comp. PG - Impostos'] },
-  'Outras Despesas': { id: 'outras_despesas', label: 'Outras Despesas', docsFixed: ['NF', 'Comp. PG - NF', 'Memória de Cálculo'] },
-  'Equipamento e Material Permanente': { id: 'equipamento', label: 'Equipamento e Material Permanente', docsFixed: ['NF/Invoice', 'Comp. PG'] },
-  'Material de Consumo': { id: 'material_consumo', label: 'Material de Consumo', docsFixed: ['NF', 'Comp. PG - NF'] },
-  'Diária ou Ajuda de Custo': { id: 'diaria', label: 'Diária ou Ajuda de Custo', docsFixed: ['Relatório de Viagem', 'Comp. PG'] },
-  'Passagens': { id: 'passagens', label: 'Passagens', docsFixed: ['Bilhete/Comprovante', 'Comp. PG'] },
+  'Equipe Executora': { id: 'equipe', label: 'Equipe Executora', docsFixed: REF_DOCUMENTS_BY_CODE.F },
+  'Serviços de Terceiros': { id: 'servicos', label: 'Serviços', docsFixed: REF_DOCUMENTS_BY_CODE.J },
+  'Outras Despesas': { id: 'outras_despesas', label: 'Outras Despesas', docsFixed: REF_DOCUMENTS_BY_CODE.T },
+  'Equipamento e Material Permanente': { id: 'equipamento', label: 'Equipamento e Material Permanente', docsFixed: REF_DOCUMENTS_BY_CODE.N },
+  'Material de Consumo': { id: 'material_consumo', label: 'Material de Consumo', docsFixed: REF_DOCUMENTS_BY_CODE.G },
+  'Diária ou Ajuda de Custo': { id: 'diaria', label: 'Diária ou Ajuda de Custo', docsFixed: REF_DOCUMENTS_BY_CODE.I },
+  'Passagens': { id: 'passagens', label: 'Passagens', docsFixed: REF_DOCUMENTS_BY_CODE.H },
+  'Protótipo': { id: 'prototipo', label: 'Protótipo', docsFixed: REF_DOCUMENTS_BY_CODE.L },
+  'Obras e Instalações': { id: 'obras', label: 'Obras e Instalações', docsFixed: REF_DOCUMENTS_BY_CODE.M },
+  'Outros Bens e Direitos': { id: 'outros_bens_direitos', label: 'Outros Bens e Direitos', docsFixed: REF_DOCUMENTS_BY_CODE.O },
 };
 function categoriaInfo(elementoCusto) {
   return CATEGORIA_MAP[elementoCusto] || { id: 'outros', label: elementoCusto || 'Outros', docsFixed: ['Comprovante'] };
@@ -3502,8 +3596,8 @@ function selectCiclo(idx) {
   renderList(); renderDetail(); renderProgress();
 }
 
-function itemHasPendingDocument(item) {
-  return Object.values(item.checks || {}).some(value => value !== 'OK');
+function itemHasPendingDocument(item, cat) {
+  return docsForItem(item, cat).some(doc => (item.checks || {})[doc] !== 'OK');
 }
 
 function matchesSearch(item, cat, term) {
@@ -3561,7 +3655,7 @@ function renderList() {
     const visibleItems = cat.items.filter(item => {
       if (!matchesSearch(item, cat, searchTerm)) return false;
       if (filtroDuvida && !itemTemDuvida(item, selectedCicloIdx)) return false;
-      if (filtroDocumento && !itemHasPendingDocument(item)) return false;
+      if (filtroDocumento && !itemHasPendingDocument(item, cat)) return false;
       if (analysisFilterStatus && itemCicloStatus(item, selectedCicloIdx) !== analysisFilterStatus) return false;
       return true;
     });
@@ -3571,7 +3665,7 @@ function renderList() {
     html += `<div class="cat-group" data-cat="${escapeHtml(cat.id)}"><div class="cat-header" onclick="toggleCat('${cat.id}')"><div class="cat-header-left"><span class="cat-chevron"></span><span class="cat-title">${escapeHtml(cat.label)}</span></div><div class="cat-header-right"><span class="cat-pct">${prog.pct}%</span><div class="cat-mini-bar"><div class="cat-mini-fill" style="width:${prog.pct}%"></div></div><span class="cat-count">${visibleItems.length}</span></div></div><div class="cat-items">`;
     visibleItems.forEach(item => {
       const status = itemCicloStatus(item, selectedCicloIdx);
-      html += `<div class="item-card${item.id === selectedItemId ? ' selected' : ''}" onclick="selectItem('${item.id}')"><span class="item-status-dot ${dotClass(status)}"></span><div class="item-card-body"><div class="item-card-title">${escapeHtml(item.title)}</div><div class="item-card-sub">${escapeHtml(item.payeeName || item.subtitle || 'Sem detalhamento')}</div></div><div class="item-card-badges">${itemTemDuvida(item, selectedCicloIdx) ? '<span class="badge badge-duvida">? Dúvida</span>' : ''}${itemHasPendingDocument(item) ? '<span class="badge badge-amber">Doc. pendente</span>' : ''}<span class="badge ${statusBadgeClass(status)}">${STATUS_LABELS[status]}</span></div></div>`;
+      html += `<div class="item-card${item.id === selectedItemId ? ' selected' : ''}" onclick="selectItem('${item.id}')"><span class="item-status-dot ${dotClass(status)}"></span><div class="item-card-body"><div class="item-card-title">${escapeHtml(item.title)}</div><div class="item-card-sub">${escapeHtml(item.payeeName || item.subtitle || 'Sem detalhamento')}</div></div><div class="item-card-badges">${itemTemDuvida(item, selectedCicloIdx) ? '<span class="badge badge-duvida">? Dúvida</span>' : ''}${itemHasPendingDocument(item, cat) ? '<span class="badge badge-amber">Doc. pendente</span>' : ''}<span class="badge ${statusBadgeClass(status)}">${STATUS_LABELS[status]}</span></div></div>`;
     });
     html += '</div></div>';
   });
@@ -3739,9 +3833,26 @@ async function createInitialCycleForCurrentPC() {
   finally { hideLoadingGate(); }
 }
 
+function manualCategoryOptions() {
+  mergeEquivalentCategoriesInPlace();
+  const options = [];
+  const seen = new Set();
+  const add = (id, label) => {
+    const code = DOCUMENT_CODE_BY_CATEGORY_ID[id];
+    const key = code ? 'RUBRICA:' + code : foldText(label || id).replace(/_/g, ' ');
+    if (!id || seen.has(key)) return;
+    seen.add(key);
+    options.push({ id, label: label || id });
+  };
+  (DATA.categories || []).forEach(cat => add(cat.id, cat.label));
+  RUBRICA_SCHEMA.forEach(cat => add(cat.id, cat.label));
+  add('outros', 'Outros');
+  return options;
+}
+
 function openManualItemModal() {
   if (!DATA || pcStatusOf(pcAt(currentPC.ci, currentPC.pi, currentPC.pci)) !== 'ATIVA' || !DATA.meta.ciclos.length) return showToast('Ative a PC e crie o ciclo antes de adicionar itens.');
-  document.getElementById('manualCategory').innerHTML = RUBRICA_SCHEMA.map(cat => `<option value="${cat.id}">${escapeHtml(cat.label)}</option>`).join('') + '<option value="outros">Outros</option>';
+  document.getElementById('manualCategory').innerHTML = manualCategoryOptions().map(cat => `<option value="${escapeHtml(cat.id)}">${escapeHtml(cat.label)}</option>`).join('');
   ['manualBudgetItem','manualDescription','manualPayee','manualPaymentDate','manualDocumentDate','manualAmount'].forEach(id => document.getElementById(id).value = '');
   showFormError('manualItemError', '');
   document.getElementById('manualItemOverlay').classList.remove('hidden');
@@ -3768,7 +3879,10 @@ async function submitManualItem() {
   if (Number.isNaN(amount)) return showFormError('manualItemError', 'Informe um valor válido.');
   const pc = pcAt(currentPC.ci, currentPC.pi, currentPC.pci);
   const cycle = DATA.meta.ciclos[selectedCicloIdx];
-  const categoryInfo = categoriaInfoById(categoryId);
+  const existingCategory = DATA.categories.find(cat => cat.id === categoryId);
+  const categoryInfo = existingCategory
+    ? { id: existingCategory.id, label: existingCategory.label, docsFixed: existingCategory.docsFixed }
+    : categoriaInfoById(categoryId);
   const docs = categoryInfo.docsFixed || categoryInfo.docsDefault || ['Comprovante'];
   const checks = Object.fromEntries(docs.map(doc => [doc, 'PND']));
   const sourceKey = `manual-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -3887,7 +4001,10 @@ async function submitManualItem() {
   if (Number.isNaN(amount)) return showFormError('manualItemError', 'Informe um valor válido.');
   const pc = pcAt(currentPC.ci, currentPC.pi, currentPC.pci);
   const cycle = DATA.meta.ciclos[selectedCicloIdx];
-  const categoryInfo = categoriaInfoById(categoryId);
+  const existingCategory = DATA.categories.find(cat => cat.id === categoryId);
+  const categoryInfo = existingCategory
+    ? { id: existingCategory.id, label: existingCategory.label, docsFixed: existingCategory.docsFixed }
+    : categoriaInfoById(categoryId);
   const docs = categoryInfo.docsFixed || categoryInfo.docsDefault || ['Comprovante'];
   const checks = Object.fromEntries(docs.map(doc => [doc, 'PND']));
   const sourceKey = `manual-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -5597,7 +5714,7 @@ async function va13UpdateAnalysisRow(row, target) {
   const item=row.existing.item; const index=target.cycleIndex; let analysis=item.ciclosStatus[index];
   if(!analysis){analysis={numero:target.cycle.numero,status:'AGUARDANDO_ANALISE',comentarioAnalista:'',comentarioExecutor:'',executorResponse:'',duvida:false,_gid:null,_legacy:false}; item.ciclosStatus[index]=analysis;}
   analysis.status=row.record.reviewStatus; analysis.comentarioAnalista=row.record.internalComment; analysis.comentarioExecutor=row.record.executorComment; analysis.executorResponse=row.record.executorResponse; analysis.duvida=Object.values(row.record.checks).includes('PND');
-  const checks={...(item.checks||{}),...(row.record.checks||{})}; item.checks=checks;
+  const checks={...(item.checks||{})},configured=row.existing.category.docsFixed||Object.keys(checks); Object.entries(row.record.checks||{}).forEach(([doc,status])=>{const canonical=canonicalDocumentName(doc,configured);if(checks[canonical]!=='NA')checks[canonical]=status;}); item.checks=checks;
   if(isRealGid(item.id)) await graphUpdateItem(LIST_IDS.Itens,item.id,{DocumentChecks:serializeJsonObject(checks)});
   if(!isRealGid(analysis._gid) && isRealGid(item.id)) analysis._gid=await graphCreateItem(LIST_IDS.AnalisesItemCiclo,{Title:item.title||item.tipoLabel||row.record.itemKey,ItemId:Number(item.id),CicloId:Number(target.cycle._gid),ReviewStatus:itemStatusToChoice(analysis.status),HasDoubt:!!analysis.duvida,InternalComment:analysis.comentarioAnalista,ExecutorComment:analysis.comentarioExecutor,ExecutorResponse:analysis.executorResponse});
   else if(isRealGid(analysis._gid)) await graphUpdateItem(LIST_IDS.AnalisesItemCiclo,analysis._gid,{ReviewStatus:itemStatusToChoice(analysis.status),HasDoubt:!!analysis.duvida,InternalComment:analysis.comentarioAnalista,ExecutorComment:analysis.comentarioExecutor,ExecutorResponse:analysis.executorResponse});
@@ -5660,7 +5777,7 @@ function va14RefHeader(rows,code){const re=new RegExp('^'+code+'\.\d+\b','i');re
 function va14RefColumns(row,code){const re=new RegExp('^'+code+'\.\d+\b','i');return (row||[]).map((v,index)=>({v,index})).filter(x=>re.test(va14RefText(x.v))).map(x=>({index:x.index,raw:va14RefText(x.v),label:va14RefText(x.v).replace(/^[A-Z]\d*\.\d+\s*[-–:]?\s*/i,'')}));}
 function va14RefFields(row,cols){const fields={};cols.forEach(c=>{if(!va14RefEmpty(row[c.index]))fields[c.label||c.raw]=maskSensitive(row[c.index]);});return fields;}
 function va14RefFind(cols,re){return cols.find(c=>re.test(foldText(c.label)));}
-function va14RefImportItem(meta,sheetName,rowIndex,item,fields,cols,extra){const descCols=cols.filter(c=>/DESCRICAO|DESPESA|ATIVIDADE|SERVICO|MATERIAL|JUSTIFICATIVA|DETALHAMENTO|OBJETO|FINALIDADE/i.test(c.label));const description=descCols.map(c=>fields[c.label||c.raw]).filter(Boolean).join(' | ')||Object.values(fields).map(va14RefText).filter(Boolean).slice(0,2).join(' | ')||meta.label;const amountCol=(meta.code==='F'&&cols.find(c=>/^VALOR TOTAL/.test(foldText(c.label))))||va14RefFind(cols,/VALOR|CUSTO|REMUNERACAO|REMUNERAÇÃO/),dateCol=va14RefFind(cols,/DATA DE EMISSAO|DATA DE EMISSÃO|DATA DO COMPROVANTE|DATA DE ENCERRAMENTO/),payeeCol=va14RefFind(cols,/QUEM RECEBEU|FORNECEDOR|BENEFICIARIO|BENEFICIÁRIO|RAZAO SOCIAL|RAZÃO SOCIAL|NOME/),docCol=va14RefFind(cols,/CPF|CNPJ/);const amount=amountCol?excelNumber(fields[amountCol.label||amountCol.raw]):null,warnings=[];if(amount===null&&meta.code!=='D'&&meta.code!=='E')warnings.push('Valor não identificado automaticamente.');return {title:(item+' - '+description).slice(0,250),sourceKey:'REF|'+meta.code+'|'+item,sourceType:'REF',categoryId:meta.id,categoryLabel:meta.label,expenseType:'',budgetItem:String(item),description,payeeName:payeeCol?va14RefText(fields[payeeCol.label||payeeCol.raw]):'',payeeDocumentMasked:docCol?va14RefText(fields[docCol.label||docCol.raw]):'',paymentDate:null,documentDate:dateCol?toIsoDateCell(fields[dateCol.label||dateCol.raw]):null,amount,incomeAmount:null,checks:{Comprovante:'PND'},sourceSheetName:sheetName,sourceRowNumber:rowIndex+1,importWarnings:warnings.join(' '),possibleRemoved:false,canonicalData:{schemaVersion:2,source:'REF',sheet:sheetName,category:meta.label,categoryCode:meta.code,item:String(item),sourceRowNumber:rowIndex+1,fields:{...fields,...(extra||{})}}};}
+function va14RefImportItem(meta,sheetName,rowIndex,item,fields,cols,extra){const descCols=cols.filter(c=>/DESCRICAO|DESPESA|ATIVIDADE|SERVICO|MATERIAL|JUSTIFICATIVA|DETALHAMENTO|OBJETO|FINALIDADE/i.test(c.label));const description=descCols.map(c=>fields[c.label||c.raw]).filter(Boolean).join(' | ')||Object.values(fields).map(va14RefText).filter(Boolean).slice(0,2).join(' | ')||meta.label;const amountCol=(meta.code==='F'&&cols.find(c=>/^VALOR TOTAL/.test(foldText(c.label))))||va14RefFind(cols,/VALOR|CUSTO|REMUNERACAO|REMUNERAÇÃO/),dateCol=va14RefFind(cols,/DATA DE EMISSAO|DATA DE EMISSÃO|DATA DO COMPROVANTE|DATA DE ENCERRAMENTO/),payeeCol=va14RefFind(cols,/QUEM RECEBEU|FORNECEDOR|BENEFICIARIO|BENEFICIÁRIO|RAZAO SOCIAL|RAZÃO SOCIAL|NOME/),docCol=va14RefFind(cols,/CPF|CNPJ/);const amount=amountCol?excelNumber(fields[amountCol.label||amountCol.raw]):null,warnings=[];if(amount===null&&meta.code!=='D'&&meta.code!=='E')warnings.push('Valor não identificado automaticamente.');return {title:(item+' - '+description).slice(0,250),sourceKey:'REF|'+meta.code+'|'+item,sourceType:'REF',categoryId:meta.id,categoryLabel:meta.label,expenseType:'',budgetItem:String(item),description,payeeName:payeeCol?va14RefText(fields[payeeCol.label||payeeCol.raw]):'',payeeDocumentMasked:docCol?va14RefText(fields[docCol.label||docCol.raw]):'',paymentDate:null,documentDate:dateCol?toIsoDateCell(fields[dateCol.label||dateCol.raw]):null,amount,incomeAmount:null,checks:Object.fromEntries((REF_DOCUMENTS_BY_CODE[meta.code] || ['Comprovante']).map(doc => [doc, 'PND'])),sourceSheetName:sheetName,sourceRowNumber:rowIndex+1,importWarnings:warnings.join(' '),possibleRemoved:false,canonicalData:{schemaVersion:2,source:'REF',sheet:sheetName,category:meta.label,categoryCode:meta.code,item:String(item),sourceRowNumber:rowIndex+1,fields:{...fields,...(extra||{})}}};}
 parseRefImportDraft=function(workbook){const items=[],warnings=[],sheetInfo=new Map((((workbook.Workbook||{}).Sheets)||[]).map(x=>[x.name,x]));workbook.SheetNames.forEach(sheetName=>{const meta=va14RefMeta(sheetName);if(!meta.code||(sheetInfo.get(sheetName)||{}).Hidden)return;const rows=XLSX.utils.sheet_to_json(workbook.Sheets[sheetName],{header:1,defval:null,raw:true}),h=va14RefHeader(rows,meta.code);if(h<0)return;const header=rows[h]||[];let cols=va14RefColumns(header,meta.code);if(meta.code==='F'){const totalIndex=header.findIndex(v=>/^VALOR TOTAL/.test(foldText(v)));if(totalIndex>=0)cols.push({index:totalIndex,raw:va14RefText(header[totalIndex]),label:'VALOR TOTAL'});}if(!cols.length)return;const itemCol=header.findIndex(v=>foldText(v)==='ITEM');let gaps=0,teamIndex=0;for(let r=h+1;r<rows.length;r++){const row=rows[r]||[],fields=va14RefFields(row,cols);if(!Object.keys(fields).length){if(++gaps>2)break;continue;}gaps=0;if(meta.code==='D'){const name=Object.entries(fields).find(([k])=>/NOME/i.test(k)),cpf=Object.entries(fields).find(([k])=>/CPF/i.test(k));if(!name&&!cpf)continue;teamIndex++;items.push(va14RefImportItem(meta,sheetName,r,String(r+1),fields,cols,{teamIndex,teamLine:r+1,teamName:name?name[1]:'',teamCpf:cpf?cpf[1]:''}));}else{const item=va14RefText(itemCol>=0?row[itemCol]:row[0]);if(!item||/^(ITEM|TOTAL)/i.test(item))continue;items.push(va14RefImportItem(meta,sheetName,r,item,fields,cols));}}});if(!items.length)warnings.push('Nenhuma linha preenchida foi encontrada nas abas de rubricas do REF.');return {groups:items.length?[{key:'REF',label:'Itens preenchidos do REF',items}]:[],warnings};};
 compareImportItems=function(items,sourceType){const all=DATA.categories.flatMap(category=>category.items.map(item=>({category,item}))),id=item=>{const c=item.canonicalData||{};return foldText(c.source)+'|'+foldText(c.categoryCode||va13CategoryCode(item.sourceSheetName||item.categoryLabel||''))+'|'+va13ItemKey(c.item||item.budgetItem||item.sourceItemKey);},old=all.filter(x=>foldText((x.item.canonicalData||{}).source)===foldText(sourceType)),byId=new Map(old.map(x=>[id(x.item),x])),keys=new Set(items.map(id)),rows=items.map(imported=>{const existing=byId.get(id(imported));return existing?{state:importedItemFingerprint(imported)===importedItemFingerprint(existing.item)?'unchanged':'changed',imported,existing}:{state:'new',imported,existing:null};}),removed=old.filter(x=>!keys.has(id(x.item))).map(existing=>({state:'removed',imported:null,existing}));return {rows,removed,counts:{new:rows.filter(x=>x.state==='new').length,changed:rows.filter(x=>x.state==='changed').length,unchanged:rows.filter(x=>x.state==='unchanged').length,removed:removed.length,warnings:items.filter(x=>x.importWarnings).length}};};
 const va14BaseChecklistParser=parseChecklistImportDraft;
@@ -5788,8 +5905,48 @@ compareImportItems = function(items, sourceType) {
 };
 
 
+/* ===== VA.14 — consolidação visual de categorias equivalentes ===== */
+function va14CategoryMergeKey(category) {
+  const code = category && DOCUMENT_CODE_BY_CATEGORY_ID[category.id];
+  return code ? 'RUBRICA:' + code : foldText((category && (category.label || category.id)) || '').replace(/_/g, ' ');
+}
+
+function mergeEquivalentCategoriesInPlace() {
+  if (!DATA || !Array.isArray(DATA.categories)) return false;
+  const merged = [];
+  const byKey = new Map();
+  let changed = false;
+  DATA.categories.forEach(category => {
+    const key = va14CategoryMergeKey(category);
+    const current = byKey.get(key);
+    if (!current) {
+      merged.push(category);
+      byKey.set(key, category);
+      return;
+    }
+    changed = true;
+    const currentIsRef = /^ref_/i.test(current.id || '');
+    const incomingIsRef = /^ref_/i.test(category.id || '');
+    if (incomingIsRef && !currentIsRef) {
+      category.items = [...(current.items || []), ...(category.items || [])];
+      const position = merged.indexOf(current);
+      if (position >= 0) merged[position] = category;
+      byKey.set(key, category);
+      if (analysisFilterCategory === current.id) analysisFilterCategory = category.id;
+    } else {
+      current.items.push(...(category.items || []));
+      if (analysisFilterCategory === category.id) analysisFilterCategory = current.id;
+    }
+  });
+  if (changed) {
+    DATA.categories = merged;
+    saveStore();
+  }
+  return changed;
+}
 /* ===== VA.14 — seleção múltipla e ações coletivas de análise ===== */
 let bulkSelectedItemIds = new Set();
+let bulkSelectionMode = false;
 
 function bulkCardItemId(card) {
   const match = String(card.getAttribute('onclick') || '').match(/selectItem\('([^']+)'\)/);
@@ -5803,10 +5960,16 @@ function renderBulkActionBar() {
   const validIds = [...bulkSelectedItemIds].filter(id => !!findItem(id));
   if (validIds.length !== bulkSelectedItemIds.size) bulkSelectedItemIds = new Set(validIds);
   count.textContent = validIds.length + (validIds.length === 1 ? ' selecionado' : ' selecionados');
-  bar.classList.remove('hidden');
+  bar.classList.toggle('hidden', !bulkSelectionMode);
+  const modeButton = document.getElementById('bulkModeButton');
+  if (modeButton) {
+    modeButton.classList.toggle('active', bulkSelectionMode);
+    modeButton.textContent = bulkSelectionMode ? 'Fechar seleção' : 'Selecionar itens';
+  }
 }
 
 function decorateBulkSelection() {
+  if (!bulkSelectionMode) return;
   document.querySelectorAll('#listCol .item-card').forEach(card => {
     const itemId = bulkCardItemId(card);
     if (!itemId) return;
@@ -5828,10 +5991,17 @@ function decorateBulkSelection() {
 
 const va14BaseRenderListBulk = renderList;
 renderList = function() {
+  mergeEquivalentCategoriesInPlace();
   va14BaseRenderListBulk();
   decorateBulkSelection();
   renderBulkActionBar();
 };
+
+function toggleBulkSelectionMode() {
+  bulkSelectionMode = !bulkSelectionMode;
+  if (!bulkSelectionMode) bulkSelectedItemIds.clear();
+  renderList();
+}
 
 function toggleBulkItem(itemId) {
   if (bulkSelectedItemIds.has(itemId)) bulkSelectedItemIds.delete(itemId);
@@ -5916,6 +6086,7 @@ async function applyBulkItemActions() {
 
   hideLoadingGate();
   bulkSelectedItemIds.clear();
+  bulkSelectionMode = false;
   ['bulkStatusAction', 'bulkDoubtAction', 'bulkDocsAction'].forEach(id => {
     const control = document.getElementById(id);
     if (control) control.value = '';
@@ -5962,6 +6133,7 @@ async function deleteItemsByIds(itemIds) {
   }
 
   deletedIds.forEach(id => bulkSelectedItemIds.delete(id));
+  if (!bulkSelectedItemIds.size) bulkSelectionMode = false;
   if (selectedItemId != null && deletedIds.includes(String(selectedItemId))) selectedItemId = null;
   saveStore();
   renderAnalysisFilters();
@@ -5989,12 +6161,15 @@ function deleteSelectedItems() {
 const va14BaseSelectCicloBulk = selectCiclo;
 selectCiclo = function(idx) {
   bulkSelectedItemIds.clear();
+  bulkSelectionMode = false;
   va14BaseSelectCicloBulk(idx);
 };
 
 const va14BaseOpenAnalysisBulk = openAnalysis;
 openAnalysis = function() {
   bulkSelectedItemIds.clear();
+  bulkSelectionMode = false;
+  mergeEquivalentCategoriesInPlace();
   return va14BaseOpenAnalysisBulk();
 };
 
