@@ -3259,7 +3259,7 @@ function pcCycleMetrics(pc, cycleIdx) {
       if (status === 'ABERTO' || status === 'FECHADO') done++;
       if (status === 'ABERTO') open++;
       if (entry && entry.duvida) doubts++;
-      if (Object.values(item.checks || {}).some(value => value !== 'OK')) pendingDocs++;
+      if (docsForItem(item, cat).some(doc => (item.checks || {})[doc] === 'PND')) pendingDocs++;
     });
   });
   return { total, done, open, doubts, pendingDocs, pct: total ? Math.round(done / total * 100) : 0 };
@@ -4414,7 +4414,7 @@ function outputRowsForCurrentCycle() {
   if (!DATA || !DATA.meta.ciclos[selectedCicloIdx]) return [];
   return DATA.categories.flatMap(category => category.items.map(item => {
     const entry = item.ciclosStatus[selectedCicloIdx] || {};
-    const pendingDocs = Object.entries(item.checks || {}).filter(([, status]) => status !== 'OK').map(([name]) => name);
+    const pendingDocs = docsForItem(item, category).filter(name => (item.checks || {})[name] === 'PND');
     const executorComment = String(entry.comentarioExecutor || '').trim();
     if (!executorComment && !pendingDocs.length) return null;
     return { category: category.label, item: item.title, description: item.subtitle || '', executorComment, pendingDocs, executorResponse: entry.executorResponse || '', status: STATUS_LABELS[entry.status] || entry.status || '' };
@@ -5294,7 +5294,7 @@ outputRowsForCurrentCycle = function() {
     const entry = item.ciclosStatus[selectedCicloIdx] || {};
     const executorComment = String(entry.comentarioExecutor || '').trim();
     if (!executorComment) return null;
-    const pendingDocs = Object.entries(item.checks || {}).filter(([, status]) => status !== 'OK').map(([name]) => name);
+    const pendingDocs = docsForItem(item, category).filter(name => (item.checks || {})[name] === 'PND');
     return {
       category: category.label, item: item.title, description: item.subtitle || '',
       executorComment, pendingDocs, executorResponse: entry.executorResponse || '',
@@ -5669,7 +5669,7 @@ function parseChecklistImportDraft(workbook) {
         const executorComment = va13Text(va13CellValue(row[cycle.executor]));
         const executorResponse = va13Text(va13CellValue(row[cycle.response]));
         const statusRaw = va13CellValue(row[cycle.status]); const checks = va13ChecklistChecks(headers, row, cycle);
-        const hasMaterialCheck = Object.values(checks).some(value => value !== 'NA');
+        const hasMaterialCheck = Object.keys(checks).length > 0;
         if (!internalComment && !executorComment && !executorResponse && !hasMaterialCheck) return;
         if (!cycles.has(cycle.number)) cycles.set(cycle.number, []);
         cycles.get(cycle.number).push({ sheetName, sourceRowNumber: headerIndex + offset + 2, category, categoryCode: va13CategoryCode(category), itemKey, normalizedItemKey: va13ItemKey(itemKey), checks, internalComment, executorComment, executorResponse, legacyStatus: va13Text(statusRaw), reviewStatus: va13Status(statusRaw, executorComment, internalComment), isGeneral: foldText(sheetName) === 'COMENTARIOS GERAIS' || foldText(itemKey).startsWith('GERAL') });
@@ -5713,7 +5713,7 @@ function va13UpdateAnalysisConfirm() { const comparison=controlledImport&&contro
 async function va13UpdateAnalysisRow(row, target) {
   const item=row.existing.item; const index=target.cycleIndex; let analysis=item.ciclosStatus[index];
   if(!analysis){analysis={numero:target.cycle.numero,status:'AGUARDANDO_ANALISE',comentarioAnalista:'',comentarioExecutor:'',executorResponse:'',duvida:false,_gid:null,_legacy:false}; item.ciclosStatus[index]=analysis;}
-  analysis.status=row.record.reviewStatus; analysis.comentarioAnalista=row.record.internalComment; analysis.comentarioExecutor=row.record.executorComment; analysis.executorResponse=row.record.executorResponse; analysis.duvida=Object.values(row.record.checks).includes('PND');
+  analysis.status=row.record.reviewStatus; analysis.comentarioAnalista=row.record.internalComment; analysis.comentarioExecutor=row.record.executorComment; analysis.executorResponse=row.record.executorResponse;
   const checks={...(item.checks||{})},configured=row.existing.category.docsFixed||Object.keys(checks); Object.entries(row.record.checks||{}).forEach(([doc,status])=>{const canonical=canonicalDocumentName(doc,configured);if(checks[canonical]!=='NA')checks[canonical]=status;}); item.checks=checks;
   if(isRealGid(item.id)) await graphUpdateItem(LIST_IDS.Itens,item.id,{DocumentChecks:serializeJsonObject(checks)});
   if(!isRealGid(analysis._gid) && isRealGid(item.id)) analysis._gid=await graphCreateItem(LIST_IDS.AnalisesItemCiclo,{Title:item.title||item.tipoLabel||row.record.itemKey,ItemId:Number(item.id),CicloId:Number(target.cycle._gid),ReviewStatus:itemStatusToChoice(analysis.status),HasDoubt:!!analysis.duvida,InternalComment:analysis.comentarioAnalista,ExecutorComment:analysis.comentarioExecutor,ExecutorResponse:analysis.executorResponse});
