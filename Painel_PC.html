@@ -5649,6 +5649,102 @@ va13MatchChecklistRecord=function(record,target){
 /* VA.14 — D começa somente no cabeçalho oficial D.1, não em linhas auxiliares D.6 */
 function va14RefHeader(rows,code){const re=code==='D'?/^D[.]1\s*-/i:new RegExp('^'+code+'[.]\\d+\\b','i');return rows.findIndex(row=>(row||[]).some(v=>re.test(va14RefText(v))));}
 
+
+/* ===== VA.14 — consolidação final do importador REF ===== */
+function va14RefMeaningful(value) {
+  if (value === null || value === undefined || value === '' || value === false || value === 0) return false;
+  const text = va14RefText(value);
+  return !!text && !['0', 'NA', 'N/A', '-', '#N/A'].includes(foldText(text));
+}
+parseRefImportDraft = function(workbook) {
+  const items = [], warnings = [];
+  const sheetInfo = new Map((((workbook.Workbook || {}).Sheets) || []).map(info => [info.name, info]));
+  workbook.SheetNames.forEach(sheetName => {
+    const meta = va14RefMeta(sheetName);
+    if (!meta.code || (sheetInfo.get(sheetName) || {}).Hidden) return;
+    const rows = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { header: 1, defval: null, raw: true });
+    const headerIndex = va14RefHeader(rows, meta.code);
+    if (headerIndex < 0) return;
+    const header = rows[headerIndex] || [];
+    const officialCols = va14RefColumns(header, meta.code);
+    if (!officialCols.length) return;
+    const cols = [...officialCols];
+    if (meta.code === 'F') {
+      const totalIndex = header.findIndex(value => /^VALOR TOTAL/.test(foldText(value)));
+      if (totalIndex >= 0) cols.push({ index: totalIndex, raw: va14RefText(header[totalIndex]), label: 'VALOR TOTAL' });
+    }
+    const itemColumn = header.findIndex(value => foldText(value) === 'ITEM');
+    let gap = 0, teamIndex = 0;
+    for (let rowIndex = headerIndex + 1; rowIndex < rows.length; rowIndex++) {
+      const row = rows[rowIndex] || [];
+      if (meta.code === 'D') {
+        const fields = va14RefFields(row, officialCols);
+        const nameEntry = Object.entries(fields).find(([key]) => /NOME/i.test(key));
+        const cpfEntry = Object.entries(fields).find(([key]) => /CPF/i.test(key));
+        const name = nameEntry ? va14RefText(nameEntry[1]) : '';
+        const cpf = cpfEntry ? va14RefText(cpfEntry[1]) : '';
+        if (!name && !cpf) continue;
+        teamIndex++;
+        items.push(va14RefImportItem(meta, sheetName, rowIndex, String(rowIndex + 1), fields, officialCols, {
+          teamIndex, teamLine: rowIndex + 1, teamName: name, teamCpf: cpf,
+        }));
+        continue;
+      }
+      const item = va14RefText(itemColumn >= 0 ? row[itemColumn] : row[0]);
+      const hasRealData = officialCols.some(col => va14RefMeaningful(row[col.index]));
+      if (!hasRealData) {
+        gap++;
+        if (gap > 2) break;
+        continue;
+      }
+      gap = 0;
+      if (!item || /^(ITEM|TOTAL)/i.test(item)) continue;
+      const fields = va14RefFields(row, cols);
+      items.push(va14RefImportItem(meta, sheetName, rowIndex, item, fields, cols));
+    }
+  });
+  if (!items.length) warnings.push('Nenhuma linha preenchida foi encontrada nas abas de rubricas do REF.');
+  return { groups: items.length ? [{ key: 'REF', label: 'Itens preenchidos do REF', items }] : [], warnings };
+};
+compareImportItems = function(items, sourceType) {
+  const target = currentImportTarget();
+  const data = target && target.pc && target.pc.data;
+  const existingAll = data ? data.categories.flatMap(category => category.items.map(item => ({ category, item }))) : [];
+  const existing = existingAll.filter(entry => va12NormText(entry.item.canonicalData && entry.item.canonicalData.source) === va12NormText(sourceType));
+  const used = new Set(), rows = [];
+  const orderedItems = [...items].sort((a, b) => Number(a.sourceRowNumber || 0) - Number(b.sourceRowNumber || 0));
+  orderedItems.forEach(imported => {
+    const exact = existing.filter((entry, index) => !used.has(index) && va12Fingerprint(imported, imported.categoryId) === va12Fingerprint(entry.item, entry.category.id));
+    if (!exact.length) return;
+    exact.sort((a, b) => Math.abs(Number(a.item.sourceRowNumber || 0) - Number(imported.sourceRowNumber || 0)) - Math.abs(Number(b.item.sourceRowNumber || 0) - Number(imported.sourceRowNumber || 0)));
+    const match = exact[0], index = existing.indexOf(match);
+    used.add(index);
+    rows.push({ state: 'unchanged', imported, existing: match, confidence: 1, decision: 'same' });
+  });
+  orderedItems.filter(imported => !rows.some(row => row.imported === imported)).forEach(imported => {
+    const candidates = existing.map((entry, index) => ({ entry, index, score: used.has(index) ? 0 : va12PairScore(imported, entry) })).filter(candidate => candidate.score > 0).sort((a, b) => b.score - a.score);
+    const top = candidates[0], second = candidates[1];
+    if (!top || top.score < 0.45) {
+      rows.push({ state: 'new', imported, existing: null, confidence: top ? top.score : 0, decision: 'new' });
+      return;
+    }
+    used.add(top.index);
+    const strong = top.score >= 0.72 && (!second || top.score - second.score >= 0.08);
+    rows.push({ state: strong ? 'changed' : 'review', imported, existing: top.entry, confidence: top.score, decision: strong ? 'same' : '' });
+  });
+  rows.sort((a, b) => Number(a.imported.sourceRowNumber || 0) - Number(b.imported.sourceRowNumber || 0));
+  rows.forEach((row, index) => { row._index = index; row.warningDecision = row.imported.importWarnings ? '' : 'none'; });
+  const removed = existing.filter((entry, index) => !used.has(index)).map(entry => ({ state: 'removed', imported: null, existing: entry }));
+  return { rows, removed, counts: {
+    new: rows.filter(row => row.state === 'new').length,
+    changed: rows.filter(row => row.state === 'changed').length,
+    unchanged: rows.filter(row => row.state === 'unchanged').length,
+    review: rows.filter(row => row.state === 'review').length,
+    removed: removed.length,
+    warnings: rows.filter(row => row.imported.importWarnings).length,
+  }};
+};
+
 async function initApp() {
   try {
     initMsal();
