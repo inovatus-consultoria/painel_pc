@@ -2,7 +2,7 @@
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
-<title>Painel PC — VA.13 (SharePoint Lists)</title>
+<title>Painel PC — VA.14 (SharePoint Lists)</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
@@ -764,7 +764,7 @@
       Entrar com Microsoft
     </button>
   </div>
-  <div class="login-version">Painel PC · VA.13 · SharePoint Lists</div>
+  <div class="login-version">Painel PC · VA.14 · SharePoint Lists</div>
 </div>
 
 <div id="loading-overlay">
@@ -804,7 +804,7 @@
     <div class="tree" id="treeCol"></div>
     <div class="sidebar-foot">
       <div id="authStatus" style="margin-bottom:8px;"></div>
-      VA.13 · SharePoint Lists · Microsoft Graph
+      VA.14 · SharePoint Lists · Microsoft Graph
     </div>
   </aside>
 
@@ -5459,7 +5459,13 @@ function va13Status(value, executorComment, internalComment) {
 }
 function va13SheetRows(workbook, name) { return XLSX.utils.sheet_to_json(workbook.Sheets[name], { header: 1, defval: null, raw: true }); }
 function va13FindChecklistHeader(rows) {
-  return rows.findIndex(row => foldText(row && row[1]) === 'RUBRICA' && foldText(row && row[2]) === 'ITEM');
+  for (let rowIndex = 0; rowIndex < rows.length; rowIndex++) {
+    const row = rows[rowIndex] || [];
+    for (let column = 0; column < row.length - 1; column++) {
+      if (foldText(row[column]) === 'RUBRICA' && foldText(row[column + 1]) === 'ITEM') return { rowIndex, categoryColumn: column, itemColumn: column + 1 };
+    }
+  }
+  return null;
 }
 function va13CycleColumns(headers) {
   const cycles = new Map();
@@ -5490,12 +5496,12 @@ function va13ChecklistChecks(headers, row, cycle) {
 function parseChecklistImportDraft(workbook) {
   const cycles = new Map(); const records = []; const warnings = [];
   workbook.SheetNames.forEach(sheetName => {
-    const rows = va13SheetRows(workbook, sheetName); const headerIndex = va13FindChecklistHeader(rows);
-    if (headerIndex < 0) return;
-    const headers = rows[headerIndex].map(value => va13Text(value)); const cycleDefs = va13CycleColumns(headers);
+    const rows = va13SheetRows(workbook, sheetName); const header = va13FindChecklistHeader(rows);
+    if (!header) return;
+    const headerIndex = header.rowIndex; const headers = rows[headerIndex].map(value => va13Text(value)); const cycleDefs = va13CycleColumns(headers);
     if (!cycleDefs.length) return;
     rows.slice(headerIndex + 1).forEach((row, offset) => {
-      const category = va13Text(row[1]); const itemKey = va13Text(row[2]);
+      const category = va13Text(row[header.categoryColumn]); const itemKey = va13Text(row[header.itemColumn]);
       if (!category || !itemKey || ['NA','N/A','-'].includes(foldText(itemKey))) return;
       cycleDefs.forEach(cycle => {
         const internalComment = va13Text(va13CellValue(row[cycle.internal]));
