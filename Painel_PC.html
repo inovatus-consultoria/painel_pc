@@ -664,6 +664,9 @@
   }
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<!-- 05/08: ExcelJS só para a GERAÇÃO do Punchlist (cor, negrito, logo) — a versão gratuita do
+     SheetJS (acima) não grava estilo nem imagem no .xlsx. Leitura/importação continua no SheetJS. -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
 <script src="https://alcdn.msauth.net/browser/2.38.1/js/msal-browser.min.js"></script>
 <style id="va12-styles">
   html, body { height: 100%; overflow: hidden; }
@@ -4586,33 +4589,140 @@ function buildCapaRows() {
   };
 }
 
-function downloadPunchlist() {
+function downloadArrayBufferFile(name, buffer, mime) {
+  const blob = new Blob([buffer], { type: mime || 'application/octet-stream' });
+  const url = URL.createObjectURL(blob); const anchor = document.createElement('a');
+  anchor.href = url; anchor.download = name; anchor.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+/* Pega a marca já embutida na sidebar (img.brand-logo) pra não duplicar o base64 gigante do logo
+   em outro lugar do arquivo — nunca copie esse base64 à mão (ver skill editar-painel-pc, Passo 1). */
+function brandLogoDataUrl() {
+  const img = document.querySelector('.brand-logo img');
+  return img ? img.src : null;
+}
+
+const PUNCHLIST_STATUS_FILL = { ABERTO: 'FFFFC7C7', FECHADO: 'FFC6EFCE' };
+const PUNCHLIST_STATUS_FONT = { ABERTO: 'FF9C0006', FECHADO: 'FF006100' };
+const PUNCHLIST_HEADER_FILL = 'FFDCE6F1';
+
+async function downloadPunchlist() {
   if (!DATA) return showToast('Selecione uma PC para gerar o Punchlist.');
-  const { header, dataRows } = buildPunchlistWorkbookData();
+  if (typeof ExcelJS === 'undefined') return showToast('Biblioteca de formatação de Excel não carregou — tente recarregar a página.');
+  const { header, dataRows, numCiclos } = buildPunchlistWorkbookData();
   const capa = buildCapaRows();
-  const workbook = XLSX.utils.book_new();
+  const logoUrl = brandLogoDataUrl();
+  const workbook = new ExcelJS.Workbook();
+  workbook.creator = 'Painel PC — Inovatus';
+  workbook.created = new Date();
 
-  const capaAoa = [
-    [], [], [], ['', capa.titulo], [], [], [],
-    ['', 'Cliente:', capa.cliente, 'Projeto:', capa.projeto], [],
-    ['', 'Nº da PC:', capa.pc, 'Executor:', ''], [],
-    ['', 'Universidade', '', 'Fundação', ''], [],
-    ['', 'Banco', '', 'Agência', ''], [],
-    ['', 'Conta', ''], [],
-    ['', 'Período da PC', capa.periodo], [],
-    ['', 'Controle de revisão Punchlist'],
-    ['', 'Revisão', 'Data', 'Motivo da revisão'],
-    ...capa.revisoes.map(r => ['', ...r]),
+  /* ===== Capa ===== */
+  const capaSheet = workbook.addWorksheet('Capa');
+  capaSheet.columns = [{ width: 4 }, { width: 20 }, { width: 26 }, { width: 18 }, { width: 26 }];
+  if (logoUrl) {
+    try {
+      const ext = /image\/(png|jpeg|jpg)/.exec(logoUrl);
+      const imgId = workbook.addImage({ base64: logoUrl, extension: ext ? (ext[1] === 'jpg' ? 'jpeg' : ext[1]) : 'png' });
+      capaSheet.addImage(imgId, { tl: { col: 1, row: 0.3 }, ext: { width: 130, height: 46 } });
+    } catch (e) { console.warn('Não consegui inserir o logo no Punchlist', e); }
+  }
+  capaSheet.getCell('B5').value = capa.titulo;
+  capaSheet.getCell('B5').font = { bold: true, size: 15, color: { argb: 'FF1F3864' } };
+  capaSheet.mergeCells('B5:E5');
+
+  const capaLinhas = [
+    ['B7', 'Cliente:', 'C7', capa.cliente, 'D7', 'Projeto:', 'E7', capa.projeto],
+    ['B9', 'Nº da PC:', 'C9', capa.pc, 'D9', 'Executor:', 'E9', ''],
+    ['B11', 'Universidade', 'C11', '', 'D11', 'Fundação', 'E11', ''],
+    ['B13', 'Banco', 'C13', '', 'D13', 'Agência', 'E13', ''],
   ];
-  const capaSheet = XLSX.utils.aoa_to_sheet(capaAoa);
-  capaSheet['!cols'] = [{ wch: 3 }, { wch: 20 }, { wch: 22 }, { wch: 18 }, { wch: 22 }];
-  XLSX.utils.book_append_sheet(workbook, capaSheet, 'Capa');
+  capaLinhas.forEach(([c1, l1, c2, v1, c3, l2, c4, v2]) => {
+    capaSheet.getCell(c1).value = l1; capaSheet.getCell(c1).font = { bold: true };
+    capaSheet.getCell(c2).value = v1;
+    capaSheet.getCell(c3).value = l2; capaSheet.getCell(c3).font = { bold: true };
+    capaSheet.getCell(c4).value = v2;
+  });
+  capaSheet.getCell('B15').value = 'Conta'; capaSheet.getCell('B15').font = { bold: true };
+  capaSheet.getCell('B17').value = 'Período da PC'; capaSheet.getCell('B17').font = { bold: true };
+  capaSheet.getCell('C17').value = capa.periodo;
 
-  const dataSheet = XLSX.utils.aoa_to_sheet([header, ...dataRows]);
-  dataSheet['!cols'] = [{ wch: 22 }, { wch: 30 }, ...Array(Math.max(header.length - 2, 0)).fill({ wch: 32 })];
-  XLSX.utils.book_append_sheet(workbook, dataSheet, 'Punchlist');
+  capaSheet.getCell('B19').value = 'Controle de revisão Punchlist';
+  capaSheet.getCell('B19').font = { bold: true, size: 12 };
+  const revHeaderRow = capaSheet.getRow(20);
+  ['', 'Revisão', 'Data', 'Motivo da revisão'].forEach((label, i) => {
+    if (!label) return;
+    const cell = revHeaderRow.getCell(i + 2);
+    cell.value = label; cell.font = { bold: true };
+    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: PUNCHLIST_HEADER_FILL } };
+    cell.border = { bottom: { style: 'thin' } };
+  });
+  capa.revisoes.forEach((rev, i) => {
+    const row = capaSheet.getRow(21 + i);
+    row.getCell(2).value = rev[0]; row.getCell(3).value = rev[1]; row.getCell(4).value = rev[2];
+  });
 
-  XLSX.writeFile(workbook, `${safeFilePart(DATA.meta.pc)}_Punchlist_REF.xlsx`);
+  /* ===== Punchlist ===== */
+  const dataSheet = workbook.addWorksheet('Punchlist');
+  dataSheet.columns = [{ width: 22 }, { width: 30 }, ...Array(Math.max(header.length - 2, 0)).fill({ width: 34 })];
+
+  if (numCiclos) {
+    const totalCols = header.length;
+    dataSheet.mergeCells(1, 1, 1, totalCols);
+    const banner = dataSheet.getCell(1, 1);
+    banner.value = `Empresa: ${capa.cliente} | Projeto: ${capa.projeto} | PC: ${capa.pc} | Período da PC: ${capa.periodo}`;
+    banner.font = { bold: true, size: 12 };
+    banner.alignment = { horizontal: 'left' };
+
+    for (let i = 0; i < numCiclos; i++) {
+      const startCol = 3 + i * 3;
+      dataSheet.mergeCells(3, startCol, 3, startCol + 2);
+      const cicloHeader = dataSheet.getCell(3, startCol);
+      cicloHeader.value = cicloLabel(DATA.meta.ciclos[i].numero).toUpperCase();
+      cicloHeader.font = { bold: true };
+      cicloHeader.alignment = { horizontal: 'center' };
+      cicloHeader.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: PUNCHLIST_HEADER_FILL } };
+
+      dataSheet.mergeCells(4, startCol, 4, startCol + 2);
+      const cicloData = dataSheet.getCell(4, startCol);
+      cicloData.value = fmtIsoDate(DATA.meta.ciclos[i].statusChangedAt);
+      cicloData.alignment = { horizontal: 'center' };
+      cicloData.font = { italic: true, size: 10 };
+    }
+  }
+
+  const headerRowNum = 5;
+  const headerRow = dataSheet.getRow(headerRowNum);
+  header.forEach((label, i) => {
+    const cell = headerRow.getCell(i + 1);
+    cell.value = label; cell.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1F3864' } };
+    cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+  });
+  headerRow.height = 30;
+  dataSheet.views = [{ state: 'frozen', ySplit: headerRowNum }];
+
+  dataRows.forEach((line, rowIdx) => {
+    const row = dataSheet.getRow(headerRowNum + 1 + rowIdx);
+    line.forEach((value, colIdx) => {
+      const cell = row.getCell(colIdx + 1);
+      cell.value = value;
+      cell.alignment = { wrapText: true, vertical: 'top' };
+      cell.border = { bottom: { style: 'thin', color: { argb: 'FFE0E0E0' } } };
+      const isStatusCol = colIdx >= 2 && (colIdx - 2) % 3 === 1;
+      if (isStatusCol && PUNCHLIST_STATUS_FILL[value]) {
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: PUNCHLIST_STATUS_FILL[value] } };
+        cell.font = { color: { argb: PUNCHLIST_STATUS_FONT[value] }, bold: true };
+        cell.alignment = { horizontal: 'center', vertical: 'middle' };
+      }
+    });
+    if (line[0] === 'GERAL') row.getCell(1).font = { bold: true };
+  });
+  if (!dataRows.length) {
+    dataSheet.getCell(headerRowNum + 1, 1).value = 'Nenhuma pendência registrada em nenhum ciclo desta PC.';
+  }
+
+  const buffer = await workbook.xlsx.writeBuffer();
+  downloadArrayBufferFile(`${safeFilePart(DATA.meta.pc)}_Punchlist_REF.xlsx`, buffer, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
 }
 
 const va11BaseRenderPCDetail = renderPCDetail;
