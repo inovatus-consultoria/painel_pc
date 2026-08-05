@@ -1839,6 +1839,7 @@ function renderTree() {
     </div>
     <div class="tree-children hidden" id="c${ci}">`;
     c.projects.forEach((p, pi) => {
+      if (p.active === false) return;
       html += `<div class="tree-node lvl-project" onclick="toggleTree('c${ci}p${pi}')">
         <span class="tree-chevron"></span>${escapeHtml(p.name)}
       </div>
@@ -1846,7 +1847,6 @@ function renderTree() {
       p.pcs.forEach((pc, pci) => {
         html += `<div class="tree-node lvl-pc ${pc.real ? 'active' : 'disabled'}" onclick="handlePcClick(${ci},${pi},${pci})">
           ${escapeHtml(pc.label)}
-          <span class="tree-badge ${pc.real ? 'real' : ''}">${pc.real ? 'real' : '—'}</span>
         </div>`;
       });
       html += `</div>`;
@@ -1880,6 +1880,7 @@ function renderAreaTrabalho() {
     html += `<div class="trabalho-client-group">
       <div class="trabalho-client-title">${escapeHtml(client.client)}</div>`;
     client.projects.forEach((p, pi) => {
+      if (p.active === false) return;
       html += `<div class="trabalho-project-group">
         <div class="trabalho-project-title">Projeto ${escapeHtml(p.name)} <span class="trabalho-project-executor">${escapeHtml(p.executor)}</span></div>
         <div class="trabalho-list">`;
@@ -1954,6 +1955,13 @@ function deletePC(ci, pi, pci) {
   if (eraAAtual) { currentPC = null; DATA = null; selectedItemId = null; }
 
   project.pcs.splice(pci, 1);
+  /* 05/08: projeto sem nenhuma PC não tem razão de continuar aparecendo (sidebar e Gestão
+     listavam todo projeto do STORE, sem checar se tinha PC) — some o projeto vazio junto. */
+  if (!project.pcs.length) {
+    const client = STORE.clients[ci];
+    const projectIdx = client.projects.indexOf(project);
+    if (projectIdx >= 0) client.projects.splice(projectIdx, 1);
+  }
   saveStore();
   renderTree();
   if (eraAAtual && currentView === 'workspace') { setView('trabalho'); }
@@ -2114,6 +2122,7 @@ function renderDashboard() {
     <div class="dashboard-section-title">${escapeHtml(client.client)}</div>
     <div class="dashboard-section-sub">Visão consolidada em 3 níveis — Projeto → PC → Ciclo. Clique numa linha pra abrir a PC.</div>`;
   client.projects.forEach((p, pi) => {
+    if (p.active === false) return;
     html += `<div class="project-block">
       <div class="project-header">
         <span class="project-name">Projeto ${escapeHtml(p.name)}</span>
@@ -2147,6 +2156,7 @@ function allCiclosFlat() {
   const out = [];
   STORE.clients.forEach((client, ci) => {
     client.projects.forEach((p, pi) => {
+      if (p.active === false) return;
       p.pcs.forEach((pc, pci) => {
         const data = pc.real ? realMetrics(pc) : { ...pc, executor: p.executor };
         data.ciclos.forEach(ciclo => {
@@ -5953,6 +5963,12 @@ async function confirmDeletePC() {
     target.project.pcs.splice(index, 1);
     if (wasCurrent) { currentPC = null; DATA = null; selectedItemId = null; selectedCicloIdx = 0; }
     else if (shiftsCurrent) currentPC.pci -= 1;
+    /* 05/08: projeto sem nenhuma PC não tem razão de continuar aparecendo na sidebar/Gestão —
+       ver toggleCat/renderTree/renderDashboard, que agora também respeitam project.active. */
+    if (!target.project.pcs.length) {
+      const projectIdx = target.client.projects.indexOf(target.project);
+      if (projectIdx >= 0) target.client.projects.splice(projectIdx, 1);
+    }
     saveStore(); filaOrder = null; renderTree();
     document.getElementById('va12DeleteOverlay').classList.add('hidden');
     va12DeleteTarget = null;
