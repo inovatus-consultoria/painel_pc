@@ -2614,7 +2614,7 @@ async function syncComentario(itemId, cicloIdx, field, value, alsoSyncStatus) {
   if (!found) return;
   const entry = found.item.ciclosStatus[cicloIdx];
   if (!entry || !entry._gid) return;
-  const fieldMap = field === 'comentarioAnalista' ? { InternalComment: value } : { ExecutorComment: value };
+  const fieldMap = { comentarioAnalista: { InternalComment: value }, comentarioExecutor: { ExecutorComment: value }, executorResponse: { ExecutorResponse: value } }[field] || {};
   if (alsoSyncStatus) fieldMap.ReviewStatus = itemStatusToChoice(entry.status);
   try {
     const analysisId = await ensureMvpAnalysis(found.item, entry, cicloIdx);
@@ -2731,6 +2731,15 @@ function renderDetail() {
         <div class="editor-hint">Digite <kbd>/</kbd> pra abrir a biblioteca inteira, ou continue digitando — sugestões aparecem sozinhas</div>
         <div class="suggest-strip" id="suggest-${item.id}-atual"></div>
         ` : `<div class="field-text ${entry.comentarioExecutor ? '' : 'empty'}">${escapeHtml(entry.comentarioExecutor) || 'Sem pendência neste ciclo.'}</div>`}
+      </div>
+
+      <div class="field-block">
+        <div class="field-label">Resposta do executor <span class="lock">(o que o executor respondeu a esta pendência)</span></div>
+        ${editavel
+          ? `<textarea class="editor" data-item="${item.id}" data-field="executorResponse"
+              oninput="updateComentario('${item.id}', 'executorResponse', this.value)"
+              placeholder="Sem resposta registrada ainda.">${escapeHtml(entry.executorResponse)}</textarea>`
+          : `<div class="field-text ${entry.executorResponse ? '' : 'empty'}">${escapeHtml(entry.executorResponse) || 'Sem resposta registrada.'}</div>`}
       </div>
     </div>`;
 
