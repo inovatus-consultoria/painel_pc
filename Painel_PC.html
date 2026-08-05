@@ -229,7 +229,15 @@
   .tabela-row:hover { background: var(--surface2); }
   .tabela-item-title { font-size: 12.5px; font-weight: 600; color: var(--ink); }
   .tabela-item-sub { font-size: 11px; color: var(--ink3); margin-top: 2px; }
-  .tabela-cell-docs { display: flex; flex-wrap: wrap; gap: 4px; align-content: flex-start; }
+  .tabela-cell-docs {
+    display: flex; flex-wrap: wrap; gap: 4px; align-content: flex-start;
+    max-height: 28px; overflow: hidden; transition: max-height 0.15s ease, box-shadow 0.15s ease;
+    border-radius: 6px;
+  }
+  .tabela-cell-docs:hover, .tabela-cell-docs:focus-within {
+    max-height: 220px; overflow-y: auto; position: relative; z-index: 3;
+    box-shadow: 0 3px 10px rgba(0,0,0,0.14); background: var(--surface); padding: 3px;
+  }
   .tabela-doc-empty { font-size: 11px; color: var(--ink3); }
   .tabela-cell-status { display: flex; flex-direction: column; gap: 5px; }
   .status-select-mini { font-size: 11px; padding: 4px 6px; border-radius: 6px; border: 1px solid var(--border); background: var(--surface); color: var(--ink); }
@@ -574,6 +582,11 @@
   .cycle-comment-field.internal textarea { background: var(--surface2); }
   .cycle-comments-panel { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 13px 14px; margin-bottom: 12px; }
   .cycle-comments-panel .detail-section-head { margin-bottom: 9px; }
+  .general-comments-head { cursor: pointer; user-select: none; margin-bottom: 9px; }
+  .general-comments-head.collapsed { margin-bottom: 0; }
+  .general-comments-head .cat-chevron { transform: rotate(45deg); }
+  .general-comments-head.collapsed .cat-chevron { transform: rotate(-45deg); }
+  .general-comments-body.hidden { display: none; }
   .source-history-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
   .compact-list { display: flex; flex-direction: column; }
   .compact-list-row { display: flex; justify-content: space-between; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--surface2); font-size: 11.5px; }
@@ -2549,7 +2562,13 @@ function renderList() {
 }
 
 function toggleCat(catId) {
-  document.querySelector(`.cat-group[data-cat="${catId}"]`).classList.toggle('collapsed');
+  /* 05/08: existem duas visões da Área de Análise (lista e tabela) renderizando cada uma o seu
+     próprio .cat-group com o mesmo data-cat — usar querySelector pegava sempre o primeiro do DOM
+     (o da lista, mesmo escondida), então a tabela nunca parecia recolher. Agora sincroniza os dois. */
+  const groups = document.querySelectorAll(`.cat-group[data-cat="${catId}"]`);
+  if (!groups.length) return;
+  const collapse = !groups[0].classList.contains('collapsed');
+  groups.forEach(el => el.classList.toggle('collapsed', collapse));
 }
 
 function toggleFiltroDuvida() {
@@ -3618,9 +3637,23 @@ function openAnalysis() {
   setView('workspace');
 }
 
+/* 05/08: retrátil pra ganhar espaço quando não estiver em uso — começa fechado se o ciclo não
+   tem nenhum comentário geral ainda, aberto se já tiver algo escrito. Depois disso é só manual
+   (o toggle do usuário não é sobrescrito a cada render; só muda de novo se ele clicar). */
+let generalCommentsCollapsed = null;
 function renderWorkspaceGeneralComments() {
   const cycle = DATA.meta.ciclos[selectedCicloIdx];
-  document.getElementById('workspaceGeneralComments').innerHTML = `<div class="detail-section-head"><div><div class="detail-section-title">Comentários gerais</div><div class="detail-section-note">${escapeHtml(cicloLabel(cycle.numero))}</div></div></div>${renderCycleCommentsFields(cycle)}`;
+  if (generalCommentsCollapsed === null) generalCommentsCollapsed = !(cycle.generalInternalComment || cycle.generalExecutorComment);
+  document.getElementById('workspaceGeneralComments').innerHTML = `
+    <div class="detail-section-head general-comments-head${generalCommentsCollapsed ? ' collapsed' : ''}" onclick="toggleGeneralComments()">
+      <div><div class="detail-section-title">Comentários gerais</div><div class="detail-section-note">${escapeHtml(cicloLabel(cycle.numero))}</div></div>
+      <span class="cat-chevron"></span>
+    </div>
+    <div class="general-comments-body${generalCommentsCollapsed ? ' hidden' : ''}">${renderCycleCommentsFields(cycle)}</div>`;
+}
+function toggleGeneralComments() {
+  generalCommentsCollapsed = !generalCommentsCollapsed;
+  renderWorkspaceGeneralComments();
 }
 
 function updateGeneralComment(field, value) {
