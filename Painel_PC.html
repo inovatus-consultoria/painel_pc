@@ -4602,9 +4602,35 @@ function brandLogoDataUrl() {
   return img ? img.src : null;
 }
 
-const PUNCHLIST_STATUS_FILL = { ABERTO: 'FFFFC7C7', FECHADO: 'FFC6EFCE' };
-const PUNCHLIST_STATUS_FONT = { ABERTO: 'FF9C0006', FECHADO: 'FF006100' };
-const PUNCHLIST_HEADER_FILL = 'FFDCE6F1';
+/* ===== Paleta: identidade visual Inovatus (guia_identidade_visual_inovatus_v2.md, raiz do hub) —
+   nunca cor genérica de planilha. Espelha o exemplo real (assets/exemplos/..._PUNCHLIST_...xlsx):
+   grid completo (todo cell com borda fina), rótulo da Capa em fundo cheio, banda de ciclo com
+   fundo, cabeçalho de coluna em negrito com moldura, sem preencher fundo. ===== */
+const BRAND = {
+  accent: 'FF2D5C4E', accentLight: 'FFE8F2EF', ink: 'FF1A2420', ink2: 'FF4A6058',
+  border: 'FFD0DDD8', red: 'FFC83A3A', redLight: 'FFFBF0EF', white: 'FFFFFFFF',
+};
+const PUNCHLIST_STATUS_FILL = { ABERTO: BRAND.redLight, FECHADO: BRAND.accentLight };
+const PUNCHLIST_STATUS_FONT = { ABERTO: BRAND.red, FECHADO: BRAND.accent };
+const THIN_BORDER = { style: 'thin', color: { argb: BRAND.border } };
+function boxBorder() { return { top: THIN_BORDER, left: THIN_BORDER, bottom: THIN_BORDER, right: THIN_BORDER }; }
+
+/* Estimativa simples de altura de linha pro texto não ficar cortado (ExcelJS não faz autofit) —
+   conta quantas linhas o texto mais longo da linha deve ocupar na largura da coluna mais larga
+   (~ largura em caracteres / fator de caractere por unidade de largura Excel). */
+function estimateRowHeight(values, widths) {
+  let maxLines = 1;
+  values.forEach((v, i) => {
+    const text = String(v || '');
+    if (!text) return;
+    const width = widths[i] || 20;
+    const charsPerLine = Math.max(Math.floor(width * 1.8), 8);
+    const linhasQuebra = text.split('\n').length;
+    const linhasPorTamanho = Math.ceil(text.length / charsPerLine);
+    maxLines = Math.max(maxLines, linhasQuebra, linhasPorTamanho);
+  });
+  return Math.min(Math.max(maxLines * 15, 20), 250);
+}
 
 async function downloadPunchlist() {
   if (!DATA) return showToast('Selecione uma PC para gerar o Punchlist.');
@@ -4618,7 +4644,7 @@ async function downloadPunchlist() {
 
   /* ===== Capa ===== */
   const capaSheet = workbook.addWorksheet('Capa');
-  capaSheet.columns = [{ width: 4 }, { width: 20 }, { width: 26 }, { width: 18 }, { width: 26 }];
+  capaSheet.columns = [{ width: 3 }, { width: 22 }, { width: 20 }, { width: 20 }, { width: 20 }];
   if (logoUrl) {
     try {
       const ext = /image\/(png|jpeg|jpg)/.exec(logoUrl);
@@ -4626,99 +4652,142 @@ async function downloadPunchlist() {
       capaSheet.addImage(imgId, { tl: { col: 1, row: 0.3 }, ext: { width: 130, height: 46 } });
     } catch (e) { console.warn('Não consegui inserir o logo no Punchlist', e); }
   }
-  capaSheet.getCell('B5').value = capa.titulo;
-  capaSheet.getCell('B5').font = { bold: true, size: 15, color: { argb: 'FF1F3864' } };
-  capaSheet.mergeCells('B5:E5');
+  capaSheet.mergeCells('B5:E6');
+  const tituloCell = capaSheet.getCell('B5');
+  tituloCell.value = capa.titulo;
+  tituloCell.font = { bold: true, size: 20, color: { argb: BRAND.accent } };
+  tituloCell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+  tituloCell.border = { bottom: { style: 'medium', color: { argb: BRAND.accent } } };
+  capaSheet.getRow(5).height = 26; capaSheet.getRow(6).height = 26;
 
-  const capaLinhas = [
-    ['B7', 'Cliente:', 'C7', capa.cliente, 'D7', 'Projeto:', 'E7', capa.projeto],
+  function capaLabelValue(labelCell, label, valueCell, value) {
+    const lc = capaSheet.getCell(labelCell);
+    lc.value = label; lc.font = { bold: true, color: { argb: BRAND.white } };
+    lc.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: BRAND.accent } };
+    lc.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+    lc.border = boxBorder();
+    const vc = capaSheet.getCell(valueCell);
+    vc.value = value || ''; vc.font = { color: { argb: BRAND.ink } };
+    vc.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+    vc.border = boxBorder();
+  }
+  [
+    ['B8', 'Cliente:', 'C8', capa.cliente, 'D8', 'Projeto:', 'E8', capa.projeto],
     ['B9', 'Nº da PC:', 'C9', capa.pc, 'D9', 'Executor:', 'E9', ''],
-    ['B11', 'Universidade', 'C11', '', 'D11', 'Fundação', 'E11', ''],
-    ['B13', 'Banco', 'C13', '', 'D13', 'Agência', 'E13', ''],
-  ];
-  capaLinhas.forEach(([c1, l1, c2, v1, c3, l2, c4, v2]) => {
-    capaSheet.getCell(c1).value = l1; capaSheet.getCell(c1).font = { bold: true };
-    capaSheet.getCell(c2).value = v1;
-    capaSheet.getCell(c3).value = l2; capaSheet.getCell(c3).font = { bold: true };
-    capaSheet.getCell(c4).value = v2;
+    ['B10', 'Universidade', 'C10', '', 'D10', 'Fundação', 'E10', ''],
+    ['B11', 'Banco', 'C11', '', 'D11', 'Agência', 'E11', ''],
+  ].forEach(([c1, l1, c2, v1, c3, l2, c4, v2]) => {
+    capaLabelValue(c1, l1, c2, v1); capaLabelValue(c3, l2, c4, v2);
   });
-  capaSheet.getCell('B15').value = 'Conta'; capaSheet.getCell('B15').font = { bold: true };
-  capaSheet.getCell('B17').value = 'Período da PC'; capaSheet.getCell('B17').font = { bold: true };
-  capaSheet.getCell('C17').value = capa.periodo;
+  capaLabelValue('B12', 'Conta', 'C12', '');
+  capaLabelValue('B13', 'Período da PC', 'C13', capa.periodo);
+  capaSheet.mergeCells('C13:E13');
+  [8, 9, 10, 11, 12, 13].forEach(r => capaSheet.getRow(r).height = 22);
 
-  capaSheet.getCell('B19').value = 'Controle de revisão Punchlist';
-  capaSheet.getCell('B19').font = { bold: true, size: 12 };
-  const revHeaderRow = capaSheet.getRow(20);
-  ['', 'Revisão', 'Data', 'Motivo da revisão'].forEach((label, i) => {
-    if (!label) return;
+  capaSheet.mergeCells('B15:E15');
+  const revTitulo = capaSheet.getCell('B15');
+  revTitulo.value = 'Controle de revisão Punchlist';
+  revTitulo.font = { bold: true, size: 12, color: { argb: BRAND.ink } };
+  revTitulo.alignment = { horizontal: 'center', vertical: 'middle' };
+  revTitulo.border = { bottom: THIN_BORDER };
+
+  const revHeaderRow = capaSheet.getRow(16);
+  ['Revisão', 'Data', 'Motivo da revisão'].forEach((label, i) => {
     const cell = revHeaderRow.getCell(i + 2);
-    cell.value = label; cell.font = { bold: true };
-    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: PUNCHLIST_HEADER_FILL } };
-    cell.border = { bottom: { style: 'thin' } };
+    cell.value = label; cell.font = { bold: true, color: { argb: BRAND.white } };
+    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: BRAND.accent } };
+    cell.alignment = { horizontal: 'center', vertical: 'middle' };
+    cell.border = boxBorder();
   });
+  if (revHeaderRow.getCell(4).value) capaSheet.mergeCells(16, 4, 16, 5);
   capa.revisoes.forEach((rev, i) => {
-    const row = capaSheet.getRow(21 + i);
-    row.getCell(2).value = rev[0]; row.getCell(3).value = rev[1]; row.getCell(4).value = rev[2];
+    const row = capaSheet.getRow(17 + i);
+    [rev[0], rev[1], rev[2]].forEach((v, ci) => {
+      const cell = row.getCell(ci + 2);
+      cell.value = v; cell.alignment = { horizontal: 'center', vertical: 'middle' };
+      cell.border = boxBorder();
+    });
+    capaSheet.mergeCells(17 + i, 4, 17 + i, 5);
   });
 
   /* ===== Punchlist ===== */
   const dataSheet = workbook.addWorksheet('Punchlist');
-  dataSheet.columns = [{ width: 22 }, { width: 30 }, ...Array(Math.max(header.length - 2, 0)).fill({ width: 34 })];
+  const rubricaWidth = 20, itemWidth = 26, comentarioWidth = 48, statusWidth = 12, respostaWidth = 38;
+  const colWidths = [rubricaWidth, itemWidth];
+  for (let i = 0; i < numCiclos; i++) colWidths.push(comentarioWidth, statusWidth, respostaWidth);
+  dataSheet.columns = colWidths.map(w => ({ width: w }));
 
+  const totalCols = header.length || 2;
   if (numCiclos) {
-    const totalCols = header.length;
-    dataSheet.mergeCells(1, 1, 1, totalCols);
+    dataSheet.mergeCells(1, 1, 2, totalCols);
     const banner = dataSheet.getCell(1, 1);
     banner.value = `Empresa: ${capa.cliente} | Projeto: ${capa.projeto} | PC: ${capa.pc} | Período da PC: ${capa.periodo}`;
-    banner.font = { bold: true, size: 12 };
-    banner.alignment = { horizontal: 'left' };
+    banner.font = { size: 16, color: { argb: BRAND.ink } };
+    banner.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+    banner.border = { bottom: THIN_BORDER };
+    dataSheet.getRow(1).height = 20; dataSheet.getRow(2).height = 20;
 
     for (let i = 0; i < numCiclos; i++) {
       const startCol = 3 + i * 3;
-      dataSheet.mergeCells(3, startCol, 3, startCol + 2);
-      const cicloHeader = dataSheet.getCell(3, startCol);
-      cicloHeader.value = cicloLabel(DATA.meta.ciclos[i].numero).toUpperCase();
-      cicloHeader.font = { bold: true };
-      cicloHeader.alignment = { horizontal: 'center' };
-      cicloHeader.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: PUNCHLIST_HEADER_FILL } };
-
       dataSheet.mergeCells(4, startCol, 4, startCol + 2);
-      const cicloData = dataSheet.getCell(4, startCol);
+      const cicloHeader = dataSheet.getCell(4, startCol);
+      cicloHeader.value = cicloLabel(DATA.meta.ciclos[i].numero).toUpperCase();
+      cicloHeader.font = { bold: true, size: 12, color: { argb: BRAND.white } };
+      cicloHeader.alignment = { horizontal: 'center', vertical: 'middle' };
+      cicloHeader.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: BRAND.accent } };
+      cicloHeader.border = boxBorder();
+
+      dataSheet.mergeCells(6, startCol, 6, startCol + 2);
+      const cicloData = dataSheet.getCell(6, startCol);
       cicloData.value = fmtIsoDate(DATA.meta.ciclos[i].statusChangedAt);
-      cicloData.alignment = { horizontal: 'center' };
-      cicloData.font = { italic: true, size: 10 };
+      cicloData.font = { bold: true, size: 11, color: { argb: BRAND.ink2 } };
+      cicloData.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+      cicloData.border = boxBorder();
     }
+    dataSheet.getRow(4).height = 22; dataSheet.getRow(6).height = 22;
   }
 
-  const headerRowNum = 5;
+  const headerRowNum = 8;
   const headerRow = dataSheet.getRow(headerRowNum);
   header.forEach((label, i) => {
     const cell = headerRow.getCell(i + 1);
-    cell.value = label; cell.font = { bold: true, color: { argb: 'FFFFFFFF' } };
-    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1F3864' } };
+    cell.value = label; cell.font = { bold: true, color: { argb: BRAND.ink } };
     cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+    cell.border = boxBorder();
   });
   headerRow.height = 30;
   dataSheet.views = [{ state: 'frozen', ySplit: headerRowNum }];
 
   dataRows.forEach((line, rowIdx) => {
-    const row = dataSheet.getRow(headerRowNum + 1 + rowIdx);
+    const rowNum = headerRowNum + 1 + rowIdx;
+    const row = dataSheet.getRow(rowNum);
     line.forEach((value, colIdx) => {
       const cell = row.getCell(colIdx + 1);
       cell.value = value;
-      cell.alignment = { wrapText: true, vertical: 'top' };
-      cell.border = { bottom: { style: 'thin', color: { argb: 'FFE0E0E0' } } };
+      cell.border = boxBorder();
+      const isRubricaOuItem = colIdx < 2;
+      cell.alignment = isRubricaOuItem
+        ? { wrapText: true, vertical: 'middle', horizontal: 'left' }
+        : { wrapText: true, vertical: 'middle', horizontal: 'left' };
       const isStatusCol = colIdx >= 2 && (colIdx - 2) % 3 === 1;
-      if (isStatusCol && PUNCHLIST_STATUS_FILL[value]) {
-        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: PUNCHLIST_STATUS_FILL[value] } };
-        cell.font = { color: { argb: PUNCHLIST_STATUS_FONT[value] }, bold: true };
+      if (isStatusCol) {
         cell.alignment = { horizontal: 'center', vertical: 'middle' };
+        if (PUNCHLIST_STATUS_FILL[value]) {
+          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: PUNCHLIST_STATUS_FILL[value] } };
+          cell.font = { color: { argb: PUNCHLIST_STATUS_FONT[value] }, bold: true };
+        }
       }
     });
-    if (line[0] === 'GERAL') row.getCell(1).font = { bold: true };
+    if (line[0] === 'GERAL') { row.getCell(1).font = { bold: true, color: { argb: BRAND.accent } }; row.getCell(2).font = { bold: true }; }
+    row.height = estimateRowHeight(line, colWidths);
   });
   if (!dataRows.length) {
-    dataSheet.getCell(headerRowNum + 1, 1).value = 'Nenhuma pendência registrada em nenhum ciclo desta PC.';
+    const emptyRow = dataSheet.getRow(headerRowNum + 1);
+    dataSheet.mergeCells(headerRowNum + 1, 1, headerRowNum + 1, totalCols);
+    const emptyCell = emptyRow.getCell(1);
+    emptyCell.value = 'Nenhuma pendência registrada em nenhum ciclo desta PC.';
+    emptyCell.alignment = { horizontal: 'center' };
+    emptyCell.font = { italic: true, color: { argb: BRAND.ink2 } };
   }
 
   const buffer = await workbook.xlsx.writeBuffer();
