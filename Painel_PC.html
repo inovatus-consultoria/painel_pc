@@ -219,6 +219,33 @@
 
   .comment-editor-wrap { position: relative; }
 
+  /* ===== Visão consolidada da Área de Análise (05/08) — tabela enxuta, campos de texto expandem
+     só ao focar e recolhem ao perder o foco, pra caber muitos itens sem ficar gigante ===== */
+  .tabela-head-row, .tabela-row {
+    display: grid; grid-template-columns: 200px 170px 1fr 1fr 1fr 96px;
+    gap: 10px; padding: 8px 10px; align-items: start; border-bottom: 1px solid var(--border);
+  }
+  .tabela-head-row { position: sticky; top: 0; z-index: 2; font-size: 11px; font-weight: 700; color: var(--ink2); background: var(--surface2); border-radius: 6px; }
+  .tabela-row:hover { background: var(--surface2); }
+  .tabela-item-title { font-size: 12.5px; font-weight: 600; color: var(--ink); }
+  .tabela-item-sub { font-size: 11px; color: var(--ink3); margin-top: 2px; }
+  .tabela-cell-docs { display: flex; flex-wrap: wrap; gap: 4px; align-content: flex-start; }
+  .tabela-doc-empty { font-size: 11px; color: var(--ink3); }
+  .tabela-cell-status { display: flex; flex-direction: column; gap: 5px; }
+  .status-select-mini { font-size: 11px; padding: 4px 6px; border-radius: 6px; border: 1px solid var(--border); background: var(--surface); color: var(--ink); }
+  .duvida-toggle-mini { font-size: 11px; padding: 4px 6px; }
+  .editor-mini {
+    width: 100%; min-height: 28px; max-height: 28px; overflow-y: auto; resize: none;
+    font-family: inherit; font-size: 11.5px; padding: 5px 7px; border: 1px solid var(--border);
+    border-radius: 6px; background: var(--surface); color: var(--ink);
+    transition: max-height 0.15s ease, min-height 0.15s ease, box-shadow 0.15s ease;
+  }
+  .editor-mini:focus {
+    max-height: 160px; min-height: 72px; position: relative; z-index: 3;
+    box-shadow: 0 3px 10px rgba(0,0,0,0.14); border-color: var(--accent2);
+  }
+  .analise-tabela-wrap { max-height: calc(100vh - 320px); overflow-y: auto; }
+
   /* inline suggestion strip (auto, while typing) */
   .suggest-strip { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 7px; }
   .suggest-pill { display: flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 500; color: var(--accent); background: var(--green-light); border: 1px solid #BEE0D6; border-radius: 99px; padding: 5px 10px; cursor: pointer; }
@@ -981,6 +1008,11 @@
       <button class="btn btn-danger" onclick="deleteSelectedItems()">Excluir selecionados</button>
     </div>
 
+    <div class="gestao-view-switch" id="analiseViewSwitch">
+      <button class="gestao-switch-btn active" id="analiseViewItemBtn" onclick="setAnaliseView('item')">Por item</button>
+      <button class="gestao-switch-btn" id="analiseViewTabelaBtn" onclick="setAnaliseView('tabela')">Tabela</button>
+    </div>
+
     <div class="workspace">
       <div class="list-col" id="listCol"></div>
       <div class="detail-col">
@@ -992,6 +1024,7 @@
         </div>
       </div>
     </div>
+    <div class="analise-tabela-wrap hidden" id="analiseTabelaWrap"></div>
     </div>
   </main>
 </div>
@@ -6521,6 +6554,93 @@ async function initApp() {
     hideLoadingGate();
   }
 }
+/* ===== Visão consolidada da Área de Análise — "Tabela" (05/08) =====
+   Segundo modo de exibição, alternável via toggle (mesmo padrão do Dashboard/Fila em Gestão).
+   Mostra todos os itens (com ou sem pendência) do ciclo ativo, um por linha, com os documentos,
+   os três campos de comentário lado a lado e status/dúvida — tudo editável inline, reaproveitando
+   as mesmas funções de mutação da visão "Por item" (updateComentario, updateStatus, cycleCheck,
+   toggleDuvida), então qualquer sincronização com SharePoint já feita ali vale aqui também. Os
+   filtros (busca, categoria, status, dúvida, documento pendente) são os mesmos da lista — nunca
+   duplicar estado de filtro entre as duas visões. */
+let analiseViewMode = 'item';
+function setAnaliseView(mode) {
+  analiseViewMode = mode;
+  document.getElementById('analiseViewItemBtn').classList.toggle('active', mode === 'item');
+  document.getElementById('analiseViewTabelaBtn').classList.toggle('active', mode === 'tabela');
+  document.querySelector('.workspace').classList.toggle('hidden', mode !== 'item');
+  document.getElementById('analiseTabelaWrap').classList.toggle('hidden', mode !== 'tabela');
+  renderList();
+}
+
+function renderTabelaRow(item, cat) {
+  const entry = item.ciclosStatus[selectedCicloIdx] || { status: 'AGUARDANDO_ANALISE', comentarioAnalista: '', comentarioExecutor: '', executorResponse: '', duvida: false };
+  const docs = docsForItem(item, cat);
+  const docsHtml = docs.map(doc => {
+    const status = item.checks[doc] || 'PND';
+    const cls = status === 'OK' ? 'chip-ok' : 'chip-pnd';
+    const safeDoc = doc.replace(/'/g, "\\'");
+    return `<span class="doc-chip ${cls}" onclick="cycleCheck('${item.id}','${safeDoc}')" title="Clique pra alternar OK/PND">${escapeHtml(doc)}</span>`;
+  }).join('');
+  return `<div class="tabela-row" data-item="${item.id}">
+    <div class="tabela-cell-item">
+      <div class="tabela-item-title">${escapeHtml(item.title)}</div>
+      <div class="tabela-item-sub">${escapeHtml(item.payeeName || item.subtitle || '')}</div>
+    </div>
+    <div class="tabela-cell-docs">${docsHtml || '<span class="tabela-doc-empty">Sem documento exigido.</span>'}</div>
+    <div><textarea class="editor-mini" data-item="${item.id}" data-field="comentarioAnalista" oninput="updateComentario('${item.id}','comentarioAnalista',this.value)" placeholder="Sem comentário interno.">${escapeHtml(entry.comentarioAnalista)}</textarea></div>
+    <div><textarea class="editor-mini" data-item="${item.id}" data-field="comentarioExecutor" oninput="updateComentario('${item.id}','comentarioExecutor',this.value)" placeholder="Sem pendência neste ciclo.">${escapeHtml(entry.comentarioExecutor)}</textarea></div>
+    <div><textarea class="editor-mini" data-item="${item.id}" data-field="executorResponse" oninput="updateComentario('${item.id}','executorResponse',this.value)" placeholder="Sem resposta registrada.">${escapeHtml(entry.executorResponse)}</textarea></div>
+    <div class="tabela-cell-status">
+      <select class="status-select-mini" id="statusSelectTabela-${item.id}" onchange="updateStatus('${item.id}', this.value)">
+        ${['AGUARDANDO_ANALISE', 'ABERTO', 'FECHADO'].map(s => `<option value="${s}" ${s === entry.status ? 'selected' : ''}>${STATUS_LABELS[s]}</option>`).join('')}
+      </select>
+      <button class="duvida-toggle-btn duvida-toggle-mini${entry.duvida ? ' active' : ''}" onclick="toggleDuvida('${item.id}')">${entry.duvida ? '✓ Dúvida' : '? Dúvida'}</button>
+    </div>
+  </div>`;
+}
+
+function renderAnaliseTabela() {
+  const wrap = document.getElementById('analiseTabelaWrap');
+  if (!wrap || !DATA) return;
+  let html = '', totalAll = 0, totalShown = 0;
+  DATA.categories.forEach(cat => {
+    totalAll += cat.items.length;
+    if (analysisFilterCategory && cat.id !== analysisFilterCategory) return;
+    const visibleItems = cat.items.filter(item => {
+      if (!matchesSearch(item, cat, searchTerm)) return false;
+      if (filtroDuvida && !itemTemDuvida(item, selectedCicloIdx)) return false;
+      if (filtroDocumento && !itemHasPendingDocument(item, cat)) return false;
+      if (analysisFilterStatus && itemCicloStatus(item, selectedCicloIdx) !== analysisFilterStatus) return false;
+      return true;
+    });
+    totalShown += visibleItems.length;
+    if (!visibleItems.length) return;
+    const prog = catProgress(cat);
+    html += `<div class="cat-group tabela-cat-group" data-cat="${escapeHtml(cat.id)}">
+      <div class="cat-header" onclick="toggleCat('${cat.id}')">
+        <div class="cat-header-left"><span class="cat-chevron"></span><span class="cat-title">${escapeHtml(cat.label)}</span></div>
+        <div class="cat-header-right"><span class="cat-pct">${prog.pct}%</span><div class="cat-mini-bar"><div class="cat-mini-fill" style="width:${prog.pct}%"></div></div><span class="cat-count">${visibleItems.length}</span></div>
+      </div>
+      <div class="cat-items">
+        <div class="tabela-head-row"><span>Item</span><span>Documentos</span><span>Comentário do analista</span><span>Comentário ao executor</span><span>Resposta do executor</span><span>Status</span></div>
+        ${visibleItems.map(item => renderTabelaRow(item, cat)).join('')}
+      </div>
+    </div>`;
+  });
+  if (!totalAll) {
+    html = `<div class="analysis-empty"><strong>Nenhum item nesta PC</strong><div>Importe um arquivo ou adicione a primeira despesa manualmente.</div></div>`;
+  } else if (!totalShown) {
+    html = `<div class="analysis-empty"><strong>Nenhum item encontrado</strong><div>Ajuste ou limpe os filtros aplicados.</div></div>`;
+  }
+  wrap.innerHTML = html;
+}
+
+const va15BaseRenderListForTabela = renderList;
+renderList = function() {
+  va15BaseRenderListForTabela();
+  if (analiseViewMode === 'tabela') renderAnaliseTabela();
+};
+
 initApp();
 
 </script>
