@@ -4595,10 +4595,13 @@ function downloadArrayBufferFile(name, buffer, mime) {
   anchor.href = url; anchor.download = name; anchor.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-/* Pega a marca já embutida na sidebar (img.brand-logo) pra não duplicar o base64 gigante do logo
-   em outro lugar do arquivo — nunca copie esse base64 à mão (ver skill editar-painel-pc, Passo 1). */
+/* Pega a marca já embutida na tela de login (.login-box img) pra não duplicar o base64 gigante do
+   logo em outro lugar do arquivo — nunca copie esse base64 à mão (ver skill editar-painel-pc,
+   Passo 1). Importante: usar ESTA imagem, não a da sidebar (.brand-logo img) — aquela é forçada a
+   branco via CSS (filter: brightness(0) invert(1)) só pra contraste no fundo escuro da sidebar; a
+   da tela de login é a marca original colorida, certa pra um documento exportado. */
 function brandLogoDataUrl() {
-  const img = document.querySelector('.brand-logo img');
+  const img = document.querySelector('.login-box img');
   return img ? img.src : null;
 }
 
@@ -4649,7 +4652,7 @@ async function downloadPunchlist() {
     try {
       const ext = /image\/(png|jpeg|jpg)/.exec(logoUrl);
       const imgId = workbook.addImage({ base64: logoUrl, extension: ext ? (ext[1] === 'jpg' ? 'jpeg' : ext[1]) : 'png' });
-      capaSheet.addImage(imgId, { tl: { col: 1, row: 0.3 }, ext: { width: 130, height: 46 } });
+      capaSheet.addImage(imgId, { tl: { col: 1, row: 0.3 }, ext: { width: 140, height: 32 } });
     } catch (e) { console.warn('Não consegui inserir o logo no Punchlist', e); }
   }
   capaSheet.mergeCells('B5:E6');
