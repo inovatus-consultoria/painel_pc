@@ -2581,18 +2581,38 @@ function updateComentario(itemId, field, value) {
   const found = findItem(itemId);
   if (!found) return;
   if (!isCicloEditavel(selectedCicloIdx)) return;
-  found.item.ciclosStatus[selectedCicloIdx][field] = value;
+  const entry = found.item.ciclosStatus[selectedCicloIdx];
+  entry[field] = value;
+  /* 05/08: por padrão, escrever um comentário ao executor reabre o item (status ABERTO),
+     mesmo se estava FECHADO manualmente ou herdado de um retorno anterior — é um evento de
+     edição, não um valor recalculado a cada tela, então não conflita com a herança de FECHADO
+     entre retornos (ver adicionarCiclo). Analista pode trocar o status manualmente depois. */
+  let statusAutoChanged = false;
+  if (field === 'comentarioExecutor' && value.trim() && entry.status !== 'ABERTO') {
+    entry.status = 'ABERTO';
+    statusAutoChanged = true;
+  }
   saveStore();
+  if (statusAutoChanged) reflectAutoStatusChange(itemId, entry.status);
   const key = itemId + ':' + selectedCicloIdx + ':' + field;
   clearTimeout(_comentarioSyncTimers[key]);
-  _comentarioSyncTimers[key] = setTimeout(() => syncComentario(itemId, selectedCicloIdx, field, value), 700);
+  _comentarioSyncTimers[key] = setTimeout(() => syncComentario(itemId, selectedCicloIdx, field, value, statusAutoChanged), 700);
 }
-async function syncComentario(itemId, cicloIdx, field, value) {
+function reflectAutoStatusChange(itemId, status) {
+  /* Atualiza só o select de status e as métricas — nunca chama renderDetail() aqui, pra não
+     recriar o textarea que o usuário está digitando e perder o cursor/foco. */
+  const sel = document.getElementById(`statusSelect-${itemId}`);
+  if (sel) sel.value = status;
+  renderList();
+  renderProgress();
+}
+async function syncComentario(itemId, cicloIdx, field, value, alsoSyncStatus) {
   const found = findItem(itemId);
   if (!found) return;
   const entry = found.item.ciclosStatus[cicloIdx];
   if (!entry || !entry._gid) return;
   const fieldMap = field === 'comentarioAnalista' ? { InternalComment: value } : { ExecutorComment: value };
+  if (alsoSyncStatus) fieldMap.ReviewStatus = itemStatusToChoice(entry.status);
   try {
     const analysisId = await ensureMvpAnalysis(found.item, entry, cicloIdx);
     if (analysisId) await graphUpdateItem(LIST_IDS.AnalisesItemCiclo, analysisId, fieldMap);
@@ -2682,7 +2702,7 @@ function renderDetail() {
       <div class="ciclo-head">
         <span class="ciclo-num">Status do item neste retorno</span>
         ${editavel
-          ? `<select class="status-select" onchange="updateStatus('${item.id}', this.value)">
+          ? `<select class="status-select" id="statusSelect-${item.id}" onchange="updateStatus('${item.id}', this.value)">
               ${['AGUARDANDO_ANALISE','ABERTO','FECHADO'].map(s => `<option value="${s}" ${s === entry.status ? 'selected' : ''}>${STATUS_LABELS[s]}</option>`).join('')}
             </select>`
           : `<span class="badge ${statusBadgeClass(entry.status)}">${STATUS_LABELS[entry.status]}</span>`}
@@ -4458,8 +4478,12 @@ function renderOutputPreview() {
     content.innerHTML = `<div class="output-summary"><span class="badge badge-outline">${rows.length} item(ns) com pendência</span><span class="badge badge-outline">${escapeHtml(cicloLabel(cycle.numero))}</span></div><textarea class="output-preview" id="promptOutputText" readonly>${escapeHtml(buildPromptOutput(rows))}</textarea>`;
     actions.innerHTML = '<button class="btn btn-ghost" onclick="closeOutputPreview()">Fechar</button><button class="btn btn-ghost" onclick="downloadPromptOutput()">Baixar .txt</button><button class="btn btn-primary" onclick="copyPromptOutput()">Copiar texto</button>';
   } else {
-    content.innerHTML = `${cycle.generalExecutorComment ? `<div class="output-general-note"><b>Pendência geral:</b> ${escapeHtml(cycle.generalExecutorComment)}</div>` : ''}<div class="output-summary"><span class="badge badge-outline">${rows.length} linha(s) no Punchlist</span><span class="badge badge-outline">Comentários internos excluídos</span></div><div class="output-table-wrap"><table class="draft-table"><thead><tr><th>Rubrica</th><th>Item</th><th>Documentos pendentes</th><th>Pendência ao executor</th><th>Resposta</th></tr></thead><tbody>${rows.map(row => `<tr><td>${escapeHtml(row.category)}</td><td>${escapeHtml(row.item)}</td><td>${escapeHtml(row.pendingDocs.join(', '))}</td><td>${escapeHtml(row.executorComment)}</td><td>${escapeHtml(row.executorResponse)}</td></tr>`).join('') || '<tr><td colspan="5">Nenhuma pendência registrada.</td></tr>'}</tbody></table></div>`;
-    actions.innerHTML = '<button class="btn btn-ghost" onclick="closeOutputPreview()">Fechar</button><button class="btn btn-primary" onclick="downloadRefPunchlist()">Baixar Punchlist .xlsx</button>';
+    const punchlist = buildPunchlistWorkbookData();
+    const cabecalhoCiclos = [];
+    for (let i = 1; i <= punchlist.numCiclos; i++) cabecalhoCiclos.push(`<th>${i}º Comentário</th><th>Status ${i}</th><th>${i}ª Resposta</th>`);
+    const linhasHtml = punchlist.dataRows.map(line => `<tr><td>${escapeHtml(line[0])}</td><td>${escapeHtml(line[1])}</td>${line.slice(2).map(v => `<td>${escapeHtml(v)}</td>`).join('')}</tr>`).join('') || `<tr><td colspan="${2 + punchlist.numCiclos * 3}">Nenhuma pendência registrada em nenhum ciclo desta PC.</td></tr>`;
+    content.innerHTML = `<div class="output-summary"><span class="badge badge-outline">${punchlist.rows.length} linha(s) no Punchlist</span><span class="badge badge-outline">Gerado do zero, com o histórico de todos os ${punchlist.numCiclos} ciclo(s) da PC</span><span class="badge badge-outline">Comentários internos excluídos</span></div><div class="output-table-wrap"><table class="draft-table"><thead><tr><th>Rubrica</th><th>Item</th>${cabecalhoCiclos.join('')}</tr></thead><tbody>${linhasHtml}</tbody></table></div>`;
+    actions.innerHTML = '<button class="btn btn-ghost" onclick="closeOutputPreview()">Fechar</button><button class="btn btn-primary" onclick="downloadPunchlist()">Baixar Punchlist .xlsx</button>';
   }
 }
 
@@ -4478,17 +4502,117 @@ function downloadTextFile(name, content, type) {
 function safeFilePart(value) { return String(value || 'PC').replace(/[^a-z0-9_-]+/gi, '_'); }
 function downloadPromptOutput() { downloadTextFile(`${safeFilePart(DATA.meta.pc)}_${safeFilePart(cicloLabel(DATA.meta.ciclos[selectedCicloIdx].numero))}_Prompt.txt`, buildPromptOutput(outputRowsForCurrentCycle())); }
 
-function downloadRefPunchlist() {
-  const rows = outputRowsForCurrentCycle();
-  const cycle = DATA.meta.ciclos[selectedCicloIdx];
-  const data = [['Cliente', 'Projeto', 'PC', 'Ciclo', 'Rubrica', 'Item', 'Descrição', 'Documentos pendentes', 'Pendência ao executor', 'Resposta do executor', 'Status']];
-  rows.forEach(row => data.push([DATA.meta.cliente, DATA.meta.projeto, DATA.meta.pc, cicloLabel(cycle.numero), row.category, row.item, row.description, row.pendingDocs.join(', '), row.executorComment, row.executorResponse, row.status]));
-  if (cycle.generalExecutorComment) data.splice(1, 0, [DATA.meta.cliente, DATA.meta.projeto, DATA.meta.pc, cicloLabel(cycle.numero), 'GERAL', 'Pendência geral', '', '', cycle.generalExecutorComment, '', '']);
+/* ===== Punchlist REF (05/08): matriz larga, sempre recalculada do zero a partir de TODO o
+   histórico de ciclos da PC (nunca incremental/congelada) — ver MEMORY. Uma linha por item que
+   teve pendência ao executor em algum ciclo, com colunas repetidas por ciclo (Comentário/Status/
+   Resposta). Só entram colunas dos ciclos que a PC realmente tem — nada de coluna vazia "pra
+   ciclo futuro". Comentário só aparece na coluna do ciclo em que mudou (dedupe do texto herdado
+   de ciclo em ciclo); Status e Resposta aparecem sempre que preenchidos naquele ciclo, mesmo sem
+   comentário novo. Pendência geral do ciclo (generalExecutorComment) entra como uma linha única
+   "GERAL / Pendências gerais", com Status inferido (ABERTO enquanto o campo tem texto, FECHADO
+   quando esvazia depois de ter tido texto) — não existe status próprio pra pendência geral hoje. */
+function buildPunchlistRows() {
+  if (!DATA) return [];
+  const ciclos = DATA.meta.ciclos;
+  const rows = [];
+
+  DATA.categories.forEach(category => {
+    category.items.forEach(item => {
+      const cycles = [];
+      let lastComentario = '';
+      let sawComentario = false;
+      ciclos.forEach((ciclo, idx) => {
+        const entry = item.ciclosStatus[idx];
+        if (!entry) return;
+        const comentarioFull = String(entry.comentarioExecutor || '').trim();
+        const status = entry.status === 'ABERTO' || entry.status === 'FECHADO' ? entry.status : '';
+        const resposta = String(entry.executorResponse || '').trim();
+        const comentarioNovo = comentarioFull && comentarioFull !== lastComentario;
+        if (comentarioFull) { lastComentario = comentarioFull; sawComentario = true; }
+        if (comentarioNovo || status || resposta) cycles.push({ cycleIdx: idx, comentario: comentarioNovo ? comentarioFull : '', status, resposta });
+      });
+      if (sawComentario) rows.push({ category: category.label, item: item.title, cycles });
+    });
+  });
+
+  const generalCycles = [];
+  let lastGeral = '';
+  let geralAberto = false;
+  let sawGeral = false;
+  ciclos.forEach((ciclo, idx) => {
+    const texto = String(ciclo.generalExecutorComment || '').trim();
+    const comentarioNovo = texto && texto !== lastGeral;
+    if (texto) { lastGeral = texto; sawGeral = true; }
+    let status = '';
+    if (texto) { status = 'ABERTO'; geralAberto = true; }
+    else if (geralAberto) { status = 'FECHADO'; geralAberto = false; }
+    if (comentarioNovo || status) generalCycles.push({ cycleIdx: idx, comentario: comentarioNovo ? texto : '', status, resposta: '' });
+  });
+  if (sawGeral) rows.unshift({ category: 'GERAL', item: 'Pendências gerais', cycles: generalCycles });
+
+  return rows;
+}
+
+function buildPunchlistWorkbookData() {
+  const rows = buildPunchlistRows();
+  const numCiclos = DATA && DATA.meta.ciclos ? DATA.meta.ciclos.length : 0;
+  const header = ['Rubrica', 'Item'];
+  for (let i = 1; i <= numCiclos; i++) header.push(`${i}º Comentário Inovatus`, `Status ${i}`, `${i}ª Resposta do Executor`);
+  const dataRows = rows.map(row => {
+    const line = [row.category, row.item];
+    for (let i = 0; i < numCiclos; i++) {
+      const cyc = row.cycles.find(c => c.cycleIdx === i);
+      line.push(cyc ? cyc.comentario || '' : '', cyc ? cyc.status || '' : '', cyc ? cyc.resposta || '' : '');
+    }
+    return line;
+  });
+  return { header, dataRows, rows, numCiclos };
+}
+
+/* Capa: identificação da PC + controle de revisão. Universidade/Fundação/Banco/Agência/Conta
+   ainda não existem no modelo de dados hoje — ficam como células vazias, rotuladas, pra
+   preenchimento manual até decidirmos se entram como campo de verdade (ver conversa com Ricardo). */
+function buildCapaRows() {
+  const ciclos = DATA.meta.ciclos;
+  const periodo = `${fmtIsoDate(DATA.meta.periodoInicio)} - ${fmtIsoDate(DATA.meta.periodoFim)}`;
+  const revisoes = ciclos.map((c, idx) => [idx, fmtIsoDate(c.statusChangedAt), cicloLabel(c.numero)]);
+  return {
+    titulo: `Punch List - PC ${DATA.meta.pc} - Projeto ${DATA.meta.projeto}`,
+    cliente: DATA.meta.cliente || '',
+    projeto: DATA.meta.projeto || '',
+    pc: DATA.meta.pc || '',
+    periodo,
+    revisoes,
+  };
+}
+
+function downloadPunchlist() {
+  if (!DATA) return showToast('Selecione uma PC para gerar o Punchlist.');
+  const { header, dataRows } = buildPunchlistWorkbookData();
+  const capa = buildCapaRows();
   const workbook = XLSX.utils.book_new();
-  const sheet = XLSX.utils.aoa_to_sheet(data);
-  sheet['!cols'] = [{ wch: 18 }, { wch: 15 }, { wch: 10 }, { wch: 14 }, { wch: 24 }, { wch: 34 }, { wch: 48 }, { wch: 30 }, { wch: 48 }, { wch: 36 }, { wch: 18 }];
-  XLSX.utils.book_append_sheet(workbook, sheet, 'Punchlist');
-  XLSX.writeFile(workbook, `${safeFilePart(DATA.meta.pc)}_${safeFilePart(cicloLabel(cycle.numero))}_Punchlist_REF.xlsx`);
+
+  const capaAoa = [
+    [], [], [], ['', capa.titulo], [], [], [],
+    ['', 'Cliente:', capa.cliente, 'Projeto:', capa.projeto], [],
+    ['', 'Nº da PC:', capa.pc, 'Executor:', ''], [],
+    ['', 'Universidade', '', 'Fundação', ''], [],
+    ['', 'Banco', '', 'Agência', ''], [],
+    ['', 'Conta', ''], [],
+    ['', 'Período da PC', capa.periodo], [],
+    ['', 'Controle de revisão Punchlist'],
+    ['', 'Revisão', 'Data', 'Motivo da revisão'],
+    ...capa.revisoes.map(r => ['', ...r]),
+  ];
+  const capaSheet = XLSX.utils.aoa_to_sheet(capaAoa);
+  capaSheet['!cols'] = [{ wch: 3 }, { wch: 20 }, { wch: 22 }, { wch: 18 }, { wch: 22 }];
+  XLSX.utils.book_append_sheet(workbook, capaSheet, 'Capa');
+
+  const dataSheet = XLSX.utils.aoa_to_sheet([header, ...dataRows]);
+  dataSheet['!cols'] = [{ wch: 22 }, { wch: 30 }, ...Array(Math.max(header.length - 2, 0)).fill({ wch: 32 })];
+  XLSX.utils.book_append_sheet(workbook, dataSheet, 'Punchlist');
+
+  XLSX.writeFile(workbook, `${safeFilePart(DATA.meta.pc)}_Punchlist_REF.xlsx`);
 }
 
 const va11BaseRenderPCDetail = renderPCDetail;
@@ -5327,8 +5451,12 @@ renderOutputPreview = function() {
       </div>`;
     actions.innerHTML = '<button class="btn btn-ghost" onclick="closeOutputPreview()">Fechar</button>';
   } else {
-    content.innerHTML = `${cycle.generalExecutorComment ? `<div class="output-general-note"><b>Pendência geral:</b> ${escapeHtml(cycle.generalExecutorComment)}</div>` : ''}<div class="output-summary"><span class="badge badge-outline">${rows.length} linha(s) no Punchlist</span><span class="badge badge-outline">Somente comentários ao executor</span></div><div class="output-table-wrap"><table class="draft-table"><thead><tr><th>Rubrica</th><th>Item</th><th>Documentos pendentes</th><th>Pendência ao executor</th><th>Resposta</th></tr></thead><tbody>${rows.map(row => `<tr><td>${escapeHtml(row.category)}</td><td>${escapeHtml(row.item)}</td><td>${escapeHtml(row.pendingDocs.join(', '))}</td><td>${escapeHtml(row.executorComment)}</td><td>${escapeHtml(row.executorResponse)}</td></tr>`).join('') || '<tr><td colspan="5">Nenhuma pendência registrada.</td></tr>'}</tbody></table></div>`;
-    actions.innerHTML = '<button class="btn btn-ghost" onclick="closeOutputPreview()">Fechar</button><button class="btn btn-primary" onclick="downloadRefPunchlist()">Baixar Punchlist .xlsx</button>';
+    const punchlist = buildPunchlistWorkbookData();
+    const cabecalhoCiclos = [];
+    for (let i = 1; i <= punchlist.numCiclos; i++) cabecalhoCiclos.push(`<th>${i}º Comentário</th><th>Status ${i}</th><th>${i}ª Resposta</th>`);
+    const linhasHtml = punchlist.dataRows.map(line => `<tr><td>${escapeHtml(line[0])}</td><td>${escapeHtml(line[1])}</td>${line.slice(2).map(v => `<td>${escapeHtml(v)}</td>`).join('')}</tr>`).join('') || `<tr><td colspan="${2 + punchlist.numCiclos * 3}">Nenhuma pendência registrada em nenhum ciclo desta PC.</td></tr>`;
+    content.innerHTML = `<div class="output-summary"><span class="badge badge-outline">${punchlist.rows.length} linha(s) no Punchlist</span><span class="badge badge-outline">Gerado do zero, com o histórico de todos os ${punchlist.numCiclos} ciclo(s) da PC</span><span class="badge badge-outline">Comentários internos excluídos</span></div><div class="output-table-wrap"><table class="draft-table"><thead><tr><th>Rubrica</th><th>Item</th>${cabecalhoCiclos.join('')}</tr></thead><tbody>${linhasHtml}</tbody></table></div>`;
+    actions.innerHTML = '<button class="btn btn-ghost" onclick="closeOutputPreview()">Fechar</button><button class="btn btn-primary" onclick="downloadPunchlist()">Baixar Punchlist .xlsx</button>';
   }
 };
 
@@ -6207,8 +6335,3 @@ initApp();
 </script>
 </body>
 </html>
-
-
-
-
-
