@@ -688,6 +688,9 @@
   .output-preview { width: 100%; min-height: 320px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); padding: 14px; font-family: 'DM Sans', sans-serif; font-size: 12.5px; line-height: 1.55; color: var(--ink); resize: vertical; }
   .output-table-wrap { max-height: 350px; overflow: auto; border: 1px solid var(--border); border-radius: 8px; }
   .output-general-note { border-left: 3px solid var(--amber); background: var(--amber-light); padding: 10px 12px; margin-bottom: 12px; font-size: 12px; color: #7D5A16; }
+  .checklist-preview-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+  .checklist-preview-list li { border: 1px solid var(--border); border-radius: 8px; padding: 8px 12px; font-size: 12.5px; color: var(--ink2); }
+  .checklist-preview-list li strong { color: var(--ink); }
   @media (max-width: 720px) {
     .draft-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .import-modal-box, .output-modal-box { width: 96vw; }
@@ -1125,6 +1128,7 @@
         <div class="segmented-control">
           <label><input type="radio" name="outputMode" value="prompt" checked onchange="renderOutputPreview()"><span>Texto Prompt</span></label>
           <label><input type="radio" name="outputMode" value="ref" onchange="renderOutputPreview()"><span>Punchlist REF</span></label>
+          <label><input type="radio" name="outputMode" value="checklist" onchange="renderOutputPreview()"><span>Checklist Excel</span></label>
         </div>
       </div>
       <div id="outputPreviewContent"></div>
@@ -4882,6 +4886,283 @@ async function downloadPunchlist() {
   downloadArrayBufferFile(`${safeFilePart(DATA.meta.pc)}_Punchlist_REF.xlsx`, buffer, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
 }
 
+/* =====================================================================================
+   VA.16 - Checklist Excel (réplica do checklist real que a análise usa hoje, ver
+   assets/exemplos/Checklist PTN_25183-5_ PC3_V0.xlsx) — NÃO substitui o Punchlist, é uma
+   terceira saída. Decisões (conversa com Ricardo, 06/08): só rubricas com item na análise
+   (sem as 28 abas do arquivo real vazias); sem abas Punchlist/Punchlist Interna/Comentários
+   gerais/Base/Base Prompt/Index; comentário geral unificado entra na própria Capa; campos que
+   não existem no modelo (Previsto no PTR-B?, D.1 Nome completo, E.2 Destino, Executor por
+   item) ficam de fora, não viram coluna em branco; e as colunas de ciclo vão só do ciclo
+   selecionado (selectedCicloIdx) pra trás — nunca ciclos futuros vazios.
+   ===================================================================================== */
+const CHECKLIST_SHEET_TITLE_BY_CODE = {
+  F: 'F - Equipe', G: 'G - Material de consumo', H: 'H - Passagem', I: 'I - Diária',
+  J: 'J - Serviços', L: 'L - Protótipo', M: 'M - Obras', N: 'N - Material permanente',
+  O: 'O - Outros bens e direitos', T: 'T - Outras despesas',
+};
+const DOC_STATUS_FILL = { OK: 'FFB0DA82', PND: 'FFF1D8B9', NA: 'FFE9E9E9' };
+const DOC_STATUS_FONT = { OK: BRAND.accent, PND: 'FF8A784E', NA: 'FF7A7A7A' };
+
+function checklistSheetTitle(cat) {
+  const code = DOCUMENT_CODE_BY_CATEGORY_ID[cat.id] || '';
+  return (code && CHECKLIST_SHEET_TITLE_BY_CODE[code]) || cat.label || cat.id;
+}
+
+function uniqueSheetName(name, used) {
+  const base = String(name || 'Rubrica').replace(/[\\/?*[\]]/g, ' ').trim().slice(0, 31) || 'Rubrica';
+  let candidate = base, n = 2;
+  while (used.has(candidate)) { candidate = `${base.slice(0, 28)} ${n}`; n++; }
+  used.add(candidate);
+  return candidate;
+}
+
+/* Só categorias com item de verdade na análise — nunca gera aba vazia de rubrica sem despesa. */
+function buildChecklistCategorySheets() {
+  if (!DATA) return [];
+  const uptoCount = selectedCicloIdx + 1;
+  return DATA.categories.filter(cat => cat.items && cat.items.length).map(cat => {
+    const title = checklistSheetTitle(cat);
+    const docs = cat.docsFixed || [];
+    const rows = cat.items.map(item => {
+      const cycles = [];
+      for (let i = 0; i < uptoCount; i++) {
+        const entry = item.ciclosStatus[i] || {};
+        cycles.push({
+          comentarioAnalista: entry.comentarioAnalista || '',
+          comentarioInovatus: entry.comentarioExecutor || '',
+          status: entry.status ? (STATUS_LABELS[entry.status] || entry.status) : '',
+          statusRaw: entry.status || '',
+          resposta: entry.executorResponse || '',
+        });
+      }
+      return {
+        rubrica: title,
+        itemLabel: item.title || '',
+        detalhamento: item.description || item.subtitle || '',
+        valor: item.amount,
+        rendimentos: item.incomeAmount,
+        docs: docs.map(doc => (item.checks || {})[doc] || 'PND'),
+        cycles,
+      };
+    });
+    return { title, docs, rows };
+  });
+}
+
+/* Só ciclos até o selecionado — nunca ciclo futuro. Vai pra Capa, não pra aba própria
+   (decisão do Ricardo: comentário geral unificado não precisa de aba "Comentários gerais"). */
+function buildChecklistGeneralComments() {
+  if (!DATA) return [];
+  const uptoCount = selectedCicloIdx + 1;
+  return DATA.meta.ciclos.slice(0, uptoCount).map(c => ({
+    label: cicloLabel(c.numero), data: fmtIsoDate(c.statusChangedAt),
+    interno: String(c.generalInternalComment || '').trim(), executor: String(c.generalExecutorComment || '').trim(),
+  })).filter(c => c.interno || c.executor);
+}
+
+async function downloadChecklist() {
+  if (!DATA) return showToast('Selecione uma PC para gerar o checklist.');
+  if (typeof ExcelJS === 'undefined') return showToast('Biblioteca de formatação de Excel não carregou — tente recarregar a página.');
+  const sheets = buildChecklistCategorySheets();
+  const capa = buildCapaRows();
+  const generalComments = buildChecklistGeneralComments();
+  const logoUrl = brandLogoDataUrl();
+  const workbook = new ExcelJS.Workbook();
+  workbook.creator = 'Painel PC — Inovatus';
+  workbook.created = new Date();
+
+  /* ===== Capa: mesmo layout do Punchlist + bloco de comentários gerais embaixo ===== */
+  const capaSheet = workbook.addWorksheet('Capa');
+  capaSheet.columns = [{ width: 3 }, { width: 22 }, { width: 20 }, { width: 20 }, { width: 20 }];
+  if (logoUrl) {
+    try {
+      const ext = /image\/(png|jpeg|jpg)/.exec(logoUrl);
+      const imgId = workbook.addImage({ base64: logoUrl, extension: ext ? (ext[1] === 'jpg' ? 'jpeg' : ext[1]) : 'png' });
+      capaSheet.addImage(imgId, { tl: { col: 1, row: 0.3 }, ext: { width: 140, height: 32 } });
+    } catch (e) { console.warn('Não consegui inserir o logo no Checklist', e); }
+  }
+  capaSheet.mergeCells('B5:E6');
+  const tituloCell = capaSheet.getCell('B5');
+  tituloCell.value = `Checklist - PC ${capa.pc} - Projeto ${capa.projeto}`;
+  tituloCell.font = { bold: true, size: 20, color: { argb: BRAND.accent } };
+  tituloCell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+  tituloCell.border = { bottom: { style: 'medium', color: { argb: BRAND.accent } } };
+  capaSheet.getRow(5).height = 26; capaSheet.getRow(6).height = 26;
+
+  function capaLabelValue(labelCell, label, valueCell, value) {
+    const lc = capaSheet.getCell(labelCell);
+    lc.value = label; lc.font = { bold: true, color: { argb: BRAND.white } };
+    lc.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: BRAND.accent } };
+    lc.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+    lc.border = boxBorder();
+    const vc = capaSheet.getCell(valueCell);
+    vc.value = value || ''; vc.font = { color: { argb: BRAND.ink } };
+    vc.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+    vc.border = boxBorder();
+  }
+  [
+    ['B8', 'Cliente:', 'C8', capa.cliente, 'D8', 'Projeto:', 'E8', capa.projeto],
+    ['B9', 'Nº da PC:', 'C9', capa.pc, 'D9', 'Executor:', 'E9', ''],
+    ['B10', 'Universidade', 'C10', '', 'D10', 'Fundação', 'E10', ''],
+    ['B11', 'Banco', 'C11', '', 'D11', 'Agência', 'E11', ''],
+  ].forEach(([c1, l1, c2, v1, c3, l2, c4, v2]) => {
+    capaLabelValue(c1, l1, c2, v1); capaLabelValue(c3, l2, c4, v2);
+  });
+  capaLabelValue('B12', 'Conta', 'C12', '');
+  capaLabelValue('B13', 'Período da PC', 'C13', capa.periodo);
+  capaSheet.mergeCells('C13:E13');
+  [8, 9, 10, 11, 12, 13].forEach(r => capaSheet.getRow(r).height = 22);
+
+  capaSheet.mergeCells('B15:E15');
+  const revTitulo = capaSheet.getCell('B15');
+  revTitulo.value = 'Controle de revisão Checklist';
+  revTitulo.font = { bold: true, size: 12, color: { argb: BRAND.ink } };
+  revTitulo.alignment = { horizontal: 'center', vertical: 'middle' };
+  revTitulo.border = { bottom: THIN_BORDER };
+
+  const revHeaderRow = capaSheet.getRow(16);
+  ['Revisão', 'Data', 'Motivo da revisão'].forEach((label, i) => {
+    const cell = revHeaderRow.getCell(i + 2);
+    cell.value = label; cell.font = { bold: true, color: { argb: BRAND.white } };
+    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: BRAND.accent } };
+    cell.alignment = { horizontal: 'center', vertical: 'middle' };
+    cell.border = boxBorder();
+  });
+  if (revHeaderRow.getCell(4).value) capaSheet.mergeCells(16, 4, 16, 5);
+  capa.revisoes.forEach((rev, i) => {
+    const row = capaSheet.getRow(17 + i);
+    [rev[0], rev[1], rev[2]].forEach((v, ci) => {
+      const cell = row.getCell(ci + 2);
+      cell.value = v; cell.alignment = { horizontal: 'center', vertical: 'middle' };
+      cell.border = boxBorder();
+    });
+    capaSheet.mergeCells(17 + i, 4, 17 + i, 5);
+  });
+
+  let genRow = 17 + capa.revisoes.length + 2;
+  if (generalComments.length) {
+    capaSheet.mergeCells(genRow, 2, genRow, 5);
+    const gTitulo = capaSheet.getCell(genRow, 2);
+    gTitulo.value = 'Comentários gerais';
+    gTitulo.font = { bold: true, size: 12, color: { argb: BRAND.ink } };
+    gTitulo.alignment = { horizontal: 'center', vertical: 'middle' };
+    gTitulo.border = { bottom: THIN_BORDER };
+    genRow += 1;
+    generalComments.forEach(c => {
+      capaSheet.mergeCells(genRow, 2, genRow, 5);
+      const head = capaSheet.getCell(genRow, 2);
+      head.value = `${c.label}${c.data ? ' — ' + c.data : ''}`;
+      head.font = { bold: true, color: { argb: BRAND.white } };
+      head.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: BRAND.accent } };
+      head.alignment = { horizontal: 'left', vertical: 'middle' };
+      head.border = boxBorder();
+      capaSheet.getRow(genRow).height = 20;
+      genRow += 1;
+      if (c.executor) {
+        capaSheet.mergeCells(genRow, 2, genRow, 5);
+        const cell = capaSheet.getCell(genRow, 2);
+        cell.value = `Ao executor: ${c.executor}`;
+        cell.alignment = { horizontal: 'left', vertical: 'top', wrapText: true };
+        cell.border = boxBorder();
+        capaSheet.getRow(genRow).height = estimateRowHeight([c.executor], [80]);
+        genRow += 1;
+      }
+      if (c.interno) {
+        capaSheet.mergeCells(genRow, 2, genRow, 5);
+        const cell = capaSheet.getCell(genRow, 2);
+        cell.value = `Interno: ${c.interno}`;
+        cell.font = { italic: true, color: { argb: BRAND.ink2 } };
+        cell.alignment = { horizontal: 'left', vertical: 'top', wrapText: true };
+        cell.border = boxBorder();
+        capaSheet.getRow(genRow).height = estimateRowHeight([c.interno], [80]);
+        genRow += 1;
+      }
+      genRow += 1;
+    });
+  }
+
+  /* ===== Uma aba por rubrica com item na análise ===== */
+  const usedNames = new Set(['Capa']);
+  sheets.forEach(sheetData => {
+    const sheetName = uniqueSheetName(sheetData.title, usedNames);
+    const ws = workbook.addWorksheet(sheetName);
+    const numCiclos = selectedCicloIdx + 1;
+    const header = ['Rubrica', 'Item', 'Detalhamento da Despesa', 'Valor Total (R$)', 'Total de Rendimentos (R$)', ...sheetData.docs];
+    for (let i = 1; i <= numCiclos; i++) header.push(`${i}º Comentário do Analista`, `${i}º Comentário Inovatus`, `Status ${i}`, `${i}ª Resposta do Executor`);
+
+    const baseWidths = [20, 24, 30, 14, 14];
+    const docWidths = sheetData.docs.map(() => 12);
+    const cycleWidths = [];
+    for (let i = 0; i < numCiclos; i++) cycleWidths.push(34, 34, 12, 30);
+    const colWidths = [...baseWidths, ...docWidths, ...cycleWidths];
+    ws.columns = colWidths.map(w => ({ width: w }));
+
+    const totalCols = header.length;
+    ws.mergeCells(1, 1, 1, totalCols);
+    const banner = ws.getCell(1, 1);
+    banner.value = `${capa.cliente} | Projeto ${capa.projeto} | ${capa.pc} | Período ${capa.periodo}`;
+    banner.font = { size: 13, bold: true, color: { argb: BRAND.white } };
+    banner.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: BRAND.accent } };
+    banner.alignment = { horizontal: 'center', vertical: 'middle' };
+    ws.getRow(1).height = 22;
+
+    const headerRowNum = 3;
+    const headerRow = ws.getRow(headerRowNum);
+    header.forEach((label, i) => {
+      const cell = headerRow.getCell(i + 1);
+      cell.value = label; cell.font = { bold: true, color: { argb: BRAND.ink } };
+      cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+      cell.border = boxBorder();
+    });
+    headerRow.height = 34;
+    ws.views = [{ state: 'frozen', ySplit: headerRowNum, xSplit: 2 }];
+
+    sheetData.rows.forEach((row, idx) => {
+      const rowNum = headerRowNum + 1 + idx;
+      const line = [row.rubrica, row.itemLabel, row.detalhamento, row.valor != null ? row.valor : '', row.rendimentos != null ? row.rendimentos : '', ...row.docs];
+      row.cycles.forEach(c => line.push(c.comentarioAnalista, c.comentarioInovatus, c.status, c.resposta));
+      const excelRow = ws.getRow(rowNum);
+      line.forEach((value, colIdx) => {
+        const cell = excelRow.getCell(colIdx + 1);
+        cell.value = value;
+        cell.border = boxBorder();
+        cell.alignment = { wrapText: true, vertical: 'middle', horizontal: colIdx <= 2 ? 'left' : (colIdx <= 4 ? 'right' : 'center') };
+      });
+      if (typeof line[3] === 'number') excelRow.getCell(4).numFmt = '#,##0.00';
+      if (typeof line[4] === 'number') excelRow.getCell(5).numFmt = '#,##0.00';
+      row.docs.forEach((val, di) => {
+        const cell = excelRow.getCell(6 + di);
+        if (DOC_STATUS_FILL[val]) {
+          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: DOC_STATUS_FILL[val] } };
+          cell.font = { color: { argb: DOC_STATUS_FONT[val] }, bold: true, italic: val === 'NA' };
+        }
+      });
+      row.cycles.forEach((c, ci) => {
+        const statusColIdx = 5 + sheetData.docs.length + ci * 4 + 3;
+        const cell = excelRow.getCell(statusColIdx);
+        cell.alignment = { horizontal: 'center', vertical: 'middle' };
+        if (PUNCHLIST_STATUS_FILL[c.statusRaw]) {
+          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: PUNCHLIST_STATUS_FILL[c.statusRaw] } };
+          cell.font = { color: { argb: PUNCHLIST_STATUS_FONT[c.statusRaw] }, bold: true };
+        }
+      });
+      excelRow.height = estimateRowHeight(line, colWidths);
+    });
+    if (!sheetData.rows.length) {
+      const emptyRow = ws.getRow(headerRowNum + 1);
+      ws.mergeCells(headerRowNum + 1, 1, headerRowNum + 1, totalCols);
+      const emptyCell = emptyRow.getCell(1);
+      emptyCell.value = 'Nenhum item nesta rubrica.';
+      emptyCell.alignment = { horizontal: 'center' };
+      emptyCell.font = { italic: true, color: { argb: BRAND.ink2 } };
+    }
+  });
+
+  const buffer = await workbook.xlsx.writeBuffer();
+  downloadArrayBufferFile(`${safeFilePart(DATA.meta.pc)}_Checklist.xlsx`, buffer, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+}
+
 const va11BaseRenderPCDetail = renderPCDetail;
 renderPCDetail = function() {
   va11BaseRenderPCDetail();
@@ -5717,6 +5998,14 @@ renderOutputPreview = function() {
         ${rows.map((row, index) => `<article class="output-item-card"><div class="output-item-head"><div><span class="output-item-category">${escapeHtml(row.category)}</span><strong>${escapeHtml(row.item)}</strong></div><button class="btn btn-ghost btn-copy-item" onclick="copyPromptItem(${index})" title="Copiar apenas o comentário ao executor">Copiar</button></div><p>${escapeHtml(row.executorComment)}</p>${row.pendingDocs.length ? `<small>Documentos pendentes: ${escapeHtml(row.pendingDocs.join(', '))}</small>` : ''}</article>`).join('') || '<div class="portfolio-empty">Nenhum comentário ao executor registrado neste ciclo.</div>'}
       </div>`;
     actions.innerHTML = '<button class="btn btn-ghost" onclick="closeOutputPreview()">Fechar</button>';
+  } else if (mode === 'checklist') {
+    const sheets = buildChecklistCategorySheets();
+    const totalItens = sheets.reduce((sum, s) => sum + s.rows.length, 0);
+    const resumoHtml = sheets.length
+      ? `<ul class="checklist-preview-list">${sheets.map(s => `<li><strong>${escapeHtml(s.title)}</strong> — ${s.rows.length} item(ns)</li>`).join('')}</ul>`
+      : '<div class="portfolio-empty">Nenhuma rubrica com item na análise desta PC.</div>';
+    content.innerHTML = `<div class="output-summary"><span class="badge badge-outline">${sheets.length} aba(s) de rubrica</span><span class="badge badge-outline">${totalItens} item(ns) no total</span><span class="badge badge-outline">${escapeHtml(cicloLabel(cycle.numero))} pra trás</span></div>${resumoHtml}`;
+    actions.innerHTML = '<button class="btn btn-ghost" onclick="closeOutputPreview()">Fechar</button><button class="btn btn-primary" onclick="downloadChecklist()">Baixar Checklist .xlsx</button>';
   } else {
     const punchlist = buildPunchlistWorkbookData();
     const cabecalhoCiclos = [];
