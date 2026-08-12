@@ -6979,6 +6979,241 @@ renderList = function() {
   if (analiseViewMode === 'tabela') renderAnaliseTabela();
 };
 
+/* ===== VA.17 — importador de análise digerida (Excel-banco pré-tratado fora do app) =====
+   Substitui o antigo caminho de "Análise anterior" (Checklist bruto, VA.13/14) para PCs
+   inteiras: usuário trata os dados fora (planilha Analise_Ciclos + Documentos, uma linha
+   por Item+Ciclo / Item+Documento), o app só recebe. Sempre importa a PC inteira (todos os
+   ciclos do arquivo de uma vez), nunca um ciclo por vez. Se qualquer linha não encontrar o
+   item correspondente já existente no app (vindo do REF/Prompt), a importação inteira é
+   bloqueada — nada é gravado até a planilha ser corrigida. */
+let va17Digest = null;
+
+function va17Text(v) { return String(v == null ? '' : v).trim(); }
+function va17Bool(v) { const t = foldText(va17Text(v)); return t === 'SIM' || t === 'TRUE' || t === '1'; }
+function va17SheetRows(workbook, name) {
+  const found = workbook.SheetNames.find(n => foldText(n) === foldText(name));
+  if (!found) return null;
+  return XLSX.utils.sheet_to_json(workbook.Sheets[found], { header: 1, defval: null, raw: true });
+}
+function va17HeaderIndex(rows, cols) {
+  for (let r = 0; r < rows.length; r++) {
+    const row = rows[r] || [];
+    const folded = row.map(v => foldText(v));
+    const idx = {};
+    let ok = true;
+    cols.forEach(c => { const i = folded.findIndex(h => h === foldText(c)); if (i < 0) ok = false; idx[c] = i; });
+    if (ok) return { rowIndex: r, idx };
+  }
+  return null;
+}
+const VA17_CICLOS_COLS = ['Rubrica (código)', 'Item (chave)', 'Ciclo (nº)', 'Status do ciclo', 'Comentário interno', 'Comentário ao executor', 'Resposta do executor', 'Dúvida'];
+const VA17_DOCS_COLS = ['Rubrica (código)', 'Item (chave)', 'Documento', 'Status'];
+function parseDigestImportDraft(workbook) {
+  const warnings = []; const ciclosRows = []; const docsRows = [];
+  const rowsA = va17SheetRows(workbook, 'Analise_Ciclos');
+  if (!rowsA) { warnings.push('Não encontrei a aba "Analise_Ciclos".'); }
+  else {
+    const header = va17HeaderIndex(rowsA, VA17_CICLOS_COLS);
+    if (!header) warnings.push('Cabeçalho esperado não encontrado na aba "Analise_Ciclos".');
+    else rowsA.slice(header.rowIndex + 1).forEach((row, offset) => {
+      const rubrica = va17Text(row[header.idx['Rubrica (código)']]).toUpperCase();
+      const itemKey = va17Text(row[header.idx['Item (chave)']]);
+      const ciclo = Number(row[header.idx['Ciclo (nº)']]);
+      if (!rubrica || !itemKey || !ciclo) return;
+      const status = va17Text(row[header.idx['Status do ciclo']]).toUpperCase();
+      ciclosRows.push({
+        sourceRow: header.rowIndex + offset + 2, rubrica, itemKey, normalizedItemKey: va13ItemKey(itemKey), ciclo,
+        status: ['AGUARDANDO_ANALISE', 'ABERTO', 'FECHADO'].includes(status) ? status : 'AGUARDANDO_ANALISE',
+        comentarioInterno: va17Text(row[header.idx['Comentário interno']]),
+        comentarioExecutor: va17Text(row[header.idx['Comentário ao executor']]),
+        resposta: va17Text(row[header.idx['Resposta do executor']]),
+        duvida: va17Bool(row[header.idx['Dúvida']]),
+        isGeral: rubrica === 'GERAL',
+      });
+    });
+  }
+  const rowsD = va17SheetRows(workbook, 'Documentos');
+  if (!rowsD) { warnings.push('Não encontrei a aba "Documentos".'); }
+  else {
+    const header = va17HeaderIndex(rowsD, VA17_DOCS_COLS);
+    if (!header) warnings.push('Cabeçalho esperado não encontrado na aba "Documentos".');
+    else rowsD.slice(header.rowIndex + 1).forEach((row, offset) => {
+      const rubrica = va17Text(row[header.idx['Rubrica (código)']]).toUpperCase();
+      const itemKey = va17Text(row[header.idx['Item (chave)']]);
+      const documento = va17Text(row[header.idx['Documento']]);
+      const status = va17Text(row[header.idx['Status']]).toUpperCase();
+      if (!rubrica || !itemKey || !documento || !['OK', 'PND', 'NA'].includes(status)) return;
+      docsRows.push({ sourceRow: header.rowIndex + offset + 2, rubrica, itemKey, normalizedItemKey: va13ItemKey(itemKey), documento, status });
+    });
+  }
+  if (!ciclosRows.length && !docsRows.length && !warnings.length) warnings.push('A planilha não trouxe nenhuma linha reconhecível.');
+  return { ciclosRows, docsRows, warnings };
+}
+function va17FindItem(target, rubrica, normalizedItemKey) {
+  const all = target.pc.data.categories.flatMap(category => category.items.map(item => ({ category, item })));
+  const matches = all.filter(entry => {
+    const code = va13CategoryCode(entry.item.sourceSheetName || entry.category.label || '');
+    const sameCat = !rubrica || !code || code === rubrica;
+    const keys = [entry.item.canonicalData && entry.item.canonicalData.item, entry.item.sourceItemKey, entry.item.budgetItem, entry.item.tipoLabel].map(va13ItemKey).filter(Boolean);
+    return sameCat && keys.includes(normalizedItemKey);
+  });
+  return matches.length === 1 ? matches[0] : null;
+}
+function va17ValidateDigest(parsed, target) {
+  const errors = []; const matchedCiclos = []; const matchedDocs = [];
+  parsed.ciclosRows.forEach(row => {
+    if (row.isGeral) { matchedCiclos.push({ row, item: null }); return; }
+    const match = va17FindItem(target, row.rubrica, row.normalizedItemKey);
+    if (!match) errors.push(`Analise_Ciclos linha ${row.sourceRow}: item "${row.itemKey}" (rubrica ${row.rubrica}) não encontrado no app.`);
+    else matchedCiclos.push({ row, item: match });
+  });
+  parsed.docsRows.forEach(row => {
+    const match = va17FindItem(target, row.rubrica, row.normalizedItemKey);
+    if (!match) errors.push(`Documentos linha ${row.sourceRow}: item "${row.itemKey}" (rubrica ${row.rubrica}) não encontrado no app.`);
+    else matchedDocs.push({ row, item: match });
+  });
+  return { ok: errors.length === 0, errors, matchedCiclos, matchedDocs };
+}
+function va17CycleNumbers(parsed) { return [...new Set(parsed.ciclosRows.map(r => r.ciclo))].sort((a, b) => a - b); }
+async function va17EnsureCycle(pc, numero, changedAt) {
+  let cycle = DATA.meta.ciclos.find(c => c.numero === numero);
+  if (cycle) return { cycle, created: false };
+  cycle = { _gid: null, numero, status: 'ENCERRADO', analista: '', statusChangedAt: changedAt, generalInternalComment: '', generalExecutorComment: '', manualQueuePosition: null, statusHistory: [] };
+  if (isRealGid(pc._gid)) {
+    try {
+      cycle._gid = await graphCreateItem(LIST_IDS.Ciclos, {
+        Title: `${pc.label} - ${cicloLabel(numero)}`, PCId: pc._gid, CycleNumber: numero,
+        Status: cicloStatusToChoice('ENCERRADO'), AnalystName: '', GeneralInternalComment: '', GeneralExecutorComment: '', StatusChangedAt: changedAt,
+      });
+    } catch (e) { console.warn('Falha ao criar ciclo ' + numero + ' na importação digerida', e); }
+  }
+  DATA.meta.ciclos.push(cycle);
+  DATA.meta.ciclos.sort((a, b) => a.numero - b.numero);
+  return { cycle, created: true };
+}
+async function va17ApplyCiclosRow(cycle, cicloIdx, row, item) {
+  if (row.isGeral) {
+    cycle.generalInternalComment = [cycle.generalInternalComment || '', row.comentarioInterno].filter(Boolean).join('\n');
+    cycle.generalExecutorComment = [cycle.generalExecutorComment || '', row.comentarioExecutor].filter(Boolean).join('\n');
+    if (row.resposta) cycle.generalInternalComment = [cycle.generalInternalComment, `Resposta do executor: ${row.resposta}`].filter(Boolean).join('\n');
+    if (isRealGid(cycle._gid)) await graphUpdateItem(LIST_IDS.Ciclos, cycle._gid, { GeneralInternalComment: cycle.generalInternalComment, GeneralExecutorComment: cycle.generalExecutorComment });
+    return;
+  }
+  let entry = item.ciclosStatus[cicloIdx];
+  if (!entry) {
+    entry = { numero: cycle.numero, status: 'AGUARDANDO_ANALISE', comentarioAnalista: '', comentarioExecutor: '', executorResponse: '', duvida: false, _gid: null, _legacy: false };
+    item.ciclosStatus[cicloIdx] = entry;
+  }
+  entry.status = row.status; entry.comentarioAnalista = row.comentarioInterno; entry.comentarioExecutor = row.comentarioExecutor;
+  entry.executorResponse = row.resposta; entry.duvida = row.duvida;
+  const analysisId = await ensureMvpAnalysis(item, entry, cicloIdx);
+  if (isRealGid(analysisId)) {
+    await graphUpdateItem(LIST_IDS.AnalisesItemCiclo, analysisId, {
+      ReviewStatus: itemStatusToChoice(entry.status), HasDoubt: !!entry.duvida,
+      InternalComment: entry.comentarioAnalista, ExecutorComment: entry.comentarioExecutor, ExecutorResponse: entry.executorResponse,
+    });
+  }
+}
+async function va17ApplyDocs(matchedDocs) {
+  const byItem = new Map();
+  matchedDocs.forEach(({ row, item }) => {
+    if (!byItem.has(item.item.id)) byItem.set(item.item.id, { item: item.item, checks: { ...(item.item.checks || {}) } });
+    byItem.get(item.item.id).checks[row.documento] = row.status;
+  });
+  for (const { item, checks } of byItem.values()) {
+    item.checks = checks;
+    if (isRealGid(item.id)) {
+      try { await graphUpdateItem(LIST_IDS.Itens, item.id, { DocumentChecks: serializeJsonObject(checks) }); }
+      catch (e) { console.warn('Falha ao gravar documentos do item ' + item.id, e); }
+    }
+  }
+  return byItem.size;
+}
+function va17RenderPreview() {
+  const target = currentImportTarget(); if (!target || !va17Digest) return;
+  const { parsed, validation } = va17Digest;
+  const cycles = va17CycleNumbers(parsed);
+  const body = document.getElementById('controlledImportBody');
+  if (!validation.ok) {
+    body.innerHTML = `<h3>Não consegui importar</h3><p class="modal-hint">${validation.errors.length} linha(s) sem item correspondente no app. Corrija a planilha e reimporte — nada foi gravado.</p>
+      <div class="draft-table-wrap"><table class="draft-table"><thead><tr><th>Erro</th></tr></thead><tbody>${validation.errors.slice(0, 200).map(e => `<tr><td>${escapeHtml(e)}</td></tr>`).join('')}</tbody></table></div>
+      ${validation.errors.length > 200 ? `<p class="modal-hint">Mostrando as 200 primeiras de ${validation.errors.length} linhas com erro.</p>` : ''}
+      <div class="modal-actions"><button class="btn btn-ghost" onclick="closeImportModal()">Fechar</button></div>`;
+    return;
+  }
+  const itemRows = validation.matchedCiclos.filter(r => !r.row.isGeral).length;
+  const geralRows = validation.matchedCiclos.filter(r => r.row.isGeral).length;
+  body.innerHTML = `<h3>Prévia — Análise digerida</h3>
+    <p class="modal-hint"><b>Destino:</b> ${escapeHtml(DATA.meta.cliente)} / ${escapeHtml(DATA.meta.projeto)} / ${escapeHtml(DATA.meta.pc)} — PC inteira, ${cycles.length} ciclo(s): ${cycles.map(cicloLabel).join(', ')}</p>
+    <div class="reconcile-summary">
+      <div class="reconcile-stat"><b>${itemRows}</b><span>linhas de análise por item</span></div>
+      <div class="reconcile-stat"><b>${geralRows}</b><span>comentários gerais de ciclo</span></div>
+      <div class="reconcile-stat"><b>${validation.matchedDocs.length}</b><span>checks de documento</span></div>
+    </div>
+    <p class="modal-hint">Ciclos que ainda não existem no app serão criados automaticamente. Confira o status de workflow de cada ciclo depois — a planilha só traz o status por item, não o status de fluxo do ciclo em si.</p>
+    <div class="modal-actions"><button class="btn btn-ghost" onclick="closeImportModal()">Cancelar</button><button class="btn btn-primary" id="va17ConfirmDigest" onclick="confirmDigestImport()">Confirmar importação da PC inteira</button></div>`;
+}
+async function confirmDigestImport() {
+  const target = currentImportTarget(); if (!target || !va17Digest || !va17Digest.validation.ok) return;
+  const { parsed, validation } = va17Digest;
+  const button = document.getElementById('va17ConfirmDigest'); if (button) button.disabled = true;
+  showLoadingGate('Importando análise digerida...');
+  const changedAt = new Date().toISOString();
+  const result = { ciclosCriados: 0, itensAtualizados: 0, geraisAtualizados: 0, documentosAtualizados: 0, failed: [] };
+  try {
+    const numbers = va17CycleNumbers(parsed);
+    const cycleByNumber = new Map();
+    for (const n of numbers) {
+      const { cycle, created } = await va17EnsureCycle(target.pc, n, changedAt);
+      if (created) result.ciclosCriados++;
+      cycleByNumber.set(n, cycle);
+    }
+    saveStore();
+    for (const { row, item } of validation.matchedCiclos) {
+      try {
+        const cycle = cycleByNumber.get(row.ciclo);
+        const cicloIdx = DATA.meta.ciclos.indexOf(cycle);
+        await va17ApplyCiclosRow(cycle, cicloIdx, row, item && item.item);
+        if (row.isGeral) result.geraisAtualizados++; else result.itensAtualizados++;
+      } catch (error) { result.failed.push(`Analise_Ciclos linha ${row.sourceRow}: ${graphErrorText(error)}`); }
+    }
+    try { result.documentosAtualizados = await va17ApplyDocs(validation.matchedDocs); }
+    catch (error) { result.failed.push(`Documentos: ${graphErrorText(error)}`); }
+    saveStore(); renderTree(); renderCicloCards(); renderList(); renderDetail(); renderProgress();
+    document.getElementById('controlledImportBody').innerHTML = `<div class="import-result"><h3>${result.failed.length ? 'Análise digerida importada com avisos' : 'Análise digerida importada'}</h3>
+      <p>${result.ciclosCriados} ciclo(s) criado(s)</p><p>${result.itensAtualizados} item(ns) atualizados</p>
+      <p>${result.geraisAtualizados} comentário(s) geral(is)</p><p>${result.documentosAtualizados} item(ns) com documentos atualizados</p>
+      ${result.failed.length ? `<div class="form-error">${result.failed.map(escapeHtml).join('<br>')}</div>` : ''}</div>
+      <div class="modal-actions"><button class="btn btn-primary" onclick="closeImportModal();setView('detail')">Fechar</button></div>`;
+  } finally { hideLoadingGate(); }
+}
+const va17BaseOpenImportModal = openImportModal;
+const va17BaseSetImportSource = setImportSource;
+const va17BaseProcessWorkbook = processWorkbook;
+openImportModal = function () {
+  va17BaseOpenImportModal();
+  const segment = document.querySelector('#controlledImportBody .segmented-control');
+  if (segment && !segment.querySelector('[value="Digerido"]')) segment.insertAdjacentHTML('beforeend', '<label><input type="radio" name="importSource" value="Digerido" onchange="setImportSource(this.value)"><span>Análise digerida</span></label>');
+};
+setImportSource = function (sourceType) {
+  if (sourceType !== 'Digerido') return va17BaseSetImportSource(sourceType);
+  controlledImport.sourceType = 'Digerido'; va17Digest = null;
+  const hint = document.getElementById('importSourceHint'), drop = document.getElementById('importDropHint');
+  if (hint) hint.textContent = 'Use o Excel já tratado fora do app (abas Analise_Ciclos + Documentos). Traz a PC inteira, todos os ciclos de uma vez.';
+  if (drop) drop.textContent = 'Excel de análise digerida (.xlsx)';
+};
+processWorkbook = function (workbook, fileName) {
+  if (controlledImport.sourceType !== 'Digerido') return va17BaseProcessWorkbook(workbook, fileName);
+  const target = currentImportTarget();
+  if (!target) { showToast('Abra uma PC ativa antes de importar.'); return; }
+  const parsed = parseDigestImportDraft(workbook);
+  if (parsed.warnings.length && !parsed.ciclosRows.length && !parsed.docsRows.length) { showToast(parsed.warnings[0]); return; }
+  const validation = va17ValidateDigest(parsed, target);
+  controlledImport.fileName = fileName;
+  va17Digest = { parsed, validation };
+  va17RenderPreview();
+};
+
 initApp();
 
 </script>
