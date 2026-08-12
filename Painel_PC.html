@@ -1409,9 +1409,24 @@ function toIsoDateCell(value) {
   if (value === null || value === undefined || value === '') return null;
   let date = value instanceof Date ? value : null;
   if (!date && typeof value === 'number') date = new Date(Math.round((value - 25569) * 86400 * 1000));
+  // VA.20: valores de célula de data do REF chegam aqui como STRING (maskSensitive força String(value)
+  // em toda célula antes de qualquer parsing), então o serial numérico do Excel (ex.: "44838" = 04/10/2022)
+  // nunca batia no ramo `typeof value === 'number'` acima e caía no `new Date('44838')` — que o motor JS
+  // interpreta como ano estendido 44838, gerando "+044838-01" em vez de "2022-10-04". Isso corrompia
+  // silenciosamente a data de qualquer item de REF (todas as rubricas, não só G) até o Graph rejeitar
+  // com "One of the provided arguments is not acceptable" na criação do item.
+  if (!date && typeof value === 'string' && /^\d{5}(\.\d+)?$/.test(value.trim())) {
+    const serial = Number(value.trim());
+    if (serial >= 20000 && serial <= 80000) date = new Date(Math.round((serial - 25569) * 86400 * 1000));
+  }
   if (!date) {
     const parsed = new Date(value);
     if (!isNaN(parsed.getTime())) date = parsed;
+  }
+  // Rede de segurança: nunca deixar sair uma data absurda (ano bem fora do intervalo plausível de uma PC).
+  if (date && !isNaN(date.getTime())) {
+    const year = date.getUTCFullYear();
+    if (year < 1990 || year > 2100) return null;
   }
   return date && !isNaN(date.getTime()) ? date.toISOString().slice(0, 10) : null;
 }
@@ -7389,8 +7404,3 @@ initApp();
 </script>
 </body>
 </html>
-
-
-
-
-
