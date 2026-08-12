@@ -7224,7 +7224,7 @@ processWorkbook = function (workbook, fileName) {
    (Checklist bruto, VA.13/14) do modal — não faz mais sentido ela conviver com este caminho. */
 let va18Previa = null;
 const VA18_ITENS_COLS = ['Rubrica (código)', 'Item (chave)', 'Descrição', 'Valor', 'Data', 'Beneficiário', 'CPF/CNPJ'];
-const VA18_VALID_CODES = ['F', 'G', 'H', 'I', 'J', 'L', 'M', 'N', 'O', 'T'];
+const VA18_VALID_CODES = ['D', 'E', 'F', 'G', 'H', 'I', 'J', 'L', 'M', 'N', 'O', 'T'];
 function va18ParseItensSheet(workbook) {
   const warnings = []; const rows = [];
   const raw = va17SheetRows(workbook, 'Itens');
@@ -7235,7 +7235,7 @@ function va18ParseItensSheet(workbook) {
     const rubrica = va17Text(row[header.idx['Rubrica (código)']]).toUpperCase();
     const itemKey = va17Text(row[header.idx['Item (chave)']]);
     if (!rubrica || !itemKey) return;
-    if (!VA18_VALID_CODES.includes(rubrica)) { warnings.push(`Itens linha ${header.rowIndex + offset + 2}: rubrica "${rubrica}" não é uma rubrica de despesa válida (F,G,H,I,J,L,M,N,O,T).`); return; }
+    if (!VA18_VALID_CODES.includes(rubrica)) { warnings.push(`Itens linha ${header.rowIndex + offset + 2}: rubrica "${rubrica}" não é uma rubrica válida (D,E,F,G,H,I,J,L,M,N,O,T).`); return; }
     rows.push({
       sourceRow: header.rowIndex + offset + 2, rubrica, itemKey, normalizedItemKey: va13ItemKey(itemKey),
       descricao: va17Text(row[header.idx['Descrição']]), valor: excelNumber(row[header.idx['Valor']]),
@@ -7264,14 +7264,15 @@ function va18ValidatePrevia(itensParsed, digestParsed) {
   return { ok: errors.length === 0, errors };
 }
 function va18NormalizedItemFromRow(row) {
-  const meta = va14RefMeta(CHECKLIST_SHEET_TITLE_BY_CODE[row.rubrica] || row.rubrica);
+  const sheetNameLike = CHECKLIST_SHEET_TITLE_BY_CODE[row.rubrica] || (row.rubrica + ' - Dados');
+  const meta = va14RefMeta(sheetNameLike);
   const docs = REF_DOCUMENTS_BY_CODE[row.rubrica] || ['Comprovante'];
   return {
     title: (row.itemKey + (row.descricao ? ' - ' + row.descricao : '')).slice(0, 250), sourceKey: 'PREVIA|' + row.rubrica + '|' + row.itemKey, sourceType: 'Previa',
     categoryId: meta.id, categoryLabel: meta.label, expenseType: '', budgetItem: row.itemKey, description: row.descricao,
     payeeName: row.beneficiario, payeeDocumentMasked: row.documento, paymentDate: null, documentDate: row.data || null,
     amount: row.valor, incomeAmount: null, checks: Object.fromEntries(docs.map(doc => [doc, 'PND'])),
-    sourceSheetName: CHECKLIST_SHEET_TITLE_BY_CODE[row.rubrica] || row.rubrica, sourceRowNumber: row.sourceRow, importWarnings: '', possibleRemoved: false,
+    sourceSheetName: sheetNameLike, sourceRowNumber: row.sourceRow, importWarnings: '', possibleRemoved: false,
     canonicalData: { schemaVersion: 1, source: 'Previa', category: meta.label, categoryCode: row.rubrica, item: row.itemKey },
   };
 }
@@ -7388,3 +7389,8 @@ initApp();
 </script>
 </body>
 </html>
+
+
+
+
+
