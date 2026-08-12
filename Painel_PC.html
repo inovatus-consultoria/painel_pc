@@ -7214,6 +7214,175 @@ processWorkbook = function (workbook, fileName) {
   va17RenderPreview();
 };
 
+/* ===== VA.18 — "Análise prévia": backfill retroativo de PC inteira (Itens + Ciclos + Análise + Documentos num único Excel) =====
+   Substitui "Análise digerida" (VA.17) para o caso retroativo: em vez de exigir que os itens já
+   existam no app (criados por um REF importado antes), este Excel também cria os itens — a mesma
+   pessoa que trata os dados fora define a chave do item UMA vez e usa ela em todas as abas, então
+   não existe mais matching entre fontes independentes (era a causa do bug de chave "1.132" vs "F.132").
+   Só serve para PC vazia (sem item nenhum ainda) — depois do backfill, a PC segue pelo fluxo normal
+   (Prompt/REF ao vivo, ciclo a ciclo, dentro do app). Remove definitivamente a opção "Análise anterior"
+   (Checklist bruto, VA.13/14) do modal — não faz mais sentido ela conviver com este caminho. */
+let va18Previa = null;
+const VA18_ITENS_COLS = ['Rubrica (código)', 'Item (chave)', 'Descrição', 'Valor', 'Data', 'Beneficiário', 'CPF/CNPJ'];
+const VA18_VALID_CODES = ['F', 'G', 'H', 'I', 'J', 'L', 'M', 'N', 'O', 'T'];
+function va18ParseItensSheet(workbook) {
+  const warnings = []; const rows = [];
+  const raw = va17SheetRows(workbook, 'Itens');
+  if (!raw) { warnings.push('Não encontrei a aba "Itens".'); return { rows, warnings }; }
+  const header = va17HeaderIndex(raw, VA18_ITENS_COLS);
+  if (!header) { warnings.push('Cabeçalho esperado não encontrado na aba "Itens".'); return { rows, warnings }; }
+  raw.slice(header.rowIndex + 1).forEach((row, offset) => {
+    const rubrica = va17Text(row[header.idx['Rubrica (código)']]).toUpperCase();
+    const itemKey = va17Text(row[header.idx['Item (chave)']]);
+    if (!rubrica || !itemKey) return;
+    if (!VA18_VALID_CODES.includes(rubrica)) { warnings.push(`Itens linha ${header.rowIndex + offset + 2}: rubrica "${rubrica}" não é uma rubrica de despesa válida (F,G,H,I,J,L,M,N,O,T).`); return; }
+    rows.push({
+      sourceRow: header.rowIndex + offset + 2, rubrica, itemKey, normalizedItemKey: va13ItemKey(itemKey),
+      descricao: va17Text(row[header.idx['Descrição']]), valor: excelNumber(row[header.idx['Valor']]),
+      data: toIsoDateCell(row[header.idx['Data']]), beneficiario: va17Text(row[header.idx['Beneficiário']]),
+      documento: va17Text(row[header.idx['CPF/CNPJ']]),
+    });
+  });
+  return { rows, warnings };
+}
+function va18ValidatePrevia(itensParsed, digestParsed) {
+  const errors = [];
+  const seen = new Map();
+  itensParsed.rows.forEach(row => {
+    const key = row.rubrica + '|' + row.normalizedItemKey;
+    if (seen.has(key)) errors.push(`Itens linha ${row.sourceRow}: item "${row.itemKey}" (rubrica ${row.rubrica}) duplicado (já na linha ${seen.get(key)}).`);
+    else seen.set(key, row.sourceRow);
+  });
+  const findVirtual = (rubrica, normalizedItemKey) => itensParsed.rows.find(r => r.rubrica === rubrica && r.normalizedItemKey === normalizedItemKey);
+  digestParsed.ciclosRows.forEach(row => {
+    if (row.isGeral) return;
+    if (!findVirtual(row.rubrica, row.normalizedItemKey)) errors.push(`Analise_Ciclos linha ${row.sourceRow}: item "${row.itemKey}" (rubrica ${row.rubrica}) não está na aba Itens.`);
+  });
+  digestParsed.docsRows.forEach(row => {
+    if (!findVirtual(row.rubrica, row.normalizedItemKey)) errors.push(`Documentos linha ${row.sourceRow}: item "${row.itemKey}" (rubrica ${row.rubrica}) não está na aba Itens.`);
+  });
+  return { ok: errors.length === 0, errors };
+}
+function va18NormalizedItemFromRow(row) {
+  const meta = va14RefMeta(CHECKLIST_SHEET_TITLE_BY_CODE[row.rubrica] || row.rubrica);
+  const docs = REF_DOCUMENTS_BY_CODE[row.rubrica] || ['Comprovante'];
+  return {
+    title: (row.itemKey + (row.descricao ? ' - ' + row.descricao : '')).slice(0, 250), sourceKey: 'PREVIA|' + row.rubrica + '|' + row.itemKey, sourceType: 'Previa',
+    categoryId: meta.id, categoryLabel: meta.label, expenseType: '', budgetItem: row.itemKey, description: row.descricao,
+    payeeName: row.beneficiario, payeeDocumentMasked: row.documento, paymentDate: null, documentDate: row.data || null,
+    amount: row.valor, incomeAmount: null, checks: Object.fromEntries(docs.map(doc => [doc, 'PND'])),
+    sourceSheetName: CHECKLIST_SHEET_TITLE_BY_CODE[row.rubrica] || row.rubrica, sourceRowNumber: row.sourceRow, importWarnings: '', possibleRemoved: false,
+    canonicalData: { schemaVersion: 1, source: 'Previa', category: meta.label, categoryCode: row.rubrica, item: row.itemKey },
+  };
+}
+async function va18CreateItem(pc, row) {
+  const normalized = va18NormalizedItemFromRow(row);
+  const itemId = await graphCreateItem(LIST_IDS.Itens, buildSharePointItemFields(normalized, pc._gid));
+  const localItem = importedItemToLocal(normalized, itemId, null);
+  let category = DATA.categories.find(cat => cat.id === normalized.categoryId);
+  if (!category) { category = { id: normalized.categoryId, label: normalized.categoryLabel, docsFixed: normalized.checks ? Object.keys(normalized.checks) : [], items: [] }; DATA.categories.push(category); }
+  category.items.push(localItem);
+  return localItem;
+}
+function va18RenderPreview() {
+  const target = currentImportTarget(); if (!target || !va18Previa) return;
+  const body = document.getElementById('controlledImportBody');
+  const { itensParsed, digestParsed, validation } = va18Previa;
+  if (DATA.categories.some(cat => cat.items.length)) {
+    body.innerHTML = `<h3>Não consegui importar</h3><p class="modal-hint">Esta PC já tem item cadastrado. "Análise prévia" só importa em PC vazia (é pra backfill retroativo, não pra mesclar com dado existente).</p>
+      <div class="modal-actions"><button class="btn btn-ghost" onclick="closeImportModal()">Fechar</button></div>`;
+    return;
+  }
+  if (!validation.ok) {
+    body.innerHTML = `<h3>Não consegui importar</h3><p class="modal-hint">${validation.errors.length} erro(s). Corrija a planilha e reimporte — nada foi gravado.</p>
+      <div class="draft-table-wrap"><table class="draft-table"><thead><tr><th>Erro</th></tr></thead><tbody>${validation.errors.slice(0, 200).map(e => `<tr><td>${escapeHtml(e)}</td></tr>`).join('')}</tbody></table></div>
+      ${validation.errors.length > 200 ? `<p class="modal-hint">Mostrando os 200 primeiros de ${validation.errors.length} erros.</p>` : ''}
+      <div class="modal-actions"><button class="btn btn-ghost" onclick="closeImportModal()">Fechar</button></div>`;
+    return;
+  }
+  const cycles = va17CycleNumbers(digestParsed);
+  const itemRows = digestParsed.ciclosRows.filter(r => !r.isGeral).length;
+  const geralRows = digestParsed.ciclosRows.filter(r => r.isGeral).length;
+  body.innerHTML = `<h3>Prévia — Análise prévia (backfill retroativo)</h3>
+    <p class="modal-hint"><b>Destino:</b> ${escapeHtml(DATA.meta.cliente)} / ${escapeHtml(DATA.meta.projeto)} / ${escapeHtml(DATA.meta.pc)} — PC inteira, ${cycles.length} ciclo(s): ${cycles.map(cicloLabel).join(', ')}</p>
+    <div class="reconcile-summary">
+      <div class="reconcile-stat"><b>${itensParsed.rows.length}</b><span>itens a criar</span></div>
+      <div class="reconcile-stat"><b>${itemRows}</b><span>linhas de análise por item</span></div>
+      <div class="reconcile-stat"><b>${geralRows}</b><span>comentários gerais de ciclo</span></div>
+      <div class="reconcile-stat"><b>${digestParsed.docsRows.length}</b><span>checks de documento</span></div>
+    </div>
+    <p class="modal-hint">Todos os ciclos importados (${cycles.map(cicloLabel).join(', ')}) ficam com status de fluxo "Com executor" — dá pra adicionar o próximo ciclo direto pelo app depois. Se algum ciclo específico não for esse o estado real, ajuste manualmente no Workspace depois de importar.</p>
+    <div class="modal-actions"><button class="btn btn-ghost" onclick="closeImportModal()">Cancelar</button><button class="btn btn-primary" id="va18ConfirmPrevia" onclick="confirmPreviaImport()">Confirmar importação da PC inteira</button></div>`;
+}
+async function confirmPreviaImport() {
+  const target = currentImportTarget(); if (!target || !va18Previa || !va18Previa.validation.ok) return;
+  if (DATA.categories.some(cat => cat.items.length)) return;
+  const { itensParsed, digestParsed } = va18Previa;
+  const button = document.getElementById('va18ConfirmPrevia'); if (button) button.disabled = true;
+  showLoadingGate('Criando itens e importando análise prévia...');
+  const changedAt = new Date().toISOString();
+  const result = { itensCriados: 0, ciclosCriados: 0, itensAtualizados: 0, geraisAtualizados: 0, documentosAtualizados: 0, failed: [] };
+  try {
+    for (const row of itensParsed.rows) {
+      try { await va18CreateItem(target.pc, row); result.itensCriados++; }
+      catch (error) { result.failed.push(`Itens linha ${row.sourceRow}: ${graphErrorText(error)}`); }
+    }
+    saveStore();
+    const numbers = va17CycleNumbers(digestParsed);
+    const cycleByNumber = new Map();
+    for (const n of numbers) {
+      const { cycle, created } = await va17EnsureCycle(target.pc, n, changedAt);
+      if (created) result.ciclosCriados++;
+      cycle.status = 'COM_EXECUTOR';
+      if (isRealGid(cycle._gid)) { try { await graphUpdateItem(LIST_IDS.Ciclos, cycle._gid, { Status: cicloStatusToChoice('COM_EXECUTOR') }); } catch (e) { console.warn('Falha ao ajustar status do ciclo ' + n, e); } }
+      cycleByNumber.set(n, cycle);
+    }
+    saveStore();
+    const revalidation = va17ValidateDigest(digestParsed, target);
+    for (const { row, item } of revalidation.matchedCiclos) {
+      try {
+        const cycle = cycleByNumber.get(row.ciclo);
+        const cicloIdx = DATA.meta.ciclos.indexOf(cycle);
+        await va17ApplyCiclosRow(cycle, cicloIdx, row, item && item.item);
+        if (row.isGeral) result.geraisAtualizados++; else result.itensAtualizados++;
+      } catch (error) { result.failed.push(`Analise_Ciclos linha ${row.sourceRow}: ${graphErrorText(error)}`); }
+    }
+    try { result.documentosAtualizados = await va17ApplyDocs(revalidation.matchedDocs); }
+    catch (error) { result.failed.push(`Documentos: ${graphErrorText(error)}`); }
+    saveStore(); renderTree(); renderCicloCards(); renderList(); renderDetail(); renderProgress();
+    document.getElementById('controlledImportBody').innerHTML = `<div class="import-result"><h3>${result.failed.length ? 'Análise prévia importada com avisos' : 'Análise prévia importada'}</h3>
+      <p>${result.itensCriados} item(ns) criados</p><p>${result.ciclosCriados} ciclo(s) criado(s)</p>
+      <p>${result.itensAtualizados} item(ns) com análise atualizados</p><p>${result.geraisAtualizados} comentário(s) geral(is)</p>
+      <p>${result.documentosAtualizados} item(ns) com documentos atualizados</p>
+      ${result.failed.length ? `<div class="form-error">${result.failed.map(escapeHtml).join('<br>')}</div>` : ''}</div>
+      <div class="modal-actions"><button class="btn btn-primary" onclick="closeImportModal();setView('detail')">Fechar</button></div>`;
+  } finally { hideLoadingGate(); }
+}
+openImportModal = function () {
+  va13BaseOpenImportModal();
+  const segment = document.querySelector('#controlledImportBody .segmented-control');
+  if (segment && !segment.querySelector('[value="Previa"]')) segment.insertAdjacentHTML('beforeend', '<label><input type="radio" name="importSource" value="Previa" onchange="setImportSource(this.value)"><span>Análise prévia</span></label>');
+};
+setImportSource = function (sourceType) {
+  if (sourceType !== 'Previa') return va13BaseSetImportSource(sourceType);
+  controlledImport.sourceType = 'Previa'; va18Previa = null;
+  const hint = document.getElementById('importSourceHint'), drop = document.getElementById('importDropHint');
+  if (hint) hint.textContent = 'Backfill retroativo: Excel já tratado fora (abas Itens + Analise_Ciclos + Documentos). Só em PC vazia — cria os itens e a análise de todos os ciclos de uma vez.';
+  if (drop) drop.textContent = 'Excel de análise prévia (.xlsx)';
+};
+processWorkbook = function (workbook, fileName) {
+  if (controlledImport.sourceType !== 'Previa') return va13BaseProcessWorkbook(workbook, fileName);
+  const target = currentImportTarget();
+  if (!target) { showToast('Abra uma PC ativa antes de importar.'); return; }
+  const itensParsed = va18ParseItensSheet(workbook);
+  const digestParsed = parseDigestImportDraft(workbook);
+  if (!itensParsed.rows.length) { showToast(itensParsed.warnings[0] || 'A aba "Itens" não trouxe nenhuma linha válida.'); return; }
+  const validation = va18ValidatePrevia(itensParsed, digestParsed);
+  controlledImport.fileName = fileName;
+  va18Previa = { itensParsed, digestParsed, validation };
+  va18RenderPreview();
+};
+
 initApp();
 
 </script>
