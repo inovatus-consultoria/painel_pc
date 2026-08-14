@@ -592,6 +592,9 @@
   .compact-list-row { display: flex; justify-content: space-between; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--surface2); font-size: 11.5px; }
   .compact-list-row:last-child { border-bottom: 0; }
   .compact-list-row span:last-child { color: var(--ink3); text-align: right; }
+  .history-row-right { display: inline-flex; align-items: center; gap: 6px; }
+  .history-delete-btn { display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; border-radius: 5px; color: var(--ink3); background: none; border: none; cursor: pointer; flex-shrink: 0; font-size: 14px; line-height: 1; padding: 0; transition: all 0.12s; }
+  .history-delete-btn:hover { background: var(--red-light); color: var(--red); }
 
   .analysis-filter-bar { display: flex; align-items: center; gap: 7px; margin: -8px 0 14px; flex-wrap: wrap; }
   .analysis-filter-bar .filter-clear { margin-left: auto; }
@@ -1072,6 +1075,34 @@
       <div class="modal-actions">
         <button class="btn btn-ghost" onclick="closePCForm()">Cancelar</button>
         <button class="btn btn-primary" id="pcFormSubmit" onclick="submitPCForm()">Criar PC</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay hidden" id="pcEditOverlay">
+  <div class="modal-box form-modal-box">
+    <div class="modal-header">
+      <h2>Editar PC</h2>
+      <button class="modal-close" onclick="closePCEditForm()">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-grid two-cols">
+        <div class="modal-field"><label>Cliente</label><select id="pcEditClient" onchange="updatePCEditProjectOptions()"></select></div>
+        <div class="modal-field"><label>Projeto</label><select id="pcEditProject"></select></div>
+        <div class="modal-field"><label>Número/identificação</label><input type="text" id="pcEditNumber" placeholder="Ex.: 5"></div>
+        <div class="modal-field"><label>Fonte prevista</label><select id="pcEditSource"><option value="Prompt">Prompt</option><option value="REF">REF</option></select></div>
+        <div class="modal-field"><label>Status da PC</label><select id="pcEditStatus"><option value="PLANEJADA">Planejada</option><option value="ATIVA">Ativa</option><option value="CONCLUIDA">Concluída</option></select></div>
+        <div class="modal-field"><label>Executor</label><input type="text" id="pcEditExecutor" placeholder="Responsável executor"></div>
+        <div class="modal-field"><label>Fundação</label><input type="text" id="pcEditFundacao" placeholder="Fundação, se aplicável"></div>
+        <div class="modal-field"><label>Início do período</label><input type="date" id="pcEditStart"></div>
+        <div class="modal-field"><label>Fim do período</label><input type="date" id="pcEditEnd"></div>
+      </div>
+      <p class="modal-hint">Executor e Fundação pertencem ao cadastro do projeto — mudar aqui afeta todas as PCs deste projeto. Mudar o status manualmente não fecha nem abre ciclos sozinho.</p>
+      <div class="form-error hidden" id="pcEditError"></div>
+      <div class="modal-actions">
+        <button class="btn btn-ghost" onclick="closePCEditForm()">Cancelar</button>
+        <button class="btn btn-primary" onclick="submitPCEdit()">Salvar alterações</button>
       </div>
     </div>
   </div>
@@ -3620,7 +3651,7 @@ function renderPCDetail() {
     ? m.fontes.map(source => `<div class="compact-list-row"><span>${escapeHtml(source.fileName || source.title || source.fileType || 'Fonte')}</span><span>${escapeHtml(source.fileType || '')} · ${fmtIsoDate(source.importedAt)}</span></div>`).join('')
     : '<div class="compact-list-row"><span>Nenhuma fonte registrada</span><span>—</span></div>';
   const histories = cycle && (cycle.statusHistory || []).length
-    ? [...cycle.statusHistory].sort((a,b) => String(b.enteredAt || '').localeCompare(String(a.enteredAt || ''))).map(history => `<div class="compact-list-row"><span>${escapeHtml(CICLO_STATUS_LABELS[history.status] || history.status)}</span><span>${fmtIsoDate(history.enteredAt)}</span></div>`).join('')
+    ? cycle.statusHistory.map((h, i) => ({ h, i })).sort((a, b) => String(b.h.enteredAt || '').localeCompare(String(a.h.enteredAt || ''))).map(({ h, i }) => `<div class="compact-list-row"><span>${escapeHtml(CICLO_STATUS_LABELS[h.status] || h.status)}</span><span class="history-row-right">${fmtIsoDate(h.enteredAt)}<button class="history-delete-btn" type="button" title="Excluir esta entrada do histórico" onclick="deleteHistoryEntry(${i})">&times;</button></span></div>`).join('')
     : '<div class="compact-list-row"><span>Sem histórico registrado</span><span>—</span></div>';
 
   const canReturn = status === 'ATIVA' && latest && latest.status === 'COM_EXECUTOR';
@@ -3653,6 +3684,116 @@ function renderPCDetail() {
       ${status === 'PLANEJADA' ? '<button class="btn btn-primary" onclick="openActivationForm()">Ativar PC</button>' : status === 'ATIVA' ? `<button class="btn btn-primary" onclick="openAnalysis()" ${cycle ? '' : 'disabled'}>Analisar itens</button><button class="btn btn-ghost" onclick="openImportModal()">Importar arquivo</button><button class="btn btn-ghost" onclick="openManualItemModal()" ${cycle ? '' : 'disabled'}>Adicionar item</button>` : '<span class="portfolio-muted">PC concluída disponível para consulta.</span>'}
     </div></section>
     <section class="detail-section"><div class="source-history-grid"><div><div class="detail-section-title">Fontes</div><div class="compact-list">${sources}</div></div><div><div class="detail-section-title">Histórico do ciclo</div><div class="compact-list">${histories}</div></div></div></section>`;
+}
+
+/* 14/08: editor completo da PC (VA.22) — substitui o antigo openPCBaseDataEditor (baseado em prompt()
+   sequenciais) por um modal de verdade. Cliente/Projeto reatribuem a PC a um cadastro já existente
+   (mesma lógica de "mover PC" de antes); Executor/Fundação pertencem ao projeto e afetam todas as
+   PCs dele; Número, Fonte, Status e Período são campos da própria PC. Mudar o Status aqui é manual —
+   não fecha nem abre ciclo sozinho, ver aviso no próprio modal. */
+function pcEditPopulateClients(selectedCi) {
+  const select = document.getElementById('pcEditClient');
+  const rows = STORE.clients.map((c, ci) => ({ c, ci })).filter(({ c, ci }) => c.active !== false || ci === selectedCi);
+  select.innerHTML = rows.map(({ c, ci }) => `<option value="${ci}" ${ci === selectedCi ? 'selected' : ''}>${escapeHtml(c.client)}</option>`).join('');
+}
+
+function updatePCEditProjectOptions(selectedPi) {
+  const ci = Number(document.getElementById('pcEditClient').value);
+  const client = STORE.clients[ci];
+  const select = document.getElementById('pcEditProject');
+  if (!client) { select.innerHTML = ''; return; }
+  const rows = client.projects.map((p, pi) => ({ p, pi })).filter(({ p, pi }) => p.active !== false || pi === selectedPi);
+  select.innerHTML = rows.map(({ p, pi }) => `<option value="${pi}" ${pi === selectedPi ? 'selected' : ''}>${escapeHtml(p.name)}</option>`).join('');
+}
+
+function openPCEditForm() {
+  const pc = currentPC ? pcAt(currentPC.ci, currentPC.pi, currentPC.pci) : null;
+  if (!pc || !DATA) return;
+  const m = DATA.meta;
+  pcEditPopulateClients(currentPC.ci);
+  updatePCEditProjectOptions(currentPC.pi);
+  document.getElementById('pcEditNumber').value = normalizePCNumber(m.pc || pc.label);
+  document.getElementById('pcEditSource').value = m.sourceType || 'Prompt';
+  document.getElementById('pcEditStatus').value = pcStatusOf(pc);
+  document.getElementById('pcEditExecutor').value = m.executor || '';
+  document.getElementById('pcEditFundacao').value = m.fundacao || '';
+  document.getElementById('pcEditStart').value = m.periodoInicio || '';
+  document.getElementById('pcEditEnd').value = m.periodoFim || '';
+  showFormError('pcEditError', '');
+  document.getElementById('pcEditOverlay').classList.remove('hidden');
+}
+
+function closePCEditForm() { document.getElementById('pcEditOverlay').classList.add('hidden'); }
+
+async function submitPCEdit() {
+  const pc = currentPC ? pcAt(currentPC.ci, currentPC.pi, currentPC.pci) : null;
+  if (!pc || !DATA) return;
+  const meta = DATA.meta;
+  const ci = Number(document.getElementById('pcEditClient').value);
+  const pi = Number(document.getElementById('pcEditProject').value);
+  const client = STORE.clients[ci];
+  const project = client && client.projects[pi];
+  if (!project) return showFormError('pcEditError', 'Selecione um cliente e um projeto válidos.');
+  const number = normalizePCNumber(document.getElementById('pcEditNumber').value);
+  if (!number) return showFormError('pcEditError', 'Informe o número ou identificação da PC.');
+  const label = `PC${number}`;
+  if (project.pcs.some(other => other !== pc && other.label.toLowerCase() === label.toLowerCase())) {
+    return showFormError('pcEditError', 'Já existe uma PC com essa identificação neste projeto.');
+  }
+  const sourceType = document.getElementById('pcEditSource').value;
+  const status = document.getElementById('pcEditStatus').value;
+  const executor = document.getElementById('pcEditExecutor').value.trim();
+  const fundacao = document.getElementById('pcEditFundacao').value.trim();
+  const start = document.getElementById('pcEditStart').value || null;
+  const end = document.getElementById('pcEditEnd').value || null;
+  if ((start && !end) || (!start && end)) return showFormError('pcEditError', 'Preencha as duas datas do período ou deixe ambas vazias.');
+  if (start && end && start > end) return showFormError('pcEditError', 'A data inicial não pode ser posterior à data final.');
+  if (status === 'ATIVA' && (!start || !end)) return showFormError('pcEditError', 'O período é obrigatório para uma PC ativa.');
+  const statusAtual = pcStatusOf(pc);
+  const pcStatusLabel = v => ({ PLANEJADA: 'Planejada', ATIVA: 'Ativa', CONCLUIDA: 'Concluída' })[v] || v;
+  if (status !== statusAtual && !confirm(`Trocar o status de "${pcStatusLabel(statusAtual)}" para "${pcStatusLabel(status)}" é manual — não fecha nem abre ciclo automaticamente. Confirma?`)) return;
+
+  closePCEditForm();
+  showLoadingGate('Salvando dados da PC...');
+  try {
+    if (project.executor !== executor || project.fundacao !== fundacao) {
+      await graphUpdateItem(LIST_IDS.Projetos, project._gid, { Title: project.name, ClienteId: client._gid, ProjectCode: project.name, ExecutorName: executor, FundacaoName: fundacao, Active: project.active !== false, Notes: project.notes || '' });
+      project.executor = executor; project.fundacao = fundacao;
+    }
+    await graphUpdateItem(LIST_IDS.PCs, pc._gid, { Title: label, ProjetoId: project._gid, PCNumber: number, SourceType: sourceType, PCStatus: pcStatusToChoice(status), PeriodStart: start, PeriodEnd: end });
+
+    const oldClient = STORE.clients[currentPC.ci], oldProject = oldClient.projects[currentPC.pi];
+    if (oldProject !== project) {
+      oldProject.pcs.splice(currentPC.pci, 1); project.pcs.push(pc);
+      currentPC = { ci: STORE.clients.indexOf(client), pi: client.projects.indexOf(project), pci: project.pcs.length - 1 };
+    }
+    pc.label = label;
+    meta.cliente = client.client; meta.projeto = project.name; meta.pc = label;
+    meta.executor = project.executor; meta.fundacao = project.fundacao;
+    meta.sourceType = sourceType; meta.pcStatus = status; meta.concluida = status === 'CONCLUIDA';
+    meta.periodoInicio = start; meta.periodoFim = end; meta.periodo = [start, end].filter(Boolean).map(fmtIsoDate).join(' a ');
+    saveStore(); filaOrder = null;
+    renderTree(); renderPCDetail(); renderAreaTrabalho();
+    showToast('Dados da PC atualizados.');
+  } catch (error) { console.warn(error); showToast('Não consegui salvar as alterações no SharePoint.'); }
+  finally { hideLoadingGate(); }
+}
+
+/* 14/08: exclusão de uma entrada isolada do histórico do ciclo (ex.: mudança de status por engano).
+   Remove local (otimista) e depois tenta apagar no SharePoint; se a PC ainda não tinha _gid pra essa
+   entrada (nunca sincronizada), só remove local mesmo. */
+async function deleteHistoryEntry(idx) {
+  const cycle = DATA && DATA.meta.ciclos[selectedCicloIdx];
+  const history = cycle && (cycle.statusHistory || [])[idx];
+  if (!history) return;
+  if (!confirm(`Excluir esta entrada do histórico (${CICLO_STATUS_LABELS[history.status] || history.status} · ${fmtIsoDate(history.enteredAt)})? Não tem como desfazer.`)) return;
+  cycle.statusHistory.splice(idx, 1);
+  saveStore();
+  renderPCDetail();
+  if (isRealGid(history._gid)) {
+    try { await graphDeleteItem(LIST_IDS.HistoricoStatusCiclo, history._gid); }
+    catch (error) { console.warn(error); showToast('Entrada removida aqui, mas houve erro ao apagar no SharePoint — confira manualmente.'); }
+  }
 }
 
 function selectDetailCiclo(idx) {
@@ -3779,13 +3920,13 @@ function renderList() {
   DATA.categories.forEach(cat => {
     totalAll += cat.items.length;
     if (analysisFilterCategory && cat.id !== analysisFilterCategory) return;
-    const visibleItems = cat.items.filter(item => {
+    const visibleItems = orderedItems(cat.items.filter(item => {
       if (!matchesSearch(item, cat, searchTerm)) return false;
       if (filtroDuvida && !itemTemDuvida(item, selectedCicloIdx)) return false;
       if (filtroDocumento && !itemHasPendingDocument(item, cat)) return false;
       if (analysisFilterStatus && itemCicloStatus(item, selectedCicloIdx) !== analysisFilterStatus) return false;
       return true;
-    });
+    }));
     totalShown += visibleItems.length;
     if (visibleItems.length === 0) return;
     const prog = catProgress(cat);
@@ -4609,6 +4750,17 @@ function downloadTextFile(name, content, type) {
 function safeFilePart(value) { return String(value || 'PC').replace(/[^a-z0-9_-]+/gi, '_'); }
 function downloadPromptOutput() { downloadTextFile(`${safeFilePart(DATA.meta.pc)}_${safeFilePart(cicloLabel(DATA.meta.ciclos[selectedCicloIdx].numero))}_Prompt.txt`, buildPromptOutput(outputRowsForCurrentCycle())); }
 
+/* Ordena referências de itens como números hierárquicos. A comparação textual simples
+   colocava 1.10 antes de 1.2 nas três superfícies (análise, Punchlist e Checklist). */
+function compareItemReferences(a, b) {
+  const left = String(a == null ? '' : a).trim();
+  const right = String(b == null ? '' : b).trim();
+  return left.localeCompare(right, 'pt-BR', { numeric: true, sensitivity: 'base' });
+}
+function orderedItems(items) {
+  return [...(items || [])].sort((a, b) => compareItemReferences(a && (a.budgetItem || a.title), b && (b.budgetItem || b.title)));
+}
+
 /* ===== Punchlist REF (05/08): matriz larga, sempre recalculada do zero a partir de TODO o
    histórico de ciclos da PC (nunca incremental/congelada) — ver MEMORY. Uma linha por item que
    teve pendência ao executor em algum ciclo, com colunas repetidas por ciclo (Comentário/Status/
@@ -4624,7 +4776,7 @@ function buildPunchlistRows() {
   const rows = [];
 
   DATA.categories.forEach(category => {
-    category.items.forEach(item => {
+    orderedItems(category.items).forEach(item => {
       const cycles = [];
       let lastComentario = '';
       let sawComentario = false;
@@ -4939,7 +5091,7 @@ function buildChecklistCategorySheets() {
   return DATA.categories.filter(cat => cat.items && cat.items.length).map(cat => {
     const title = checklistSheetTitle(cat);
     const docs = cat.docsFixed || [];
-    const rows = cat.items.map(item => {
+    const rows = orderedItems(cat.items).map(item => {
       const cycles = [];
       for (let i = 0; i < uptoCount; i++) {
         const entry = item.ciclosStatus[i] || {};
@@ -5188,6 +5340,12 @@ renderPCDetail = function() {
     button.className = 'btn btn-primary'; button.type = 'button'; button.onclick = openOutputPreview;
     button.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16v16H4zM8 9h8M8 13h8M8 17h5"/></svg>Gerar saídas';
     actions.appendChild(button);
+  }
+  if (actions && pc && DATA) {
+    const editButton = document.createElement('button');
+    editButton.className = 'btn btn-ghost'; editButton.type = 'button'; editButton.onclick = openPCEditForm;
+    editButton.innerHTML = 'Editar PC';
+    actions.appendChild(editButton);
   }
 };
 
@@ -6959,13 +7117,13 @@ function renderAnaliseTabela() {
   DATA.categories.forEach(cat => {
     totalAll += cat.items.length;
     if (analysisFilterCategory && cat.id !== analysisFilterCategory) return;
-    const visibleItems = cat.items.filter(item => {
+    const visibleItems = orderedItems(cat.items.filter(item => {
       if (!matchesSearch(item, cat, searchTerm)) return false;
       if (filtroDuvida && !itemTemDuvida(item, selectedCicloIdx)) return false;
       if (filtroDocumento && !itemHasPendingDocument(item, cat)) return false;
       if (analysisFilterStatus && itemCicloStatus(item, selectedCicloIdx) !== analysisFilterStatus) return false;
       return true;
-    });
+    }));
     totalShown += visibleItems.length;
     if (!visibleItems.length) return;
     const prog = catProgress(cat);
