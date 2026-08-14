@@ -192,6 +192,7 @@
   .doc-chip:hover { filter: brightness(0.97); }
   .doc-chip.chip-ok { background: var(--green-light); color: var(--green); border-color: #BEE0D6; }
   .doc-chip.chip-pnd { background: var(--amber-light); color: #8A6010; border-color: #E8C86A; }
+  .doc-chip.chip-na { background: var(--slate-light); color: var(--slate); border-color: var(--border); opacity: .8; }
   .doc-chip-icon { width:12px; height:12px; flex-shrink:0; }
   .doc-chip-label { min-width:0; flex:1; overflow-wrap:anywhere; }
   .doc-chip-remove { width:18px; height:18px; flex:0 0 18px; display:grid; place-items:center; padding:0; border:0; border-radius:50%; background:transparent; color:currentColor; opacity:.58; cursor:pointer; font:700 14px/1 'DM Sans',sans-serif; }
@@ -1795,6 +1796,14 @@ function docsForItem(item, cat) {
   const configured = cat && cat.docsFixed ? cat.docsFixed : Object.keys(item.checks || {});
   return configured.filter(doc => (item.checks || {})[doc] !== 'NA');
 }
+/* 14/08: todos os documentos do catálogo da rubrica, sem excluir os marcados N/A — usada só nas
+   grades de documento (renderDetail/renderTabelaRow), que agora mostram o chip cinza "Não aplicável"
+   em vez de esconder o documento. docsForItem (acima) continua excluindo N/A — ela alimenta cálculo
+   de pendência/progresso e a ação em massa "marcar todos OK/PND", que não devem contar documento
+   marcado como não aplicável. */
+function allCatalogDocs(item, cat) {
+  return (cat && cat.docsFixed) ? cat.docsFixed : Object.keys(item.checks || {});
+}
 
 function matchesSearch(item, cat, term) {
   if (!term) return true;
@@ -2643,11 +2652,16 @@ function selectItem(id) {
   renderDetail();
 }
 
+/* 14/08: ciclo de 3 estados (antes era só OK/PND — NA existia mas só era alcançável pelo × de
+   "remover documento", que escondia o chip da grade). Ordem do clique: PND → OK → NA → PND. Como
+   agora todo documento do catálogo nasce N/A (ver alignChecksToCatalog/criação de item) e o analista
+   ativa só os que valem pra aquele item, o ciclo passa por OK antes de NA — assim dá pra marcar
+   "recebido" sem precisar passar por pendente primeiro caso o documento já esteja em mãos. */
 async function cycleCheck(itemId, docKey) {
   const found = findItem(itemId);
   if (!found) return;
   const cur = found.item.checks[docKey];
-  const novo = cur === 'OK' ? 'PND' : 'OK';
+  const novo = cur === 'PND' ? 'OK' : cur === 'OK' ? 'NA' : 'PND';
   found.item.checks[docKey] = novo;
   saveStore();
   renderDetail();
@@ -2657,39 +2671,6 @@ async function cycleCheck(itemId, docKey) {
     try { await graphUpdateItem(LIST_IDS.Itens, found.item.id, { DocumentChecks: serializeJsonObject(found.item.checks) }); }
     catch (e) { console.warn(e); showToast('Não consegui sincronizar esse documento com o SharePoint.'); }
   }
-}
-async function removeDocumentRequirement(itemId, docKey) {
-  const found = findItem(itemId);
-  if (!found) return;
-  found.item.checks[docKey] = 'NA';
-  saveStore();
-  renderDetail(); renderList(); renderProgress();
-  if (isRealGid(found.item.id)) {
-    try { await graphUpdateItem(LIST_IDS.Itens, found.item.id, { DocumentChecks: serializeJsonObject(found.item.checks) }); }
-    catch (error) { console.warn(error); showToast('Documento removido localmente, mas não consegui sincronizar com o SharePoint.'); return; }
-  }
-  showToast(`${docKey} removido deste item.`);
-}
-
-async function restoreRemovedDocuments(itemId) {
-  const found = findItem(itemId);
-  if (!found) return;
-  const configured = found.cat.docsFixed || Object.keys(found.item.checks || {});
-  let restored = 0;
-  configured.forEach(doc => {
-    if ((found.item.checks || {})[doc] === 'NA') {
-      found.item.checks[doc] = 'PND';
-      restored++;
-    }
-  });
-  if (!restored) return;
-  saveStore();
-  renderDetail(); renderList(); renderProgress();
-  if (isRealGid(found.item.id)) {
-    try { await graphUpdateItem(LIST_IDS.Itens, found.item.id, { DocumentChecks: serializeJsonObject(found.item.checks) }); }
-    catch (error) { console.warn(error); showToast('Documentos restaurados localmente, mas não consegui sincronizar com o SharePoint.'); return; }
-  }
-  showToast(restored + (restored === 1 ? ' documento restaurado.' : ' documentos restaurados.'));
 }
 const _comentarioSyncTimers = {};
 function updateComentario(itemId, field, value) {
@@ -2763,9 +2744,7 @@ function renderDetail() {
   if (!found) return;
   const { item, cat } = found;
   const valorFmt = fmtValor(item.valor);
-  const configuredDocs = cat.docsFixed ? cat.docsFixed : Object.keys(item.checks || {});
-  const removedDocs = configuredDocs.filter(doc => (item.checks || {})[doc] === 'NA');
-  const docs = docsForItem(item, cat);
+  const docs = allCatalogDocs(item, cat);
   const editavel = isCicloEditavel(selectedCicloIdx);
   const entry = item.ciclosStatus[selectedCicloIdx] || { status: 'AGUARDANDO_ANALISE', comentarioAnalista: '', comentarioExecutor: '' };
   const numeroSel = DATA.meta.ciclos[selectedCicloIdx].numero;
@@ -2795,19 +2774,19 @@ function renderDetail() {
   }
 
   html += `<div class="section-label">Documentos exigidos
-    <span class="section-note">— clique no card para alternar OK/PND; use × quando não se aplicar a este item.</span>
-    ${removedDocs.length ? `<button class="doc-restore-btn" onclick="restoreRemovedDocuments('${item.id}')">Restaurar removidos (${removedDocs.length})</button>` : ''}
+    <span class="section-note">— clique no card pra alternar Pendente / OK / Não aplicável.</span>
   </div><div class="doc-grid">`;
   docs.forEach(doc => {
-    const status = item.checks[doc] || 'PND';
-    const cls = status === 'OK' ? 'chip-ok' : 'chip-pnd';
+    const status = item.checks[doc] || 'NA';
+    const cls = status === 'OK' ? 'chip-ok' : status === 'NA' ? 'chip-na' : 'chip-pnd';
     const safeDoc = doc.replace(/'/g,"\\'");
     const icon = status === 'OK'
       ? `<svg class="doc-chip-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6L9 17l-5-5"/></svg>`
-      : `<svg class="doc-chip-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="9"/><path d="M12 8v4m0 4h.01"/></svg>`;
-    html += `<div class="doc-chip ${cls}" onclick="cycleCheck('${item.id}','${safeDoc}')">
+      : status === 'NA'
+        ? `<svg class="doc-chip-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 6l12 12M18 6L6 18"/></svg>`
+        : `<svg class="doc-chip-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="9"/><path d="M12 8v4m0 4h.01"/></svg>`;
+    html += `<div class="doc-chip ${cls}" onclick="cycleCheck('${item.id}','${safeDoc}')" title="${escapeHtml(doc)} — clique pra alternar">
       ${icon}<span class="doc-chip-label">${escapeHtml(doc)}</span>
-      <button type="button" class="doc-chip-remove" onclick="event.stopPropagation(); removeDocumentRequirement('${item.id}','${safeDoc}')" title="Remover este documento somente deste item" aria-label="Remover ${escapeHtml(doc)}">×</button>
     </div>`;
   });
   html += `</div>`;
@@ -2970,17 +2949,35 @@ function showToast(msg) {
    por linha, cobrindo todas as PCs existentes até o momento naquele projeto) + aba "Parâmetros"
    pros metadados do projeto. Ver MEMORY_v3.md, seção "Caminho de importação do Relatório Prompt".
    ===================================================================================== */
+/* 14/08: catálogo real por rubrica, ditado pelo Ricardo a partir das skills de pré-análise
+   (SKILL_PreAnalise_REF_* de cada rubrica — versões citadas no MEMORY_v4.md, ponto "Nona rodada").
+   Cada lista é a UNIÃO de tudo que a rubrica pode exigir, incluindo documento condicional (só se
+   importado, só PJ ou só PF, só se assinatura eletrônica etc.) — o app não sabe qual condição vale
+   pra cada item, então todo documento do catálogo nasce "Não aplicável" (ver alignChecksToCatalog /
+   criação de item) e o analista ativa (clique = Pendente, clique de novo = OK) só os que valem
+   pra aquele item específico, deixando os demais em N/A. Substitui a lista anterior, genérica
+   demais (Detalhamento/Justificativa/Comp. PG sem nome de documento de verdade).
+   Rubrica L (Protótipo) não fez parte deste levantamento — mantida como estava. */
 const REF_DOCUMENTS_BY_CODE = Object.freeze({
-  F: ['Currículo', 'Detalhamento', 'Justificativa', 'Comp. PG', 'Recibo / pessoal', 'Demonstrativo Enc.', 'Declaração de benefício', 'Faturas do benefício (3)', 'Dem. Vinculado', 'Verificação no Extrato CC'],
-  G: ['Justificativa', 'Detalhamento', 'NF', 'Comp. PG', 'Contrato de câmbio', 'Invoice', 'DI', 'Carta de exclusividade', 'Justificativa da importação', 'Verificação no Extrato CC'],
-  H: ['Detalhamento', 'Justificativa', 'Aprovação da viagem', 'Comp. PG', 'Fatura da passagem', 'E-ticket', 'Relatório de viagem', 'Certificado', 'Verificação no Extrato CC'],
-  I: ['Detalhamento', 'Justificativa', 'Aprovação de viagem', 'Comp. PG', 'Passagem', 'E-ticket', 'Relatório de viagem', 'Certificado', 'Verificação no Extrato CC'],
-  J: ['Detalhamento', 'Justificativa', 'NF', 'Comp. PG – NF', 'Guia – Impostos', 'Comp. PG – Impostos', 'Relatório de execução / Entregáveis', 'Verificação no Extrato CC'],
+  // Equipe Executora (Bolsas + Remuneração Direta) — SKILL Equipe Bolsas v1.9 + Equipe Remuneração Direta v1.6
+  F: ['Currículo', 'Recibo (bolsista)', 'Recibo de pagamento de pessoal assinado (CLT/RPA)', 'Comprovante de pagamento', 'Certificado de assinatura digital (assinatura eletrônica)', 'Documento/declaração de vínculo institucional (pesquisador visitante)', 'Demonstrativo de encargos sociais/trabalhistas', 'Documentação de benefícios (declaração, relação do fornecedor, NF e comprovante)', 'Acordo coletivo / dissídio (aumento salarial)', 'Comprovante de salário pré-projeto', 'Folha analítica (auxiliar)', 'Folha de pagamento de bolsas (auxiliar)', 'Termo de concessão (auxiliar)', 'Declaração institucional (auxiliar)'],
+  // Material de Consumo — SKILL_PreAnalise_REF_DANFE_CP v4.2
+  G: ['Nota fiscal / DANFE', 'Comprovante de pagamento', 'Proforma (importação)', 'Invoice (importação)', 'Contrato de câmbio (importação)', 'Comprovante de pagamento da importação', 'DI (importação)', 'Justificativa de importação'],
+  // Viagem — Passagem, v1.5
+  H: ['Formulário de autorização prévia', 'Relatório de viagem assinado', 'Nota fiscal da agência / confirmação de compra', 'Comprovante de pagamento', 'Comprovante de embarque', 'E-ticket', 'Certificado de participação em congresso'],
+  // Viagem — Diária ou Ajuda de Custo, v1.5
+  I: ['Relatório de viagem técnico assinado', 'Comprovante de depósito bancário da diária', 'Comprovante de embarque (aérea)', 'E-ticket (aérea)', 'Nota fiscal / fatura de hospedagem (terrestre)', 'Certificado de participação em evento', 'Ata de reunião assinada (terrestre)', 'Cupom fiscal local (terrestre)', 'Declaração da empresa visitada (terrestre)'],
+  // Serviços de Terceiros, v1.3 — pacote varia por tipo de prestador (PJ / PF / evento / exterior)
+  J: ['Nota fiscal (PJ)', 'Recibo (PF)', 'Comprovante de pagamento', 'Guia de recolhimento de impostos', 'Certificado de participação em evento', 'Contrato de câmbio (evento/contratação internacional)', 'Justificativa de importação (contratação no exterior)'],
   L: ['NF / Invoice', 'Comp. PG', 'Contrato de câmbio', 'Taxa de câmbio', 'Cotações ou carta de exclusividade'],
-  M: ['Detalhamento', 'Justificativa', 'NF', 'Comp. PG – NF', 'Guia – Impostos', 'Comp. PG – Impostos', 'Contrato de serviço', 'Cotações', 'Verificação no Extrato CC'],
-  N: ['Detalhamento', 'Justificativa', 'NF / Invoice', 'Comp. PG', 'Contrato de câmbio', 'Taxa de câmbio', 'Cotações ou carta de exclusividade', 'Justificativa para importação', 'DI', 'Verificação no Extrato CC'],
-  O: ['Detalhamento', 'Justificativa', 'NF', 'Comp. PG – NF', 'Guia – Impostos', 'Comp. PG – Impostos', 'Verificação no Extrato CC'],
-  T: ['Detalhamento', 'Justificativa', 'NF', 'Comp. PG – NF', 'Memória de cálculo', 'Guia de imposto', 'Comp. PG – Imposto', 'Declaração de Importação — DI', 'Verificação no Extrato CC'],
+  // Obras e Instalações, v1.1
+  M: ['Nota fiscal', 'Comprovante de pagamento', 'Relatório de detalhamento da obra (com fotos)', 'Orçamento / cotação (≥ R$ 50 mil)', 'Relatório de medição (medição parcial)'],
+  // Equipamento e Material Permanente, v1.4
+  N: ['Documento fiscal (nota / invoice)', 'Comprovante de pagamento', 'Controle patrimonial', 'Proforma (importação)', 'Invoice (importação)', 'Contrato de câmbio (importação)', 'Comprovante de pagamento da importação', 'DI (importação)'],
+  // Outros Bens e Direitos (licenças, dados, assinaturas), v1.3
+  O: ['Documento fiscal / comprobatório (NF, invoice ou fatura)', 'Comprovante de pagamento', 'Guia de recolhimento de impostos (retenção)', 'Proforma (importação)', 'Invoice (importação)', 'Contrato de câmbio (importação)', 'Comprovante de pagamento da importação', 'DI (importação)', 'Justificativa de importação / similar nacional'],
+  // Outras Despesas (DOA / Custos Indiretos / Despesa Acessória de Importação), v1.2
+  T: ['Recibo assinado', 'Certificado de assinatura digital (assinatura eletrônica)', 'Comprovante de transferência', 'Memória de cálculo', 'Nota fiscal / invoice (despesa acessória de importação)', 'Comprovante de pagamento', 'Contrato de câmbio (importação)', 'DI (importação)'],
 });
 const DOCUMENT_CODE_BY_CATEGORY_ID = Object.freeze({
   equipe: 'F', ref_despesas_com_equipe_executora: 'F',
@@ -3010,7 +3007,7 @@ function alignChecksToCatalog(checks, configuredDocs) {
   (configuredDocs || []).forEach(doc => {
     if (checks[doc]) return;
     const equivalent = existingKeys.find(oldDoc => canonicalDocumentName(oldDoc, [doc]) === doc);
-    checks[doc] = equivalent ? checks[equivalent] : 'PND';
+    checks[doc] = equivalent ? checks[equivalent] : 'NA';
   });
   return checks;
 }
@@ -3222,7 +3219,7 @@ async function confirmImport() {
       };
       const docsList = info.docsFixed || info.docsDefault || ['Comprovante'];
       const checks = {};
-      docsList.forEach(doc => { checks[doc] = 'PND'; });
+      docsList.forEach(doc => { checks[doc] = 'NA'; });
       const paymentIso = toIsoDateCell(dataPag);
       const documentIso = toIsoDateCell(dataDoc);
       const canonicalData = {
@@ -4152,7 +4149,7 @@ async function submitManualItem() {
     ? { id: existingCategory.id, label: existingCategory.label, docsFixed: existingCategory.docsFixed }
     : categoriaInfoById(categoryId);
   const docs = categoryInfo.docsFixed || categoryInfo.docsDefault || ['Comprovante'];
-  const checks = Object.fromEntries(docs.map(doc => [doc, 'PND']));
+  const checks = Object.fromEntries(docs.map(doc => [doc, 'NA']));
   const sourceKey = `manual-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
   const title = budgetItem || description.slice(0, 80);
   closeManualItemModal(); showLoadingGate('Adicionando item...');
@@ -4274,7 +4271,7 @@ async function submitManualItem() {
     ? { id: existingCategory.id, label: existingCategory.label, docsFixed: existingCategory.docsFixed }
     : categoriaInfoById(categoryId);
   const docs = categoryInfo.docsFixed || categoryInfo.docsDefault || ['Comprovante'];
-  const checks = Object.fromEntries(docs.map(doc => [doc, 'PND']));
+  const checks = Object.fromEntries(docs.map(doc => [doc, 'NA']));
   const sourceKey = `manual-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
   const title = (budgetItem || description.slice(0, 80)).slice(0, 250);
   const normalized = {
@@ -4456,7 +4453,7 @@ function parsePromptImportDraft(workbook) {
       title: String(budgetRaw || descriptionRaw || 'Item sem descrição').slice(0, 250), sourceKey, sourceType: 'Prompt',
       categoryId: info.id, categoryLabel: info.label, expenseType: '', budgetItem: String(budgetRaw || ''),
       description: descriptionRaw, payeeName: '', payeeDocumentMasked: '', paymentDate, documentDate, amount, incomeAmount,
-      checks: Object.fromEntries(docs.map(doc => [doc, 'PND'])), sourceSheetName: 'Todas as Despesas',
+      checks: Object.fromEntries(docs.map(doc => [doc, 'NA'])), sourceSheetName: 'Todas as Despesas',
       sourceRowNumber: headerIndex + offset + 2, importWarnings: '', possibleRemoved: false,
       canonicalData: { schemaVersion: 1, source: 'Prompt', pcNumber, category: String(categoryRaw || ''), executor: String(row[ix.executor] || ''), fields: { budgetItem: String(budgetRaw || ''), description: descriptionRaw, paymentDate, documentDate, amount, incomeAmount } },
     };
@@ -4511,7 +4508,7 @@ function parseRefImportDraft(workbook) {
         title: `${sourceItem} - ${description || categoryLabel}`.slice(0, 250), sourceKey: String(sourceItem).slice(0, 250), sourceType: 'REF',
         categoryId, categoryLabel, expenseType: '', budgetItem: sourceItem, description: description || categoryLabel,
         payeeName, payeeDocumentMasked, paymentDate: null, documentDate, amount, incomeAmount: null,
-        checks: { Comprovante: 'PND' }, sourceSheetName: sheetName, sourceRowNumber: headerIndex + offset + 2,
+        checks: { Comprovante: 'NA' }, sourceSheetName: sheetName, sourceRowNumber: headerIndex + offset + 2,
         importWarnings: warningsForItem.join(' '), possibleRemoved: false,
         canonicalData: { schemaVersion: 1, source: 'REF', sheet: sheetName, item: sourceItem, category: categoryLabel, fields },
       });
@@ -7085,12 +7082,12 @@ function setAnaliseView(mode) {
 
 function renderTabelaRow(item, cat) {
   const entry = item.ciclosStatus[selectedCicloIdx] || { status: 'AGUARDANDO_ANALISE', comentarioAnalista: '', comentarioExecutor: '', executorResponse: '', duvida: false };
-  const docs = docsForItem(item, cat);
+  const docs = allCatalogDocs(item, cat);
   const docsHtml = docs.map(doc => {
-    const status = item.checks[doc] || 'PND';
-    const cls = status === 'OK' ? 'chip-ok' : 'chip-pnd';
+    const status = item.checks[doc] || 'NA';
+    const cls = status === 'OK' ? 'chip-ok' : status === 'NA' ? 'chip-na' : 'chip-pnd';
     const safeDoc = doc.replace(/'/g, "\\'");
-    return `<span class="doc-chip ${cls}" onclick="cycleCheck('${item.id}','${safeDoc}')" title="Clique pra alternar OK/PND">${escapeHtml(doc)}</span>`;
+    return `<span class="doc-chip ${cls}" onclick="cycleCheck('${item.id}','${safeDoc}')" title="${escapeHtml(doc)} — clique pra alternar Pendente / OK / Não aplicável">${escapeHtml(doc)}</span>`;
   }).join('');
   return `<div class="tabela-row" data-item="${item.id}">
     <div class="tabela-cell-item">
@@ -7444,7 +7441,7 @@ function va18NormalizedItemFromRow(row) {
     title: (row.itemKey + (row.descricao ? ' - ' + row.descricao : '')).slice(0, 250), sourceKey: 'PREVIA|' + row.rubrica + '|' + row.itemKey, sourceType: 'Previa',
     categoryId: meta.id, categoryLabel: meta.label, expenseType: '', budgetItem: row.itemKey, description: row.descricao,
     payeeName: row.beneficiario, payeeDocumentMasked: row.documento, paymentDate: null, documentDate: row.data || null,
-    amount: row.valor, incomeAmount: null, checks: Object.fromEntries(docs.map(doc => [doc, 'PND'])),
+    amount: row.valor, incomeAmount: null, checks: Object.fromEntries(docs.map(doc => [doc, 'NA'])),
     sourceSheetName: sheetNameLike, sourceRowNumber: row.sourceRow, importWarnings: '', possibleRemoved: false,
     canonicalData: { schemaVersion: 1, source: 'Previa', category: meta.label, categoryCode: row.rubrica, item: row.itemKey },
   };
