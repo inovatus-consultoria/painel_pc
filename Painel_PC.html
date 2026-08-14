@@ -6147,49 +6147,87 @@ function va19RowBucket(row) {
   const imported = row.imported;
   if (imported && imported.importWarnings) return { bucket: 'erro', badge: 'Aviso' };
   if (row.state === 'new' && row.manualAssoc) return { bucket: 'alterado', badge: 'Alterado' };
-  if (row.state === 'changed' && row.overrideNew) return { bucket: 'novo', badge: 'Novo' };
+  if ((row.state === 'changed' || row.state === 'unchanged') && row.overrideNew) return { bucket: 'novo', badge: 'Novo' };
   if (row.state === 'removed' && row.dismissed) return { bucket: 'neutral', badge: 'Dispensado' };
   return VA19_STATE_META[row.state];
 }
 
-/* VA.24 (rodada 3): "a palavra final e minha" - mesmo uma linha "Alterado" (match
-   automatico forte) tem que poder ser corrigida pelo usuario. Ao marcar, o item
-   existente que estava associado volta a ficar disponivel como possivel removido
-   (outra linha pode reivindicar ele depois) e esta linha passa a criar um item novo. */
+/* VA.24 (rodada 3): "a palavra final e minha" - mesmo uma linha "Alterado"/"Sem
+   alteracao" (match automatico) tem que poder ser corrigida pelo usuario. Ao marcar,
+   o item existente que estava associado volta a ficar disponivel (outra linha pode
+   reivindicar ele depois) e esta linha passa a criar um item novo. */
 function va19ToggleChangedOverride(rowIndex) {
   const comparison = controlledImport.comparison;
   const row = comparison.rows[rowIndex];
-  if (!row || row.state !== 'changed') return;
+  if (!row || (row.state !== 'changed' && row.state !== 'unchanged')) return;
   row.overrideNew = !row.overrideNew;
   renderImportStep2();
 }
 
-/* candidatos de "Possivel removido" (ainda nao associados a outra linha) da mesma
-   rubrica de um item "Novo" — pra deixar o usuario dizer "na verdade e este aqui". */
-function va19RemovedCandidates(row, comparison) {
-  if (!row.imported) return [];
+/* VA.25 - acha, entre as OUTRAS linhas, quem "e dono" de um item existente no momento
+   (match automatico ainda nao corrigido, ou associacao manual de outra linha "Novo") -
+   pra permitir "roubar" esse item quando o usuario associa manualmente a ele. Retorna
+   null se o item estiver livre (nunca casado, ja dispensado da lista de removido, ou
+   ja liberado por uma correcao manual anterior). */
+function va19EntryOwnerRow(entry, comparison, excludeRowIndex) {
+  return comparison.rows.find((other, i) => {
+    if (i === excludeRowIndex) return false;
+    if (other.state === 'new') return other.manualAssoc && other.manualAssoc.entry === entry;
+    if (other.state === 'review') return other.existing === entry && other.decision !== 'new';
+    if (other.state === 'changed' || other.state === 'unchanged') return other.existing === entry && !other.overrideNew;
+    return false;
+  }) || null;
+}
+
+/* libera um item existente que estava "de outro dono" pra poder ser reassociado. */
+function va19ReleaseEntryFromOwner(ownerRow) {
+  if (ownerRow.state === 'new') ownerRow.manualAssoc = null;
+  else if (ownerRow.state === 'review') ownerRow.decision = 'new';
+  else if (ownerRow.state === 'changed' || ownerRow.state === 'unchanged') ownerRow.overrideNew = true;
+}
+
+/* VA.25 - candidatos pra associacao manual de uma linha "Novo": TODOS os itens ja
+   existentes na mesma rubrica (nao so os que sobraram como "Possivel removido") -
+   Ricardo pediu poder escolher qualquer item da aba, mesmo um que o matching
+   automatico ja tenha (possivelmente errado) associado a outra linha. */
+function va19AllCandidatesForRow(row, comparison) {
+  if (!row.imported || !comparison.existingPool) return [];
   const catId = row.imported.categoryId;
-  return comparison.removed
-    .filter(entry => entry.existing.category.id === catId && entry.consumedBy == null)
-    .map(entry => ({ entry, score: va12PairScore(row.imported, entry.existing) }))
+  return comparison.existingPool
+    .filter(entry => entry.category.id === catId)
+    .map(entry => ({ entry, score: va12PairScore(row.imported, entry), owner: va19EntryOwnerRow(entry, comparison, row._index) }))
     .sort((a, b) => b.score - a.score);
 }
 
 function va19AssocSelectHtml(row, comparison) {
-  const candidates = va19RemovedCandidates(row, comparison).slice(0, 30);
+  const candidates = va19AllCandidatesForRow(row, comparison);
   if (!candidates.length) return '';
-  const options = candidates.map(c => `<option value="${c.entry._ridx}">${escapeHtml(va19CandidateLabel(c.entry.existing.item))} (${Math.round(c.score * 100)}%)</option>`).join('');
+  const options = candidates.map(c => {
+    const ownerNote = c.owner ? ' · vai desassociar de outra linha' : '';
+    return `<option value="${c.entry._pidx}">${escapeHtml(va19CandidateLabel(c.entry.item))} (${Math.round(c.score * 100)}%)${ownerNote}</option>`;
+  }).join('');
   return `<select class="assoc-select" onchange="va19AssociateNew(${row._index}, this.value)"><option value="">Na verdade e...</option>${options}</select>`;
 }
 
-function va19AssociateNew(rowIndex, ridxValue) {
+function va19AssociateNew(rowIndex, pidxValue) {
   const comparison = controlledImport.comparison;
   const row = comparison.rows[rowIndex];
   if (!row) return;
-  if (row.manualAssoc) { row.manualAssoc.entry.consumedBy = null; row.manualAssoc = null; }
-  if (ridxValue !== '' && ridxValue != null) {
-    const entry = comparison.removed[Number(ridxValue)];
-    if (entry && entry.consumedBy == null) { entry.consumedBy = rowIndex; row.manualAssoc = { entry }; }
+  if (row.manualAssoc) {
+    // devolve o item anterior pro pool livre (se ele veio da lista de "possivel removido")
+    const prevWrapper = comparison.removed.find(w => w.existing === row.manualAssoc.entry);
+    if (prevWrapper) prevWrapper.consumedBy = null;
+    row.manualAssoc = null;
+  }
+  if (pidxValue !== '' && pidxValue != null) {
+    const entry = comparison.existingPool[Number(pidxValue)];
+    if (entry) {
+      const owner = va19EntryOwnerRow(entry, comparison, rowIndex);
+      if (owner) va19ReleaseEntryFromOwner(owner);
+      const wrapper = comparison.removed.find(w => w.existing === entry);
+      if (wrapper) wrapper.consumedBy = rowIndex;
+      row.manualAssoc = { entry };
+    }
   }
   renderImportStep2();
 }
@@ -6235,12 +6273,12 @@ function va19RowHtml(row, comparison) {
     decision = row.dismissed
       ? `<span class="fixed">Nao sinalizado</span><div class="assoc-note"><a href="#" onclick="va19DismissRemoved(${row._ridx}); return false;">desfazer</a></div>`
       : `<span class="fixed">Marcar, nao excluir</span><div class="assoc-note"><a href="#" onclick="va19DismissRemoved(${row._ridx}); return false;">Nao foi removido</a></div>`;
-  } else if (row.state === 'unchanged') {
-    decision = '<span class="fixed">—</span>';
-  } else if (row.state === 'changed' && row.overrideNew) {
+  } else if ((row.state === 'changed' || row.state === 'unchanged') && row.overrideNew) {
     decision = `<span class="fixed">Criar item novo</span><div class="assoc-note">marcado como item diferente · <a href="#" onclick="va19ToggleChangedOverride(${idx}); return false;">desfazer</a></div>`;
   } else if (row.state === 'changed') {
     decision = `<span class="fixed">Aplicar automaticamente</span><div class="assoc-note"><a href="#" onclick="va19ToggleChangedOverride(${idx}); return false;">não é este item</a></div>`;
+  } else if (row.state === 'unchanged') {
+    decision = `<span class="fixed">—</span><div class="assoc-note"><a href="#" onclick="va19ToggleChangedOverride(${idx}); return false;">não é este item</a></div>`;
   } else {
     decision = '<span class="fixed">Aplicar automaticamente</span>';
   }
@@ -6265,6 +6303,7 @@ renderImportStep2 = function() {
   const comparison = controlledImport.comparison;
   if (!target || !comparison) return;
   comparison.removed.forEach((entry, i) => { entry._ridx = i; });
+  if (comparison.existingPool) comparison.existingPool.forEach((entry, i) => { entry._pidx = i; });
   const groupSelect = controlledImport.groups.length > 1 ? `<div class="modal-field"><label>PC encontrada no arquivo</label><select onchange="selectImportGroup(this.value)">${controlledImport.groups.map(group => `<option value="${escapeHtml(group.key)}" ${group.key === controlledImport.selectedGroup ? 'selected' : ''}>${escapeHtml(group.label)} - ${group.items.length} itens</option>`).join('')}</select></div>` : '';
   const LIMIT = 800;
   // linhas "removido" consumidas por uma associacao manual somem da tabela (viraram
@@ -6432,7 +6471,7 @@ confirmImport = async function() {
         // VA.24 (rodada 3): usuario corrigiu uma linha "Alterado" dizendo que na verdade
         // e outro item - cria como novo e devolve o item que estava associado pro grupo
         // de possiveis removidos.
-        if (row.state === 'changed' && row.overrideNew) {
+        if ((row.state === 'changed' || row.state === 'unchanged') && row.overrideNew) {
           if (row.existing) extraRemoved.push(row.existing);
           await va12CreateImported(row, target, result); continue;
         }
@@ -7110,7 +7149,10 @@ compareImportItems = function(items, sourceType) {
   rows.sort((a, b) => Number(a.imported.sourceRowNumber || 0) - Number(b.imported.sourceRowNumber || 0));
   rows.forEach((row, index) => { row._index = index; row.warningDecision = row.imported.importWarnings ? '' : 'none'; });
   const removed = existing.filter((entry, index) => !used.has(index)).map(entry => ({ state: 'removed', imported: null, existing: entry }));
-  return { rows, removed, counts: {
+  // VA.25 - pool completo de itens existentes (da mesma linhagem REF/Previa), pra deixar
+  // o usuario escolher manualmente QUALQUER item ja existente da rubrica, nao so os que
+  // o matching automatico deixou de fora (comparison.removed).
+  return { rows, removed, existingPool: existing, counts: {
     new: rows.filter(row => row.state === 'new').length,
     changed: rows.filter(row => row.state === 'changed').length,
     unchanged: rows.filter(row => row.state === 'unchanged').length,
