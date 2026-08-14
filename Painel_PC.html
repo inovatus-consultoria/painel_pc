@@ -5959,25 +5959,47 @@ function va12FindCanonicalValue(item, pattern) {
   return entry ? entry[1] : null;
 }
 
+/* VA.24 (rodada 3): score de identidade holistico. Em vez de somar bonus fixos que
+   penalizam sozinhos qualquer campo ausente ou revisado (ex.: valor mudou legitimamente
+   entre versoes do REF), compara TODOS os campos disponiveis nos dois lados e tira uma
+   media ponderada so dos campos que existem nos dois - a pergunta e sempre "voce
+   consegue afirmar que e o mesmo item?", nao "todos os campos bateram?". Um campo
+   ausente de um dos lados nao entra na conta (nem ajuda nem atrapalha); um campo
+   presente que mudou (ex.: valor revisado pelo executor) so pesa contra na proporcao
+   do seu peso, nao derruba a identidade sozinho quando os outros campos batem.
+   sourceRowNumber e so um desempate de proximidade, nao evidencia de identidade. */
 function va12PairScore(imported, entry) {
   const existing = entry.item;
   const incomingComparable = va12Comparable(imported, imported.categoryId);
   const existingComparable = va12Comparable(existing, entry.category.id);
   if (incomingComparable.source !== existingComparable.source) return 0;
   if (va12StableString(incomingComparable) === va12StableString(existingComparable)) return 1;
-  let score = incomingComparable.category === existingComparable.category ? 0.12 : 0;
-  score += va12TokenSimilarity(va12Corpus(imported), va12Corpus(existing)) * 0.38;
-  if (incomingComparable.payee && incomingComparable.payee === existingComparable.payee) score += 0.1;
-  if (incomingComparable.amount !== null && incomingComparable.amount === existingComparable.amount) score += 0.14;
-  if (incomingComparable.documentDate && incomingComparable.documentDate === existingComparable.documentDate) score += 0.08;
-  if (incomingComparable.paymentDate && incomingComparable.paymentDate === existingComparable.paymentDate) score += 0.06;
+
+  const incomingKey = va12NormText(imported.budgetItem);
+  const existingKey = va12NormText(existing.tipoLabel);
   const incomingDoc = va12NormText(va12FindCanonicalValue(imported, /COMPROVANTE|NOTA FISCAL/));
   const existingDoc = va12NormText(va12FindCanonicalValue(existing, /COMPROVANTE|NOTA FISCAL/));
-  if (incomingDoc && incomingDoc === existingDoc) score += 0.09;
+  const descSim = va12TokenSimilarity(va12Corpus(imported), va12Corpus(existing));
+
+  const signals = [
+    { weight: 0.22, has: !!(incomingKey && existingKey), value: incomingKey === existingKey ? 1 : 0 }, // numero do item na rubrica - sinal de identidade mais forte
+    { weight: 0.10, has: true, value: incomingComparable.category === existingComparable.category ? 1 : 0 },
+    { weight: 0.28, has: true, value: descSim }, // similaridade continua (nao binaria) de descricao/titulo/beneficiario
+    { weight: 0.12, has: !!(incomingComparable.payee && existingComparable.payee), value: incomingComparable.payee === existingComparable.payee ? 1 : 0 },
+    { weight: 0.12, has: incomingComparable.amount !== null && existingComparable.amount !== null, value: incomingComparable.amount === existingComparable.amount ? 1 : 0 },
+    { weight: 0.06, has: !!(incomingComparable.documentDate && existingComparable.documentDate), value: incomingComparable.documentDate === existingComparable.documentDate ? 1 : 0 },
+    { weight: 0.05, has: !!(incomingComparable.paymentDate && existingComparable.paymentDate), value: incomingComparable.paymentDate === existingComparable.paymentDate ? 1 : 0 },
+    { weight: 0.05, has: !!(incomingDoc && existingDoc), value: incomingDoc === existingDoc ? 1 : 0 },
+  ];
+  let weightSum = 0, scoreSum = 0;
+  signals.forEach(signal => { if (!signal.has) return; weightSum += signal.weight; scoreSum += signal.weight * signal.value; });
+  let score = weightSum > 0 ? scoreSum / weightSum : 0;
+
+  // desempate leve por proximidade de linha na planilha - nao entra na media de
+  // identidade, so ajuda a escolher entre candidatos com pontuacao muito parecida.
   const incomingRow = Number(imported.sourceRowNumber);
   const existingRow = Number(existing.sourceRowNumber);
-  if (Number.isFinite(incomingRow) && Number.isFinite(existingRow)) score += Math.max(0, 0.05 - Math.min(Math.abs(incomingRow - existingRow), 10) * 0.005);
-  if (va12NormText(imported.budgetItem) === va12NormText(existing.tipoLabel) && imported.budgetItem) score += 0.03;
+  if (Number.isFinite(incomingRow) && Number.isFinite(existingRow)) score += Math.max(0, 0.03 - Math.min(Math.abs(incomingRow - existingRow), 10) * 0.003);
   return Math.min(score, 0.99);
 }
 
@@ -6125,8 +6147,21 @@ function va19RowBucket(row) {
   const imported = row.imported;
   if (imported && imported.importWarnings) return { bucket: 'erro', badge: 'Aviso' };
   if (row.state === 'new' && row.manualAssoc) return { bucket: 'alterado', badge: 'Alterado' };
+  if (row.state === 'changed' && row.overrideNew) return { bucket: 'novo', badge: 'Novo' };
   if (row.state === 'removed' && row.dismissed) return { bucket: 'neutral', badge: 'Dispensado' };
   return VA19_STATE_META[row.state];
+}
+
+/* VA.24 (rodada 3): "a palavra final e minha" - mesmo uma linha "Alterado" (match
+   automatico forte) tem que poder ser corrigida pelo usuario. Ao marcar, o item
+   existente que estava associado volta a ficar disponivel como possivel removido
+   (outra linha pode reivindicar ele depois) e esta linha passa a criar um item novo. */
+function va19ToggleChangedOverride(rowIndex) {
+  const comparison = controlledImport.comparison;
+  const row = comparison.rows[rowIndex];
+  if (!row || row.state !== 'changed') return;
+  row.overrideNew = !row.overrideNew;
+  renderImportStep2();
 }
 
 /* candidatos de "Possivel removido" (ainda nao associados a outra linha) da mesma
@@ -6202,6 +6237,10 @@ function va19RowHtml(row, comparison) {
       : `<span class="fixed">Marcar, nao excluir</span><div class="assoc-note"><a href="#" onclick="va19DismissRemoved(${row._ridx}); return false;">Nao foi removido</a></div>`;
   } else if (row.state === 'unchanged') {
     decision = '<span class="fixed">—</span>';
+  } else if (row.state === 'changed' && row.overrideNew) {
+    decision = `<span class="fixed">Criar item novo</span><div class="assoc-note">marcado como item diferente · <a href="#" onclick="va19ToggleChangedOverride(${idx}); return false;">desfazer</a></div>`;
+  } else if (row.state === 'changed') {
+    decision = `<span class="fixed">Aplicar automaticamente</span><div class="assoc-note"><a href="#" onclick="va19ToggleChangedOverride(${idx}); return false;">não é este item</a></div>`;
   } else {
     decision = '<span class="fixed">Aplicar automaticamente</span>';
   }
@@ -6390,6 +6429,13 @@ confirmImport = async function() {
         // constava como "Possivel removido" - trata como atualizacao do item existente,
         // nao criacao de duplicata.
         if (row.state === 'new' && row.manualAssoc) { row.existing = row.manualAssoc.entry; await va12UpdateImported(row, target, result); continue; }
+        // VA.24 (rodada 3): usuario corrigiu uma linha "Alterado" dizendo que na verdade
+        // e outro item - cria como novo e devolve o item que estava associado pro grupo
+        // de possiveis removidos.
+        if (row.state === 'changed' && row.overrideNew) {
+          if (row.existing) extraRemoved.push(row.existing);
+          await va12CreateImported(row, target, result); continue;
+        }
         if (row.state === 'new') { await va12CreateImported(row, target, result); continue; }
         if (row.state === 'changed' || row.state === 'review') { await va12UpdateImported(row, target, result); continue; }
         const local = row.existing.item;
