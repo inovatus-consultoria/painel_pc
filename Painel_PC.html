@@ -14,6 +14,8 @@
     --green: #2D5C4E; --green-light: #E8F2EF;
     --red: #C83A3A; --red-light: #FBF0EF;
     --amber: #B8963C; --amber-light: #FBF5E8;
+    --blue: #2E5FA3; --blue-light: #EAF1FB;
+    --orange: #C3691F; --orange-light: #FBF1E6;
     --slate: #6B7A76; --slate-light: #EEF1F0;
     --border: #D0DDD8;
     --radius: 12px;
@@ -663,6 +665,7 @@
   .detail-section { padding-bottom: 18px; margin-bottom: 18px; }
   .detail-alert.info { border-color: var(--border); background: var(--surface2); color: var(--ink2); }
   .import-modal-box, .output-modal-box { width: min(920px, 94vw); }
+  .import-modal-box.va19-wide { width: min(1220px, 97vw); max-height: 92vh; }
   .source-segment { margin-bottom: 16px; }
   .source-segment .segmented-control { width: max-content; }
   .import-drop { display: block; border: 1px dashed var(--border); border-radius: 8px; padding: 22px; background: var(--bg); text-align: center; cursor: pointer; }
@@ -763,6 +766,70 @@
   .warning-editor { display: grid; grid-template-columns: minmax(100px, 1fr) minmax(130px, 1fr); gap: 6px; margin-top: 6px; }
   .warning-editor input, .warning-editor select { min-width: 0; height: 32px; padding: 5px 8px; }
   .import-blocked-note { margin: 10px 0 0; padding: 9px 11px; border: 1px solid #e3ca86; border-radius: 6px; background: var(--amber-light); color: #7a5810; font-size: 12px; }
+
+  /* ===== VA.24 — revisao de importacao por categoria (novo layout V1->V2) ===== */
+  .summary-bar { display: flex; gap: 8px; padding: 10px 0; flex-wrap: wrap; align-items: center; margin-bottom: 6px; }
+  .summary-bar .stat { display: flex; align-items: baseline; gap: 6px; padding: 7px 12px; border-radius: 8px; font-size: 12.5px; font-weight: 700; }
+  .summary-bar .stat b { font-size: 16px; }
+  .summary-bar .stat span { font-weight: 500; font-size: 10.5px; text-transform: uppercase; letter-spacing: .03em; }
+  .summary-bar .stat.neutral { background: var(--slate-light); color: var(--slate); }
+  .summary-bar .stat.novo { background: var(--green-light); color: var(--green); }
+  .summary-bar .stat.alterado { background: var(--blue-light); color: var(--blue); }
+  .summary-bar .stat.revisar { background: var(--amber-light); color: var(--amber); }
+  .summary-bar .stat.removido { background: var(--orange-light); color: var(--orange); }
+  .summary-bar .stat.erro { background: var(--red-light); color: var(--red); }
+  .toggle-wrap { margin-left: auto; display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--ink2); }
+  .toggle { width: 34px; height: 19px; background: var(--border); border-radius: 99px; position: relative; cursor: pointer; flex-shrink: 0; }
+  .toggle::after { content: ''; position: absolute; width: 15px; height: 15px; background: #fff; border-radius: 50%; top: 2px; left: 2px; box-shadow: 0 1px 3px rgba(0,0,0,.25); transition: left .15s; }
+  .toggle.active { background: var(--accent); }
+  .toggle.active::after { left: 17px; }
+
+  .categories { max-height: 48vh; overflow-y: auto; margin: 4px 0 10px; }
+  .cat-section { border: 1px solid var(--border); border-radius: 10px; margin-bottom: 10px; overflow: hidden; }
+  .cat-head { display: flex; align-items: center; gap: 10px; padding: 10px 14px; background: var(--surface2); cursor: pointer; flex-wrap: wrap; }
+  .cat-head .chev { width: 8px; height: 8px; border-right: 2px solid var(--ink3); border-bottom: 2px solid var(--ink3); transform: rotate(45deg); transition: transform .15s; flex-shrink: 0; }
+  .cat-section.collapsed .chev { transform: rotate(-45deg); }
+  .cat-head .name { font-weight: 800; font-size: 13px; }
+  .cat-section.collapsed table { display: none; }
+  .cat-chip { font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 99px; }
+  .cat-chip.novo { background: var(--green-light); color: var(--green); }
+  .cat-chip.alterado { background: var(--blue-light); color: var(--blue); }
+  .cat-chip.revisar { background: var(--amber-light); color: var(--amber); }
+  .cat-chip.removido { background: var(--orange-light); color: var(--orange); }
+  .cat-chip.erro { background: var(--red-light); color: var(--red); }
+  .cat-chip.neutral { background: var(--slate-light); color: var(--slate); }
+
+  .categories table { width: 100%; border-collapse: collapse; }
+  .categories thead th { text-align: left; font-size: 10px; text-transform: uppercase; letter-spacing: .03em; color: var(--ink3); font-weight: 700; padding: 7px 12px; border-bottom: 1px solid var(--border); background: var(--surface); }
+  .categories tbody tr { border-bottom: 1px solid var(--surface2); }
+  .categories tbody tr:last-child { border-bottom: none; }
+  .categories td { padding: 8px 12px; vertical-align: top; font-size: 12px; }
+  .categories .row-neutral.hidden-unchanged { display: none; }
+  .categories.show-unchanged .row-neutral.hidden-unchanged { display: table-row; }
+  .row-novo { background: linear-gradient(90deg, var(--green) 0 3px, var(--green-light) 3px); }
+  .row-alterado { background: linear-gradient(90deg, var(--blue) 0 3px, var(--blue-light) 3px); }
+  .row-revisar { background: linear-gradient(90deg, var(--amber) 0 3px, var(--amber-light) 3px); }
+  .row-removido { background: linear-gradient(90deg, var(--orange) 0 3px, var(--orange-light) 3px); }
+  .row-erro { background: linear-gradient(90deg, var(--red) 0 3px, var(--red-light) 3px); }
+
+  .item-title { font-weight: 700; color: var(--ink); }
+  .item-sub { color: var(--ink3); font-size: 10.5px; margin-top: 1px; }
+  .field-pair { display: flex; flex-direction: column; gap: 2px; }
+  .field-pair .old { color: var(--ink3); text-decoration: line-through; font-size: 11px; }
+  .field-pair .new { font-weight: 700; }
+  .field-pair.same .new { font-weight: 500; color: var(--ink2); text-decoration: none; }
+  .field-pair.changed .new.blue { color: var(--blue); }
+
+  .badge-state { display: inline-flex; align-items: center; gap: 4px; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: .02em; padding: 3px 8px; border-radius: 99px; }
+  .badge-state.novo { background: var(--green-light); color: var(--green); }
+  .badge-state.alterado { background: var(--blue-light); color: var(--blue); }
+  .badge-state.revisar { background: var(--amber-light); color: var(--amber); }
+  .badge-state.removido { background: var(--orange-light); color: var(--orange); }
+  .badge-state.erro { background: var(--red-light); color: var(--red); }
+  .badge-state.neutral { background: var(--slate-light); color: var(--slate); }
+  .confidence { color: var(--ink3); font-size: 10px; margin-left: 3px; }
+  .decision .fixed { font-size: 11px; color: var(--ink2); font-weight: 600; }
+  .warning-text { color: var(--red); font-size: 10.5px; margin-top: 3px; }
 
   .output-item-list { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
   .output-item-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 11px 12px; border: 1px solid var(--border); border-radius: 7px; background: var(--surface); }
@@ -3038,7 +3105,10 @@ function openImportModal() {
   document.getElementById('importOverlay').classList.remove('hidden');
 }
 function closeImportModal() {
-  document.getElementById('importOverlay').classList.add('hidden');
+  const overlay = document.getElementById('importOverlay');
+  overlay.classList.add('hidden');
+  const box = overlay.querySelector('.modal-box');
+  if (box) box.classList.remove('va19-wide');
 }
 
 function handleImportFile(e) {
@@ -5792,6 +5862,16 @@ function va12NormText(value) {
   return String(value == null ? '' : value).normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ').trim().toUpperCase();
 }
 
+/* VA.24 - itens vindos da "Analise previa" (migracao) e itens vindos de importacao
+   ao vivo de REF representam a mesma linhagem de dado (o REF e a fonte original de
+   ambos). Precisam ser tratados como equivalentes na identidade de comparacao -
+   senao um reimport de REF nunca encontra os itens ja migrados via Analise previa
+   e classifica tudo como "novo" (duplicando o item). */
+function va19SourceGroup(value) {
+  const normalized = va12NormText(value);
+  return (normalized === 'REF' || normalized === 'PREVIA') ? 'REF' : normalized;
+}
+
 function va12NormValue(value) {
   if (value instanceof Date) return value.toISOString().slice(0, 10);
   if (value === null || value === undefined || value === '') return null;
@@ -5821,10 +5901,13 @@ function va12CleanCanonical(item) {
 }
 
 function va12Comparable(item, categoryId) {
-  const source = va12NormText(item.sourceType || item.canonicalData && item.canonicalData.source);
+  const rawSource = va12NormText(item.sourceType || item.canonicalData && item.canonicalData.source);
+  const source = va19SourceGroup(rawSource);
   return {
     source,
     category: va12NormText(categoryId || item.categoryId || item._categoryId),
+    // VA.24: numeracao de item nao e identidade estavel nem em REF (renumeracao apos
+    // exclusao) nem em Previa (mesma linhagem) - ambos ficam em branco pra comparacao.
     budgetItem: source === 'REF' ? '' : va12NormText(item.budgetItem || item.tipoLabel),
     description: va12NormText(item.description || item.subtitle),
     payee: va12NormText(item.payeeName),
@@ -5961,34 +6044,157 @@ function va12UpdateImportConfirmState() {
   }
 }
 
+/* ===== VA.24 — revisao de importacao REF/Previa por categoria, com comparacao V1->V2 ===== */
+const VA19_STATE_META = {
+  new: { bucket: 'novo', badge: 'Novo' },
+  changed: { bucket: 'alterado', badge: 'Alterado' },
+  unchanged: { bucket: 'neutral', badge: 'Sem alteracao' },
+  review: { bucket: 'revisar', badge: 'Revisar' },
+  removed: { bucket: 'removido', badge: 'Possivel removido' },
+};
+const VA19_CHIP_ORDER = [
+  ['alterado', 'alterados'], ['revisar', 'revisar'], ['novo', 'novos'],
+  ['removido', 'removidos'], ['erro', 'com aviso'], ['neutral', 'sem alteracao'],
+];
+
+function va19FieldPair(oldText, newText, mode) {
+  if (mode === 'new') return `<div class="field-pair"><span class="new">${escapeHtml(newText || '—')}</span></div>`;
+  if (mode === 'removed') return `<div class="field-pair"><span class="old">${escapeHtml(oldText || '—')}</span></div>`;
+  const oldNorm = va12NormText(oldText); const newNorm = va12NormText(newText);
+  if (oldNorm === newNorm) return `<div class="field-pair same"><span class="new">${escapeHtml(newText || oldText || '—')}</span></div>`;
+  return `<div class="field-pair changed"><span class="old">${escapeHtml(oldText || '(vazio)')}</span><span class="new blue">${escapeHtml(newText || '—')}</span></div>`;
+}
+
+function va19ItemValueText(item) {
+  return item ? fmtValor(item.amount == null ? item.valor : item.amount) || '' : '';
+}
+function va19ItemDateText(item) {
+  if (!item) return '';
+  return fmtDateCell(item.paymentDate) || fmtDateCell(item.documentDate) || '';
+}
+function va19ItemDescText(item) {
+  return item ? (item.description || item.subtitle || '') : '';
+}
+function va19ItemKeyText(item) {
+  return item ? (item.budgetItem || item.tipoLabel || '') : '';
+}
+
+function va19ToggleCategory(headEl) {
+  const section = headEl.closest('.cat-section');
+  if (section) section.classList.toggle('collapsed');
+}
+
+function va19ToggleUnchanged() {
+  const container = document.getElementById('va19Categories');
+  const toggle = document.getElementById('va19UnchangedToggle');
+  if (!container) return;
+  const show = container.classList.toggle('show-unchanged');
+  if (toggle) toggle.classList.toggle('active', show);
+}
+
+function va19RowHtml(row) {
+  const meta = VA19_STATE_META[row.state];
+  const imported = row.imported;
+  const existingItem = row.existing && row.existing.item;
+  const hasWarning = !!(imported && imported.importWarnings);
+  const bucket = hasWarning ? 'erro' : meta.bucket;
+  const badge = hasWarning ? 'Aviso' : meta.badge;
+  const idx = row._index;
+  const mode = row.state === 'new' ? 'new' : row.state === 'removed' ? 'removed' : 'compare';
+  const catId = imported ? imported.categoryId : row.existing.category.id;
+  const rubricaCode = DOCUMENT_CODE_BY_CATEGORY_ID[catId] || '';
+  const keyText = va19ItemKeyText(imported || existingItem);
+  const payee = (imported && imported.payeeName) || (existingItem && existingItem.payeeName) || '';
+  const itemLabelHtml = keyText
+    ? `<span class="item-title">${rubricaCode ? escapeHtml(rubricaCode) + ' · ' : ''}${escapeHtml(keyText)}</span>`
+    : `<span class="item-title">${escapeHtml((imported && imported.title) || (existingItem && existingItem.title) || 'Item')}</span>`;
+  const itemSubHtml = row.state === 'removed'
+    ? `<div class="item-sub">existia como ${escapeHtml(existingItem.tipoLabel || existingItem.title || 'item anterior')}</div>`
+    : payee ? `<div class="item-sub">${escapeHtml(payee)}</div>` : '';
+  const descPair = va19FieldPair(va19ItemDescText(existingItem), va19ItemDescText(imported), mode);
+  const valuePair = va19FieldPair(va19ItemValueText(existingItem), va19ItemValueText(imported), mode);
+  const datePair = va19FieldPair(va19ItemDateText(existingItem), va19ItemDateText(imported), mode);
+  const decision = row.state === 'review'
+    ? `<select class="reconcile-action" onchange="va12SetReviewDecision(${idx}, this.value)"><option value="">Decidir...</option><option value="same" ${row.decision === 'same' ? 'selected' : ''}>E o mesmo item</option><option value="new" ${row.decision === 'new' ? 'selected' : ''}>E um item novo</option><option value="ignore" ${row.decision === 'ignore' ? 'selected' : ''}>Ignorar nesta importacao</option></select>`
+    : row.state === 'new' ? '<span class="fixed">Criar item</span>'
+    : row.state === 'removed' ? '<span class="fixed">Marcar, nao excluir</span>'
+    : row.state === 'unchanged' ? '<span class="fixed">—</span>'
+    : '<span class="fixed">Aplicar automaticamente</span>';
+  const warningHtml = hasWarning
+    ? `<div class="warning-text">⚠ ${escapeHtml(imported.importWarnings)}</div><div class="warning-editor"><input id="va12WarningValue${idx}" placeholder="Valor corrigido"><select onchange="va12SetWarningDecision(${idx}, this.value)"><option value="">Decidir...</option><option value="accept" ${row.warningDecision === 'accept' ? 'selected' : ''}>Aceitar sem corrigir</option><option value="correct" ${row.warningDecision === 'correct' ? 'selected' : ''}>Usar valor informado</option><option value="skip" ${row.warningDecision === 'skip' ? 'selected' : ''}>Nao importar esta linha</option></select></div>`
+    : '';
+  const confidenceHtml = row.confidence != null && row.state !== 'new' ? `<span class="confidence">${Math.round(row.confidence * 100)}%</span>` : '';
+  return `<tr class="row-${bucket}${bucket === 'neutral' ? ' hidden-unchanged' : ''}">
+    <td>${itemLabelHtml}${itemSubHtml}</td>
+    <td>${descPair}</td>
+    <td>${valuePair}</td>
+    <td>${datePair}</td>
+    <td><span class="badge-state ${bucket}">${badge}</span>${confidenceHtml}</td>
+    <td class="decision">${decision}${warningHtml}</td>
+  </tr>`;
+}
+
 renderImportStep2 = function() {
   const target = currentImportTarget();
   const comparison = controlledImport.comparison;
   if (!target || !comparison) return;
   const c = comparison.counts;
   const groupSelect = controlledImport.groups.length > 1 ? `<div class="modal-field"><label>PC encontrada no arquivo</label><select onchange="selectImportGroup(this.value)">${controlledImport.groups.map(group => `<option value="${escapeHtml(group.key)}" ${group.key === controlledImport.selectedGroup ? 'selected' : ''}>${escapeHtml(group.label)} - ${group.items.length} itens</option>`).join('')}</select></div>` : '';
-  const previewRows = [...comparison.rows, ...comparison.removed].slice(0, 200);
-  const labels = { new: 'Novo', changed: 'Alterado', unchanged: 'Sem alteracao', review: 'Revisar', removed: 'Possivel removido' };
+  const LIMIT = 800;
+  const allRows = [...comparison.rows, ...comparison.removed];
+  const previewRows = allRows.slice(0, LIMIT);
+
+  const categoriesMap = new Map();
+  previewRows.forEach(row => {
+    const catId = row.imported ? row.imported.categoryId : row.existing.category.id;
+    const catLabel = row.imported ? row.imported.categoryLabel : row.existing.category.label;
+    if (!categoriesMap.has(catId)) categoriesMap.set(catId, { id: catId, label: catLabel, rows: [] });
+    categoriesMap.get(catId).rows.push(row);
+  });
+  const categoryGroups = [...categoriesMap.values()].sort((a, b) => a.label.localeCompare(b.label, 'pt-BR'));
+
+  const categoriesHtml = categoryGroups.map(group => {
+    const bucketCounts = {};
+    const rowsHtml = group.rows.map(row => {
+      const imported = row.imported;
+      const hasWarning = !!(imported && imported.importWarnings);
+      const bucket = hasWarning ? 'erro' : VA19_STATE_META[row.state].bucket;
+      bucketCounts[bucket] = (bucketCounts[bucket] || 0) + 1;
+      return va19RowHtml(row);
+    }).join('');
+    const hasAttention = Object.keys(bucketCounts).some(bucket => bucket !== 'neutral');
+    const chips = VA19_CHIP_ORDER.filter(([bucket]) => bucketCounts[bucket]).map(([bucket, label]) => `<div class="cat-chip ${bucket}">${bucketCounts[bucket]} ${label}</div>`).join('');
+    return `<div class="cat-section${hasAttention ? '' : ' collapsed'}">
+      <div class="cat-head" onclick="va19ToggleCategory(this)">
+        <div class="chev"></div>
+        <div class="name">${escapeHtml(group.label)}</div>
+        ${chips}
+      </div>
+      <table>
+        <thead><tr><th style="width:20%">Item</th><th style="width:28%">Descricao</th><th style="width:14%">Valor</th><th style="width:12%">Data</th><th style="width:12%">Situacao</th><th style="width:14%">Decisao</th></tr></thead>
+        <tbody>${rowsHtml}</tbody>
+      </table>
+    </div>`;
+  }).join('');
+
   document.getElementById('controlledImportBody').innerHTML = `
     <div class="va12-destination"><div><label>Cliente</label><select id="va12ImportClient" onchange="va12ImportClientChanged()"></select></div><div><label>Projeto</label><select id="va12ImportProject" onchange="va12ImportProjectChanged()"></select></div><div><label>PC</label><select id="va12ImportPC" onchange="va12ImportPCChanged()"></select></div><div><label>Ciclo</label><select id="va12ImportCycle" onchange="va12ImportDestinationChanged()"></select></div><div class="va12-target-summary" id="va12TargetSummary"></div></div>
     ${groupSelect}
-    <div class="reconcile-summary">
-      <div class="reconcile-stat"><b>${c.new}</b><span>novos</span></div><div class="reconcile-stat"><b>${c.changed}</b><span>alterados</span></div>
-      <div class="reconcile-stat"><b>${c.unchanged}</b><span>sem alteracao</span></div><div class="reconcile-stat review"><b>${c.review}</b><span>para revisar</span></div>
-      <div class="reconcile-stat"><b>${c.removed}</b><span>possiveis removidos</span></div><div class="reconcile-stat ${c.warnings ? 'failed' : ''}"><b>${c.warnings}</b><span>com aviso</span></div>
+    <div class="summary-bar">
+      <div class="stat neutral"><b>${c.unchanged}</b><span>sem alteracao</span></div>
+      <div class="stat novo"><b>${c.new}</b><span>novos</span></div>
+      <div class="stat alterado"><b>${c.changed}</b><span>alterados</span></div>
+      <div class="stat revisar"><b>${c.review}</b><span>revisar</span></div>
+      <div class="stat removido"><b>${c.removed}</b><span>removidos</span></div>
+      <div class="stat erro"><b>${c.warnings}</b><span>aviso/erro</span></div>
+      <div class="toggle-wrap"><span>Mostrar sem alteracao</span><div class="toggle" id="va19UnchangedToggle" onclick="va19ToggleUnchanged()"></div></div>
     </div>
-    <div class="draft-table-wrap"><table class="draft-table"><thead><tr><th>Item recebido / anterior</th><th>Rubrica</th><th>Situacao</th><th>Decisao</th><th>Aviso</th></tr></thead><tbody>
-      ${previewRows.map(row => {
-        const imported = row.imported; const item = imported || row.existing.item; const idx = row._index;
-        const old = row.existing && imported ? `<span class="reconcile-old">Anterior: ${escapeHtml(row.existing.item.title || row.existing.item.tipoLabel || 'Item')}</span>` : '';
-        const decision = row.state === 'review' ? `<select class="reconcile-action" onchange="va12SetReviewDecision(${idx}, this.value)"><option value="">Decidir...</option><option value="same">E o mesmo item</option><option value="new">E um item novo</option><option value="ignore">Ignorar nesta importacao</option></select>` : row.state === 'new' ? 'Criar item' : row.state === 'removed' ? 'Marcar, nao excluir' : 'Aplicar automaticamente';
-        const warning = imported && imported.importWarnings ? `<div>${escapeHtml(imported.importWarnings)}</div><div class="warning-editor"><input id="va12WarningValue${idx}" placeholder="Valor corrigido"><select onchange="va12SetWarningDecision(${idx}, this.value)"><option value="">Decidir...</option><option value="accept">Aceitar sem corrigir</option><option value="correct">Usar valor informado</option><option value="skip">Nao importar esta linha</option></select></div>` : '';
-        return `<tr><td>${escapeHtml(item.title || item.sourceItemKey || 'Item')}${old}</td><td>${escapeHtml(imported ? imported.categoryLabel : row.existing.category.label)}</td><td><span class="draft-state ${row.state}">${labels[row.state]}</span>${row.confidence != null && row.state !== 'new' ? `<span class="reconcile-confidence"> ${Math.round(row.confidence * 100)}%</span>` : ''}</td><td>${decision}</td><td>${warning}</td></tr>`;
-      }).join('')}
-    </tbody></table></div>
-    ${previewRows.length < comparison.rows.length + comparison.removed.length ? `<p class="modal-hint">Previa limitada a ${previewRows.length} linhas; todas serao processadas.</p>` : ''}
+    <div class="categories" id="va19Categories">${categoriesHtml || '<p class="modal-hint">Nenhum item para comparar.</p>'}</div>
+    ${previewRows.length < allRows.length ? `<p class="modal-hint">Previa limitada a ${previewRows.length} linhas; todas serao processadas.</p>` : ''}
     <div class="import-blocked-note hidden" id="va12ImportBlocked"></div>
     <div class="modal-actions"><button class="btn btn-ghost" onclick="closeImportModal()">Cancelar</button><button class="btn btn-primary" id="va12ConfirmImport" onclick="confirmImport()">Confirmar importacao</button></div>`;
+  const box = document.querySelector('#importOverlay .modal-box');
+  if (box) box.classList.add('va19-wide');
   va12RenderingDestination = true;
   va12RenderImportDestination(target);
   va12RenderingDestination = false;
@@ -6729,7 +6935,7 @@ compareImportItems = function(items, sourceType) {
   const target = currentImportTarget();
   const data = target && target.pc && target.pc.data;
   const existingAll = data ? data.categories.flatMap(category => category.items.map(item => ({ category, item }))) : [];
-  const existing = existingAll.filter(entry => va12NormText(entry.item.canonicalData && entry.item.canonicalData.source) === va12NormText(sourceType));
+  const existing = existingAll.filter(entry => va19SourceGroup(entry.item.canonicalData && entry.item.canonicalData.source) === va19SourceGroup(sourceType));
   const used = new Set(), rows = [];
   const orderedItems = [...items].sort((a, b) => Number(a.sourceRowNumber || 0) - Number(b.sourceRowNumber || 0));
   orderedItems.forEach(imported => {
