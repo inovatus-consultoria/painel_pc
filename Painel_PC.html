@@ -778,6 +778,9 @@
   .summary-bar .stat.revisar { background: var(--amber-light); color: var(--amber); }
   .summary-bar .stat.removido { background: var(--orange-light); color: var(--orange); }
   .summary-bar .stat.erro { background: var(--red-light); color: var(--red); }
+  .summary-bar .stat { cursor: pointer; transition: box-shadow .12s, transform .12s; }
+  .summary-bar .stat:hover { box-shadow: 0 0 0 2px rgba(0,0,0,.06) inset; }
+  .summary-bar .stat.active { box-shadow: 0 0 0 2px currentColor inset; }
   .toggle-wrap { margin-left: auto; display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--ink2); }
   .toggle { width: 34px; height: 19px; background: var(--border); border-radius: 99px; position: relative; cursor: pointer; flex-shrink: 0; }
   .toggle::after { content: ''; position: absolute; width: 15px; height: 15px; background: #fff; border-radius: 50%; top: 2px; left: 2px; box-shadow: 0 1px 3px rgba(0,0,0,.25); transition: left .15s; }
@@ -830,6 +833,9 @@
   .confidence { color: var(--ink3); font-size: 10px; margin-left: 3px; }
   .decision .fixed { font-size: 11px; color: var(--ink2); font-weight: 600; }
   .warning-text { color: var(--red); font-size: 10.5px; margin-top: 3px; }
+  .assoc-select { display: block; margin-top: 5px; width: 100%; max-width: 220px; font-size: 10.5px; padding: 3px 5px; border-radius: 6px; border: 1px solid var(--border); background: #fff; color: var(--ink2); }
+  .assoc-note { font-size: 10.5px; color: var(--ink3); margin-top: 3px; }
+  .assoc-note a { color: var(--accent); cursor: pointer; text-decoration: underline; }
 
   .output-item-list { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
   .output-item-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 11px 12px; border: 1px solid var(--border); border-radius: 7px; background: var(--surface); }
@@ -5834,7 +5840,7 @@ openImportModal = function() {
   const preferred = currentPC && DATA && DATA.meta.ciclos[selectedCicloIdx] ? {
     ci: currentPC.ci, pi: currentPC.pi, pci: currentPC.pci, cycleIndex: selectedCicloIdx,
   } : va12ActiveImportTargets()[0] || null;
-  controlledImport = { sourceType: DATA && DATA.meta.sourceType === 'REF' ? 'REF' : 'Prompt', fileName: '', groups: [], selectedGroup: '', items: [], warnings: [], comparison: null, target: null };
+  controlledImport = { sourceType: DATA && DATA.meta.sourceType === 'REF' ? 'REF' : 'Prompt', fileName: '', groups: [], selectedGroup: '', items: [], warnings: [], comparison: null, target: null, uiFilter: null };
   const overlay = document.getElementById('importOverlay');
   overlay.querySelector('.modal-box').classList.add('import-modal-box');
   overlay.querySelector('.modal-header h2').textContent = 'Importar itens';
@@ -5928,8 +5934,15 @@ function va12StableString(value) {
 function va12Fingerprint(item, categoryId) { return va12StableString(va12Comparable(item, categoryId)); }
 
 function va12Corpus(item) {
-  const canonical = va12CleanCanonical(item);
-  return va12NormText([item.description || item.subtitle, item.payeeName, item.title, item.budgetItem || item.tipoLabel, va12StableString(canonical)].filter(Boolean).join(' '));
+  // VA.24: o dump bruto de `canonical.fields` (todas as colunas da planilha REF daquela
+  // linha) ficou de fora do corpus de comparacao fuzzy. Ele inflava MUITO o total de tokens
+  // pra planilhas REF largas (ex.: "Dados da equipe" tem ~9 colunas -> ~35 tokens, contra
+  // ~9 tokens do lado Previa, que nunca populou "fields") — diluindo a similaridade de
+  // token real (nome da pessoa) abaixo do limiar de match, mesmo quando o item era
+  // obviamente o mesmo. Confirmado com dado real: sem canonical no corpus, a similaridade
+  // de um par idêntico foi de 0.32 para 0.86. O match exato (va12Fingerprint/'unchanged')
+  // continua usando o canonical completo via va12Comparable — só o fuzzy corpus mudou.
+  return va12NormText([item.description || item.subtitle, item.payeeName, item.title, item.budgetItem || item.tipoLabel].filter(Boolean).join(' '));
 }
 
 function va12TokenSimilarity(a, b) {
@@ -6056,6 +6069,7 @@ const VA19_CHIP_ORDER = [
   ['alterado', 'alterados'], ['revisar', 'revisar'], ['novo', 'novos'],
   ['removido', 'removidos'], ['erro', 'com aviso'], ['neutral', 'sem alteracao'],
 ];
+const VA19_FILTER_LABEL = { novo: 'novos', alterado: 'alterados', revisar: 'para revisar', removido: 'possiveis removidos', erro: 'com aviso/erro', neutral: 'sem alteracao' };
 
 function va19FieldPair(oldText, newText, mode) {
   if (mode === 'new') return `<div class="field-pair"><span class="new">${escapeHtml(newText || '—')}</span></div>`;
@@ -6078,6 +6092,11 @@ function va19ItemDescText(item) {
 function va19ItemKeyText(item) {
   return item ? (item.budgetItem || item.tipoLabel || '') : '';
 }
+function va19CandidateLabel(item) {
+  const key = va19ItemKeyText(item);
+  const text = item.title || item.subtitle || item.description || 'item';
+  return (key ? key + ' - ' : '') + text;
+}
 
 function va19ToggleCategory(headEl) {
   const section = headEl.closest('.cat-section');
@@ -6092,15 +6111,69 @@ function va19ToggleUnchanged() {
   if (toggle) toggle.classList.toggle('active', show);
 }
 
-function va19RowHtml(row) {
-  const meta = VA19_STATE_META[row.state];
+/* VA.24 (rodada 2) — filtro por situacao: clicar num numero do resumo mostra so
+   aquele bucket em todas as rubricas; clicar de novo volta a mostrar tudo. */
+function va19ToggleFilter(bucket) {
+  controlledImport.uiFilter = controlledImport.uiFilter === bucket ? null : bucket;
+  renderImportStep2();
+}
+
+/* VA.24 (rodada 2) — bucket "de verdade" de uma linha, considerando decisoes manuais
+   do usuario (associar um "Novo" a um item existente, ou dispensar um "Possivel
+   removido") — nao so a classificacao automatica original. */
+function va19RowBucket(row) {
   const imported = row.imported;
-  const existingItem = row.existing && row.existing.item;
-  const hasWarning = !!(imported && imported.importWarnings);
-  const bucket = hasWarning ? 'erro' : meta.bucket;
-  const badge = hasWarning ? 'Aviso' : meta.badge;
+  if (imported && imported.importWarnings) return { bucket: 'erro', badge: 'Aviso' };
+  if (row.state === 'new' && row.manualAssoc) return { bucket: 'alterado', badge: 'Alterado' };
+  if (row.state === 'removed' && row.dismissed) return { bucket: 'neutral', badge: 'Dispensado' };
+  return VA19_STATE_META[row.state];
+}
+
+/* candidatos de "Possivel removido" (ainda nao associados a outra linha) da mesma
+   rubrica de um item "Novo" — pra deixar o usuario dizer "na verdade e este aqui". */
+function va19RemovedCandidates(row, comparison) {
+  if (!row.imported) return [];
+  const catId = row.imported.categoryId;
+  return comparison.removed
+    .filter(entry => entry.existing.category.id === catId && entry.consumedBy == null)
+    .map(entry => ({ entry, score: va12PairScore(row.imported, entry.existing) }))
+    .sort((a, b) => b.score - a.score);
+}
+
+function va19AssocSelectHtml(row, comparison) {
+  const candidates = va19RemovedCandidates(row, comparison).slice(0, 30);
+  if (!candidates.length) return '';
+  const options = candidates.map(c => `<option value="${c.entry._ridx}">${escapeHtml(va19CandidateLabel(c.entry.existing.item))} (${Math.round(c.score * 100)}%)</option>`).join('');
+  return `<select class="assoc-select" onchange="va19AssociateNew(${row._index}, this.value)"><option value="">Na verdade e...</option>${options}</select>`;
+}
+
+function va19AssociateNew(rowIndex, ridxValue) {
+  const comparison = controlledImport.comparison;
+  const row = comparison.rows[rowIndex];
+  if (!row) return;
+  if (row.manualAssoc) { row.manualAssoc.entry.consumedBy = null; row.manualAssoc = null; }
+  if (ridxValue !== '' && ridxValue != null) {
+    const entry = comparison.removed[Number(ridxValue)];
+    if (entry && entry.consumedBy == null) { entry.consumedBy = rowIndex; row.manualAssoc = { entry }; }
+  }
+  renderImportStep2();
+}
+
+function va19DismissRemoved(ridx) {
+  const comparison = controlledImport.comparison;
+  const entry = comparison.removed[Number(ridx)];
+  if (!entry) return;
+  entry.dismissed = !entry.dismissed;
+  renderImportStep2();
+}
+
+function va19RowHtml(row, comparison) {
+  const { bucket, badge } = va19RowBucket(row);
+  const imported = row.imported;
+  const manualExisting = row.manualAssoc ? row.manualAssoc.entry.item : null;
+  const existingItem = manualExisting || (row.existing && row.existing.item);
   const idx = row._index;
-  const mode = row.state === 'new' ? 'new' : row.state === 'removed' ? 'removed' : 'compare';
+  const mode = manualExisting ? 'compare' : row.state === 'new' ? 'new' : row.state === 'removed' ? 'removed' : 'compare';
   const catId = imported ? imported.categoryId : row.existing.category.id;
   const rubricaCode = DOCUMENT_CODE_BY_CATEGORY_ID[catId] || '';
   const keyText = va19ItemKeyText(imported || existingItem);
@@ -6108,23 +6181,37 @@ function va19RowHtml(row) {
   const itemLabelHtml = keyText
     ? `<span class="item-title">${rubricaCode ? escapeHtml(rubricaCode) + ' · ' : ''}${escapeHtml(keyText)}</span>`
     : `<span class="item-title">${escapeHtml((imported && imported.title) || (existingItem && existingItem.title) || 'Item')}</span>`;
-  const itemSubHtml = row.state === 'removed'
+  const itemSubHtml = manualExisting
+    ? `<div class="item-sub">associado a "${escapeHtml(va19CandidateLabel(manualExisting))}"</div>`
+    : row.state === 'removed'
     ? `<div class="item-sub">existia como ${escapeHtml(existingItem.tipoLabel || existingItem.title || 'item anterior')}</div>`
     : payee ? `<div class="item-sub">${escapeHtml(payee)}</div>` : '';
   const descPair = va19FieldPair(va19ItemDescText(existingItem), va19ItemDescText(imported), mode);
   const valuePair = va19FieldPair(va19ItemValueText(existingItem), va19ItemValueText(imported), mode);
   const datePair = va19FieldPair(va19ItemDateText(existingItem), va19ItemDateText(imported), mode);
-  const decision = row.state === 'review'
-    ? `<select class="reconcile-action" onchange="va12SetReviewDecision(${idx}, this.value)"><option value="">Decidir...</option><option value="same" ${row.decision === 'same' ? 'selected' : ''}>E o mesmo item</option><option value="new" ${row.decision === 'new' ? 'selected' : ''}>E um item novo</option><option value="ignore" ${row.decision === 'ignore' ? 'selected' : ''}>Ignorar nesta importacao</option></select>`
-    : row.state === 'new' ? '<span class="fixed">Criar item</span>'
-    : row.state === 'removed' ? '<span class="fixed">Marcar, nao excluir</span>'
-    : row.state === 'unchanged' ? '<span class="fixed">—</span>'
-    : '<span class="fixed">Aplicar automaticamente</span>';
+  let decision;
+  if (row.state === 'review') {
+    decision = `<select class="reconcile-action" onchange="va12SetReviewDecision(${idx}, this.value)"><option value="">Decidir...</option><option value="same" ${row.decision === 'same' ? 'selected' : ''}>E o mesmo item</option><option value="new" ${row.decision === 'new' ? 'selected' : ''}>E um item novo</option><option value="ignore" ${row.decision === 'ignore' ? 'selected' : ''}>Ignorar nesta importacao</option></select>`;
+  } else if (row.state === 'new' && manualExisting) {
+    decision = `<span class="fixed">Atualiza item existente</span><div class="assoc-note">associado manualmente · <a href="#" onclick="va19AssociateNew(${idx}, ''); return false;">desfazer</a></div>`;
+  } else if (row.state === 'new') {
+    decision = `<span class="fixed">Criar item</span>${va19AssocSelectHtml(row, comparison)}`;
+  } else if (row.state === 'removed') {
+    decision = row.dismissed
+      ? `<span class="fixed">Nao sinalizado</span><div class="assoc-note"><a href="#" onclick="va19DismissRemoved(${row._ridx}); return false;">desfazer</a></div>`
+      : `<span class="fixed">Marcar, nao excluir</span><div class="assoc-note"><a href="#" onclick="va19DismissRemoved(${row._ridx}); return false;">Nao foi removido</a></div>`;
+  } else if (row.state === 'unchanged') {
+    decision = '<span class="fixed">—</span>';
+  } else {
+    decision = '<span class="fixed">Aplicar automaticamente</span>';
+  }
+  const hasWarning = bucket === 'erro';
   const warningHtml = hasWarning
     ? `<div class="warning-text">⚠ ${escapeHtml(imported.importWarnings)}</div><div class="warning-editor"><input id="va12WarningValue${idx}" placeholder="Valor corrigido"><select onchange="va12SetWarningDecision(${idx}, this.value)"><option value="">Decidir...</option><option value="accept" ${row.warningDecision === 'accept' ? 'selected' : ''}>Aceitar sem corrigir</option><option value="correct" ${row.warningDecision === 'correct' ? 'selected' : ''}>Usar valor informado</option><option value="skip" ${row.warningDecision === 'skip' ? 'selected' : ''}>Nao importar esta linha</option></select></div>`
     : '';
   const confidenceHtml = row.confidence != null && row.state !== 'new' ? `<span class="confidence">${Math.round(row.confidence * 100)}%</span>` : '';
-  return `<tr class="row-${bucket}${bucket === 'neutral' ? ' hidden-unchanged' : ''}">
+  const hideByDefault = bucket === 'neutral' && row.state === 'unchanged';
+  return `<tr class="row-${bucket}${hideByDefault ? ' hidden-unchanged' : ''}">
     <td>${itemLabelHtml}${itemSubHtml}</td>
     <td>${descPair}</td>
     <td>${valuePair}</td>
@@ -6138,14 +6225,24 @@ renderImportStep2 = function() {
   const target = currentImportTarget();
   const comparison = controlledImport.comparison;
   if (!target || !comparison) return;
-  const c = comparison.counts;
+  comparison.removed.forEach((entry, i) => { entry._ridx = i; });
   const groupSelect = controlledImport.groups.length > 1 ? `<div class="modal-field"><label>PC encontrada no arquivo</label><select onchange="selectImportGroup(this.value)">${controlledImport.groups.map(group => `<option value="${escapeHtml(group.key)}" ${group.key === controlledImport.selectedGroup ? 'selected' : ''}>${escapeHtml(group.label)} - ${group.items.length} itens</option>`).join('')}</select></div>` : '';
   const LIMIT = 800;
-  const allRows = [...comparison.rows, ...comparison.removed];
+  // linhas "removido" consumidas por uma associacao manual somem da tabela (viraram
+  // parte da linha "Novo" que as absorveu, ver va19RowHtml)
+  const allRows = [...comparison.rows, ...comparison.removed.filter(entry => entry.consumedBy == null)];
   const previewRows = allRows.slice(0, LIMIT);
 
+  // contagem "ao vivo" por bucket, considerando associacoes/dispensas manuais - e o
+  // que da o feedback visual imediato da acao do usuario (clicar associar/dispensar
+  // move o numero na hora, nao so a classificacao automatica original)
+  const liveCounts = { neutral: 0, novo: 0, alterado: 0, revisar: 0, removido: 0, erro: 0 };
+  allRows.forEach(row => { liveCounts[va19RowBucket(row).bucket]++; });
+
+  const uiFilter = controlledImport.uiFilter;
   const categoriesMap = new Map();
   previewRows.forEach(row => {
+    if (uiFilter && va19RowBucket(row).bucket !== uiFilter) return;
     const catId = row.imported ? row.imported.categoryId : row.existing.category.id;
     const catLabel = row.imported ? row.imported.categoryLabel : row.existing.category.label;
     if (!categoriesMap.has(catId)) categoriesMap.set(catId, { id: catId, label: catLabel, rows: [] });
@@ -6156,13 +6253,11 @@ renderImportStep2 = function() {
   const categoriesHtml = categoryGroups.map(group => {
     const bucketCounts = {};
     const rowsHtml = group.rows.map(row => {
-      const imported = row.imported;
-      const hasWarning = !!(imported && imported.importWarnings);
-      const bucket = hasWarning ? 'erro' : VA19_STATE_META[row.state].bucket;
+      const bucket = va19RowBucket(row).bucket;
       bucketCounts[bucket] = (bucketCounts[bucket] || 0) + 1;
-      return va19RowHtml(row);
+      return va19RowHtml(row, comparison);
     }).join('');
-    const hasAttention = Object.keys(bucketCounts).some(bucket => bucket !== 'neutral');
+    const hasAttention = uiFilter || Object.keys(bucketCounts).some(bucket => bucket !== 'neutral');
     const chips = VA19_CHIP_ORDER.filter(([bucket]) => bucketCounts[bucket]).map(([bucket, label]) => `<div class="cat-chip ${bucket}">${bucketCounts[bucket]} ${label}</div>`).join('');
     return `<div class="cat-section${hasAttention ? '' : ' collapsed'}">
       <div class="cat-head" onclick="va19ToggleCategory(this)">
@@ -6177,18 +6272,20 @@ renderImportStep2 = function() {
     </div>`;
   }).join('');
 
+  const statHtml = (bucket, label, count) => `<div class="stat ${bucket}${uiFilter === bucket ? ' active' : ''}" onclick="va19ToggleFilter('${bucket}')" title="Clique para filtrar so ${VA19_FILTER_LABEL[bucket]}"><b>${count}</b><span>${label}</span></div>`;
   document.getElementById('controlledImportBody').innerHTML = `
     <div class="va12-destination"><div><label>Cliente</label><select id="va12ImportClient" onchange="va12ImportClientChanged()"></select></div><div><label>Projeto</label><select id="va12ImportProject" onchange="va12ImportProjectChanged()"></select></div><div><label>PC</label><select id="va12ImportPC" onchange="va12ImportPCChanged()"></select></div><div><label>Ciclo</label><select id="va12ImportCycle" onchange="va12ImportDestinationChanged()"></select></div><div class="va12-target-summary" id="va12TargetSummary"></div></div>
     ${groupSelect}
     <div class="summary-bar">
-      <div class="stat neutral"><b>${c.unchanged}</b><span>sem alteracao</span></div>
-      <div class="stat novo"><b>${c.new}</b><span>novos</span></div>
-      <div class="stat alterado"><b>${c.changed}</b><span>alterados</span></div>
-      <div class="stat revisar"><b>${c.review}</b><span>revisar</span></div>
-      <div class="stat removido"><b>${c.removed}</b><span>removidos</span></div>
-      <div class="stat erro"><b>${c.warnings}</b><span>aviso/erro</span></div>
+      ${statHtml('neutral', 'sem alteracao', liveCounts.neutral)}
+      ${statHtml('novo', 'novos', liveCounts.novo)}
+      ${statHtml('alterado', 'alterados', liveCounts.alterado)}
+      ${statHtml('revisar', 'revisar', liveCounts.revisar)}
+      ${statHtml('removido', 'removidos', liveCounts.removido)}
+      ${statHtml('erro', 'aviso/erro', liveCounts.erro)}
       <div class="toggle-wrap"><span>Mostrar sem alteracao</span><div class="toggle" id="va19UnchangedToggle" onclick="va19ToggleUnchanged()"></div></div>
     </div>
+    ${uiFilter ? `<p class="modal-hint">Filtrando: so ${VA19_FILTER_LABEL[uiFilter]}. <a href="#" onclick="va19ToggleFilter('${uiFilter}'); return false;">Mostrar tudo</a></p>` : ''}
     <div class="categories" id="va19Categories">${categoriesHtml || '<p class="modal-hint">Nenhum item para comparar.</p>'}</div>
     ${previewRows.length < allRows.length ? `<p class="modal-hint">Previa limitada a ${previewRows.length} linhas; todas serao processadas.</p>` : ''}
     <div class="import-blocked-note hidden" id="va12ImportBlocked"></div>
@@ -6289,6 +6386,10 @@ confirmImport = async function() {
           if (row.existing) extraRemoved.push(row.existing);
           await va12CreateImported(row, target, result); continue;
         }
+        // VA.24 (rodada 2): usuario associou manualmente este "Novo" a um item que
+        // constava como "Possivel removido" - trata como atualizacao do item existente,
+        // nao criacao de duplicata.
+        if (row.state === 'new' && row.manualAssoc) { row.existing = row.manualAssoc.entry; await va12UpdateImported(row, target, result); continue; }
         if (row.state === 'new') { await va12CreateImported(row, target, result); continue; }
         if (row.state === 'changed' || row.state === 'review') { await va12UpdateImported(row, target, result); continue; }
         const local = row.existing.item;
@@ -6300,7 +6401,10 @@ confirmImport = async function() {
         await ensureImportedAnalysis(local, row.imported); result.unchanged++;
       } catch (error) { result.failed.push(`${row.imported.title}: ${graphErrorText(error)}`); }
     }
-    const removedEntries = [...comparison.removed.map(row => row.existing), ...extraRemoved];
+    // VA.24 (rodada 2): linhas "removido" consumidas por uma associacao manual (ja
+    // tratadas acima como atualizacao) ou dispensadas pelo usuario ("Nao foi removido")
+    // ficam de fora da marcacao PossibleRemoved.
+    const removedEntries = [...comparison.removed.filter(row => row.consumedBy == null && !row.dismissed).map(row => row.existing), ...extraRemoved];
     const uniqueRemoved = [...new Map(removedEntries.map(entry => [String(entry.item.id), entry])).values()];
     for (const entry of uniqueRemoved) {
       try {
