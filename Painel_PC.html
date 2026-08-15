@@ -5981,15 +5981,24 @@ function va12PairScore(imported, entry) {
   const existingDoc = va12NormText(va12FindCanonicalValue(existing, /COMPROVANTE|NOTA FISCAL/));
   const descSim = va12TokenSimilarity(va12Corpus(imported), va12Corpus(existing));
 
+  // VA.25 (rodada 5): o numero do item cru virou sinal FRACO (6%, era 22%) - achado
+  // real: em planilhas onde pessoas mudam de posicao entre versoes (ex. "Dados da
+  // equipe"), o numero do item nao e identidade estavel e um peso forte nele fazia
+  // o app casar a PESSOA ERRADA so por estar no mesmo numero de linha (confirmado com
+  // caso real: item 18 "Manuela" vs "Maria Isabel" trocaram de posicao e o app pareou
+  // errado com 58% de confianca, mais alto que o pareamento certo por nome a 46%).
+  // Com peso baixo, o numero do item so desempata entre candidatos ja parecidos pelo
+  // nome/descricao - continua ajudando nas rubricas financeiras (onde o numero raramente
+  // muda) sem conseguir vencer sozinho uma descricao/nome completamente diferente.
   const signals = [
-    { weight: 0.22, has: !!(incomingKey && existingKey), value: incomingKey === existingKey ? 1 : 0 }, // numero do item na rubrica - sinal de identidade mais forte
+    { weight: 0.06, has: !!(incomingKey && existingKey), value: incomingKey === existingKey ? 1 : 0 },
     { weight: 0.10, has: true, value: incomingComparable.category === existingComparable.category ? 1 : 0 },
-    { weight: 0.28, has: true, value: descSim }, // similaridade continua (nao binaria) de descricao/titulo/beneficiario
-    { weight: 0.12, has: !!(incomingComparable.payee && existingComparable.payee), value: incomingComparable.payee === existingComparable.payee ? 1 : 0 },
-    { weight: 0.12, has: incomingComparable.amount !== null && existingComparable.amount !== null, value: incomingComparable.amount === existingComparable.amount ? 1 : 0 },
-    { weight: 0.06, has: !!(incomingComparable.documentDate && existingComparable.documentDate), value: incomingComparable.documentDate === existingComparable.documentDate ? 1 : 0 },
-    { weight: 0.05, has: !!(incomingComparable.paymentDate && existingComparable.paymentDate), value: incomingComparable.paymentDate === existingComparable.paymentDate ? 1 : 0 },
-    { weight: 0.05, has: !!(incomingDoc && existingDoc), value: incomingDoc === existingDoc ? 1 : 0 },
+    { weight: 0.36, has: true, value: descSim }, // similaridade continua (nao binaria) de descricao/titulo/beneficiario
+    { weight: 0.14, has: !!(incomingComparable.payee && existingComparable.payee), value: incomingComparable.payee === existingComparable.payee ? 1 : 0 },
+    { weight: 0.14, has: incomingComparable.amount !== null && existingComparable.amount !== null, value: incomingComparable.amount === existingComparable.amount ? 1 : 0 },
+    { weight: 0.08, has: !!(incomingComparable.documentDate && existingComparable.documentDate), value: incomingComparable.documentDate === existingComparable.documentDate ? 1 : 0 },
+    { weight: 0.06, has: !!(incomingComparable.paymentDate && existingComparable.paymentDate), value: incomingComparable.paymentDate === existingComparable.paymentDate ? 1 : 0 },
+    { weight: 0.06, has: !!(incomingDoc && existingDoc), value: incomingDoc === existingDoc ? 1 : 0 },
   ];
   let weightSum = 0, scoreSum = 0;
   signals.forEach(signal => { if (!signal.has) return; weightSum += signal.weight; scoreSum += signal.weight * signal.value; });
@@ -6209,6 +6218,38 @@ function va19AssocSelectHtml(row, comparison) {
   return `<select class="assoc-select" onchange="va19AssociateNew(${row._index}, this.value)"><option value="">Na verdade e...</option>${options}</select>`;
 }
 
+/* VA.25 (rodada 5): linha "Revisar" tambem precisa deixar o usuario ESCOLHER qual item
+   existente e o certo - antes so dava pra aceitar ("e o mesmo item", usando o candidato
+   que o app escolheu sozinho) ou dizer "e novo", sem poder apontar outro item. Agora
+   lista TODOS os candidatos da rubrica (mesma logica de "Novo"), com o candidato atual
+   pre-selecionado quando ja decidido "e o mesmo item". */
+function va19ReviewAssocSelectHtml(row, comparison) {
+  const candidates = va19AllCandidatesForRow(row, comparison);
+  const options = candidates.map(c => {
+    const ownerNote = c.owner && c.owner !== row ? ' · vai desassociar de outra linha' : '';
+    const selected = row.decision === 'same' && row.existing === c.entry ? ' selected' : '';
+    return `<option value="${c.entry._pidx}"${selected}>${escapeHtml(va19CandidateLabel(c.entry.item))} (${Math.round(c.score * 100)}%)${ownerNote}</option>`;
+  }).join('');
+  const placeholderSelected = !row.decision ? ' selected' : '';
+  const newSelected = row.decision === 'new' ? ' selected' : '';
+  return `<select class="reconcile-action" onchange="va19SetReviewAssoc(${row._index}, this.value)"><option value=""${placeholderSelected}>Decidir...</option><option value="__new__"${newSelected}>E um item novo</option>${options}</select>`;
+}
+
+function va19SetReviewAssoc(rowIndex, value) {
+  const comparison = controlledImport.comparison;
+  const row = comparison.rows[rowIndex];
+  if (!row || row.state !== 'review') return;
+  if (value === '__new__') { row.decision = 'new'; renderImportStep2(); return; }
+  if (value === '' || value == null) { row.decision = ''; renderImportStep2(); return; }
+  const entry = comparison.existingPool[Number(value)];
+  if (!entry) return;
+  const owner = va19EntryOwnerRow(entry, comparison, rowIndex);
+  if (owner) va19ReleaseEntryFromOwner(owner);
+  row.existing = entry;
+  row.decision = 'same';
+  renderImportStep2();
+}
+
 function va19AssociateNew(rowIndex, pidxValue) {
   const comparison = controlledImport.comparison;
   const row = comparison.rows[rowIndex];
@@ -6264,7 +6305,10 @@ function va19RowHtml(row, comparison) {
   const datePair = va19FieldPair(va19ItemDateText(existingItem), va19ItemDateText(imported), mode);
   let decision;
   if (row.state === 'review') {
-    decision = `<select class="reconcile-action" onchange="va12SetReviewDecision(${idx}, this.value)"><option value="">Decidir...</option><option value="same" ${row.decision === 'same' ? 'selected' : ''}>E o mesmo item</option><option value="new" ${row.decision === 'new' ? 'selected' : ''}>E um item novo</option><option value="ignore" ${row.decision === 'ignore' ? 'selected' : ''}>Ignorar nesta importacao</option></select>`;
+    const ignoreNote = row.decision === 'ignore'
+      ? `ignorado nesta importação · <a href="#" onclick="va12SetReviewDecision(${idx}, ''); return false;">desfazer</a>`
+      : `<a href="#" onclick="va12SetReviewDecision(${idx}, 'ignore'); return false;">ignorar nesta importação</a>`;
+    decision = `${va19ReviewAssocSelectHtml(row, comparison)}<div class="assoc-note">${ignoreNote}</div>`;
   } else if (row.state === 'new' && manualExisting) {
     decision = `<span class="fixed">Atualiza item existente</span><div class="assoc-note">associado manualmente · <a href="#" onclick="va19AssociateNew(${idx}, ''); return false;">desfazer</a></div>`;
   } else if (row.state === 'new') {
