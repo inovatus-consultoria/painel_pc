@@ -830,11 +830,16 @@
 
   .field-cell { font-size: 11.5px; line-height: 1.5; }
   .field-cell.old-cell { border-right: 1px dashed var(--border); }
-  .field-row { display: flex; gap: 6px; padding: 1px 0; }
-  .field-row .fk { color: var(--ink3); min-width: 108px; flex-shrink: 0; font-size: 10.5px; }
-  .field-row .fv { color: var(--ink2); }
+  /* 17/08: rotulo empilhado em cima do valor (nao lado a lado) - nomes oficiais do
+     REF sao frases inteiras ("IDENTIFICACAO DO PROFISSIONAL REMUNERADO NA FORMA DE
+     BOLSA") e lado a lado isso empurrava o valor pra um canto espremido. Rotulo fica
+     numa linha so (corta com reticencias + title com o texto completo), valor ganha
+     a largura inteira da celula pra quebrar sem aperto. */
+  .field-row { padding: 3px 0; }
+  .field-row .fk { display: block; color: var(--ink3); font-size: 9.5px; text-transform: none; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; margin-bottom: 1px; cursor: default; }
+  .field-row .fv { display: block; color: var(--ink2); }
   .field-row .fv.empty { color: var(--ink3); font-style: italic; }
-  .field-row.diff { background: var(--blue-light); border-radius: 5px; margin: 0 -6px; padding: 2px 6px; }
+  .field-row.diff { background: var(--blue-light); border-radius: 5px; margin: 0 -6px; padding: 3px 6px; }
   .field-row.diff .fv { color: #173B5C; font-weight: 700; }
   .field-cell.old-cell .field-row.diff .fv { color: #8A2E2E; text-decoration: line-through; text-decoration-color: #C9908F; font-weight: 500; }
   .field-row .more-link { color: var(--accent2); font-size: 10px; cursor: pointer; text-decoration: underline; white-space: nowrap; }
@@ -6280,20 +6285,45 @@ function va20FieldMap(item) {
   const data = va19ItemDateText(item); if (data) map.set('__data', data);
   return map;
 }
+/* 17/08: rotulo do REF vem em CAIXA ALTA (cabecalho oficial da planilha) - deixar
+   assim pesa visualmente demais numa coluna estreita. Sentence case reduz o peso
+   sem esconder o texto (o title do span ainda mostra o rotulo completo no hover). */
+function va20SentenceCase(text) {
+  if (!text) return text;
+  const lower = text.toLowerCase();
+  return lower.charAt(0).toUpperCase() + lower.slice(1);
+}
 function va20FieldLabel(key) {
   if (key === '__desc') return 'Descrição';
   if (key === '__valor') return 'Valor';
   if (key === '__data') return 'Data';
-  return String(key).split('\n')[0].replace(/\(limite[^)]*\)/i, '').trim();
+  const clean = String(key).split('\n')[0].replace(/\(limite[^)]*\)/i, '').trim();
+  return va20SentenceCase(clean);
 }
 function va20IsLongField(key) {
   return /JUSTIFICATIVA|DETALHAMENTO|OBJETO|FINALIDADE|OBSERVA/i.test(String(key));
+}
+/* Formato de saida do Date.prototype.toString() nativo (ex. "Tue Apr 11 2023
+   00:00:28 GMT-0300 (Horario Padrao de Brasilia)") - e o que sobra quando uma
+   celula de data passa por maskSensitive (que forca String(valor) em tudo, ver
+   va14RefFields) antes de qualquer formatacao. new Date() consegue re-parsear
+   esse formato de volta com seguranca (e o proprio formato nativo do JS, sem
+   ambiguidade de dia/mes como teria um "dd/mm/aaaa"), entao da pra reformatar
+   só na exibição sem tocar no dado armazenado nem no pipeline de extração de
+   data já existente (toIsoDateCell), que já depende desse mesmo formato. */
+function va20LooksLikeStringifiedDate(text) {
+  return /^[A-Za-z]{3} [A-Za-z]{3} \d{1,2} \d{4} \d{2}:\d{2}:\d{2} GMT[+-]\d{4}/.test(text);
 }
 function va20DisplayValue(raw) {
   if (raw === null || raw === undefined || raw === '') return '';
   if (raw instanceof Date) return raw.toLocaleDateString('pt-BR');
   if (typeof raw === 'number') return raw.toLocaleString('pt-BR');
-  return String(raw).trim();
+  const text = String(raw).trim();
+  if (va20LooksLikeStringifiedDate(text)) {
+    const d = new Date(text);
+    if (!isNaN(d.getTime())) return d.toLocaleDateString('pt-BR');
+  }
+  return text;
 }
 function va20UnionKeys(mapA, mapB) {
   const keys = []; const seen = new Set();
@@ -6317,7 +6347,7 @@ function va20FieldRowHtml(key, selfMap, otherMap, compareEnabled) {
   const selfText = va20DisplayValue(selfMap.get(key));
   const otherText = va20DisplayValue(otherMap.get(key));
   const changed = compareEnabled && va12NormText(selfText) !== va12NormText(otherText);
-  return `<div class="field-row${changed ? ' diff' : ''}"><span class="fk">${escapeHtml(label)}</span>${va20FieldValueHtml(key, selfText)}</div>`;
+  return `<div class="field-row${changed ? ' diff' : ''}"><span class="fk" title="${escapeHtml(label)}">${escapeHtml(label)}</span>${va20FieldValueHtml(key, selfText)}</div>`;
 }
 function va20FieldCellsHtml(oldItem, newItem, mode) {
   if (mode === 'new') {
