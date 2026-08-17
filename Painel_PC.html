@@ -815,13 +815,30 @@
   .row-removido { background: linear-gradient(90deg, var(--orange) 0 3px, var(--orange-light) 3px); }
   .row-erro { background: linear-gradient(90deg, var(--red) 0 3px, var(--red-light) 3px); }
 
+  .item-cell { min-width: 0; }
+  .item-rubrica { font-size: 9.5px; text-transform: uppercase; letter-spacing: .04em; color: var(--ink3); font-weight: 700; }
+  .item-num { font-size: 17px; font-weight: 800; color: var(--ink); display: block; line-height: 1.2; }
+  .item-num-arrow { display: block; font-size: 10.5px; color: var(--ink3); margin-top: 1px; }
+  .item-num-arrow b { color: var(--blue); font-weight: 700; }
   .item-title { font-weight: 700; color: var(--ink); }
-  .item-sub { color: var(--ink3); font-size: 10.5px; margin-top: 1px; }
+  .item-sub { color: var(--ink3); font-size: 10.5px; margin-top: 3px; }
   .field-pair { display: flex; flex-direction: column; gap: 2px; }
   .field-pair .old { color: var(--ink3); text-decoration: line-through; font-size: 11px; }
   .field-pair .new { font-weight: 700; }
   .field-pair.same .new { font-weight: 500; color: var(--ink2); text-decoration: none; }
   .field-pair.changed .new.blue { color: var(--blue); }
+
+  .field-cell { font-size: 11.5px; line-height: 1.5; }
+  .field-cell.old-cell { border-right: 1px dashed var(--border); }
+  .field-row { display: flex; gap: 6px; padding: 1px 0; }
+  .field-row .fk { color: var(--ink3); min-width: 108px; flex-shrink: 0; font-size: 10.5px; }
+  .field-row .fv { color: var(--ink2); }
+  .field-row .fv.empty { color: var(--ink3); font-style: italic; }
+  .field-row.diff { background: var(--blue-light); border-radius: 5px; margin: 0 -6px; padding: 2px 6px; }
+  .field-row.diff .fv { color: #173B5C; font-weight: 700; }
+  .field-cell.old-cell .field-row.diff .fv { color: #8A2E2E; text-decoration: line-through; text-decoration-color: #C9908F; font-weight: 500; }
+  .field-row .more-link { color: var(--accent2); font-size: 10px; cursor: pointer; text-decoration: underline; white-space: nowrap; }
+  .field-cell .empty-note { color: var(--ink3); font-style: italic; font-size: 11px; }
 
   .badge-state { display: inline-flex; align-items: center; gap: 4px; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: .02em; padding: 3px 8px; border-radius: 99px; }
   .badge-state.novo { background: var(--green-light); color: var(--green); }
@@ -5981,24 +5998,15 @@ function va12PairScore(imported, entry) {
   const existingDoc = va12NormText(va12FindCanonicalValue(existing, /COMPROVANTE|NOTA FISCAL/));
   const descSim = va12TokenSimilarity(va12Corpus(imported), va12Corpus(existing));
 
-  // VA.25 (rodada 5): o numero do item cru virou sinal FRACO (6%, era 22%) - achado
-  // real: em planilhas onde pessoas mudam de posicao entre versoes (ex. "Dados da
-  // equipe"), o numero do item nao e identidade estavel e um peso forte nele fazia
-  // o app casar a PESSOA ERRADA so por estar no mesmo numero de linha (confirmado com
-  // caso real: item 18 "Manuela" vs "Maria Isabel" trocaram de posicao e o app pareou
-  // errado com 58% de confianca, mais alto que o pareamento certo por nome a 46%).
-  // Com peso baixo, o numero do item so desempata entre candidatos ja parecidos pelo
-  // nome/descricao - continua ajudando nas rubricas financeiras (onde o numero raramente
-  // muda) sem conseguir vencer sozinho uma descricao/nome completamente diferente.
   const signals = [
-    { weight: 0.06, has: !!(incomingKey && existingKey), value: incomingKey === existingKey ? 1 : 0 },
+    { weight: 0.22, has: !!(incomingKey && existingKey), value: incomingKey === existingKey ? 1 : 0 }, // numero do item na rubrica - sinal de identidade mais forte
     { weight: 0.10, has: true, value: incomingComparable.category === existingComparable.category ? 1 : 0 },
-    { weight: 0.36, has: true, value: descSim }, // similaridade continua (nao binaria) de descricao/titulo/beneficiario
-    { weight: 0.14, has: !!(incomingComparable.payee && existingComparable.payee), value: incomingComparable.payee === existingComparable.payee ? 1 : 0 },
-    { weight: 0.14, has: incomingComparable.amount !== null && existingComparable.amount !== null, value: incomingComparable.amount === existingComparable.amount ? 1 : 0 },
-    { weight: 0.08, has: !!(incomingComparable.documentDate && existingComparable.documentDate), value: incomingComparable.documentDate === existingComparable.documentDate ? 1 : 0 },
-    { weight: 0.06, has: !!(incomingComparable.paymentDate && existingComparable.paymentDate), value: incomingComparable.paymentDate === existingComparable.paymentDate ? 1 : 0 },
-    { weight: 0.06, has: !!(incomingDoc && existingDoc), value: incomingDoc === existingDoc ? 1 : 0 },
+    { weight: 0.28, has: true, value: descSim }, // similaridade continua (nao binaria) de descricao/titulo/beneficiario
+    { weight: 0.12, has: !!(incomingComparable.payee && existingComparable.payee), value: incomingComparable.payee === existingComparable.payee ? 1 : 0 },
+    { weight: 0.12, has: incomingComparable.amount !== null && existingComparable.amount !== null, value: incomingComparable.amount === existingComparable.amount ? 1 : 0 },
+    { weight: 0.06, has: !!(incomingComparable.documentDate && existingComparable.documentDate), value: incomingComparable.documentDate === existingComparable.documentDate ? 1 : 0 },
+    { weight: 0.05, has: !!(incomingComparable.paymentDate && existingComparable.paymentDate), value: incomingComparable.paymentDate === existingComparable.paymentDate ? 1 : 0 },
+    { weight: 0.05, has: !!(incomingDoc && existingDoc), value: incomingDoc === existingDoc ? 1 : 0 },
   ];
   let weightSum = 0, scoreSum = 0;
   signals.forEach(signal => { if (!signal.has) return; weightSum += signal.weight; scoreSum += signal.weight * signal.value; });
@@ -6218,38 +6226,6 @@ function va19AssocSelectHtml(row, comparison) {
   return `<select class="assoc-select" onchange="va19AssociateNew(${row._index}, this.value)"><option value="">Na verdade e...</option>${options}</select>`;
 }
 
-/* VA.25 (rodada 5): linha "Revisar" tambem precisa deixar o usuario ESCOLHER qual item
-   existente e o certo - antes so dava pra aceitar ("e o mesmo item", usando o candidato
-   que o app escolheu sozinho) ou dizer "e novo", sem poder apontar outro item. Agora
-   lista TODOS os candidatos da rubrica (mesma logica de "Novo"), com o candidato atual
-   pre-selecionado quando ja decidido "e o mesmo item". */
-function va19ReviewAssocSelectHtml(row, comparison) {
-  const candidates = va19AllCandidatesForRow(row, comparison);
-  const options = candidates.map(c => {
-    const ownerNote = c.owner && c.owner !== row ? ' · vai desassociar de outra linha' : '';
-    const selected = row.decision === 'same' && row.existing === c.entry ? ' selected' : '';
-    return `<option value="${c.entry._pidx}"${selected}>${escapeHtml(va19CandidateLabel(c.entry.item))} (${Math.round(c.score * 100)}%)${ownerNote}</option>`;
-  }).join('');
-  const placeholderSelected = !row.decision ? ' selected' : '';
-  const newSelected = row.decision === 'new' ? ' selected' : '';
-  return `<select class="reconcile-action" onchange="va19SetReviewAssoc(${row._index}, this.value)"><option value=""${placeholderSelected}>Decidir...</option><option value="__new__"${newSelected}>E um item novo</option>${options}</select>`;
-}
-
-function va19SetReviewAssoc(rowIndex, value) {
-  const comparison = controlledImport.comparison;
-  const row = comparison.rows[rowIndex];
-  if (!row || row.state !== 'review') return;
-  if (value === '__new__') { row.decision = 'new'; renderImportStep2(); return; }
-  if (value === '' || value == null) { row.decision = ''; renderImportStep2(); return; }
-  const entry = comparison.existingPool[Number(value)];
-  if (!entry) return;
-  const owner = va19EntryOwnerRow(entry, comparison, rowIndex);
-  if (owner) va19ReleaseEntryFromOwner(owner);
-  row.existing = entry;
-  row.decision = 'same';
-  renderImportStep2();
-}
-
 function va19AssociateNew(rowIndex, pidxValue) {
   const comparison = controlledImport.comparison;
   const row = comparison.rows[rowIndex];
@@ -6281,6 +6257,101 @@ function va19DismissRemoved(ridx) {
   renderImportStep2();
 }
 
+/* 14/08 rodada 5: comparacao lado a lado com granularidade completa do REF.
+   Quando o item tem canonicalData.fields (importacao de REF), compara campo a
+   campo (todos, nao so Descricao/Valor/Data); quando nao tem (Prompt/Manual/
+   Previa antiga sem fields), cai no trio basico de sempre - nunca quebra pra
+   fontes que ainda nao tem granularidade completa. */
+function va20FieldMap(item) {
+  const map = new Map();
+  const fields = item && item.canonicalData && item.canonicalData.fields;
+  const hasFields = fields && Object.keys(fields).some(k => fields[k] !== null && fields[k] !== undefined && String(fields[k]).trim() !== '');
+  if (hasFields) {
+    Object.keys(fields).forEach(k => {
+      const v = fields[k];
+      if (v === null || v === undefined || String(v).trim() === '') return;
+      map.set(k, v);
+    });
+    return map;
+  }
+  if (!item) return map;
+  const desc = va19ItemDescText(item); if (desc) map.set('__desc', desc);
+  const valor = va19ItemValueText(item); if (valor) map.set('__valor', valor);
+  const data = va19ItemDateText(item); if (data) map.set('__data', data);
+  return map;
+}
+function va20FieldLabel(key) {
+  if (key === '__desc') return 'Descrição';
+  if (key === '__valor') return 'Valor';
+  if (key === '__data') return 'Data';
+  return String(key).split('\n')[0].replace(/\(limite[^)]*\)/i, '').trim();
+}
+function va20IsLongField(key) {
+  return /JUSTIFICATIVA|DETALHAMENTO|OBJETO|FINALIDADE|OBSERVA/i.test(String(key));
+}
+function va20DisplayValue(raw) {
+  if (raw === null || raw === undefined || raw === '') return '';
+  if (raw instanceof Date) return raw.toLocaleDateString('pt-BR');
+  if (typeof raw === 'number') return raw.toLocaleString('pt-BR');
+  return String(raw).trim();
+}
+function va20UnionKeys(mapA, mapB) {
+  const keys = []; const seen = new Set();
+  mapA.forEach((v, k) => { if (!seen.has(k)) { seen.add(k); keys.push(k); } });
+  mapB.forEach((v, k) => { if (!seen.has(k)) { seen.add(k); keys.push(k); } });
+  return keys;
+}
+function va20FieldValueHtml(key, text) {
+  if (!text) return `<span class="fv empty">—</span>`;
+  if (va20IsLongField(key)) {
+    const words = text.split(/\s+/);
+    if (words.length > 12) {
+      const shortText = words.slice(0, 12).join(' ') + '…';
+      return `<span class="fv longtext" data-full="${escapeHtml(text)}" data-short="${escapeHtml(shortText)}">${escapeHtml(shortText)} <a href="#" class="more-link" onclick="va20ToggleFieldText(this); return false;">mostrar mais</a></span>`;
+    }
+  }
+  return `<span class="fv">${escapeHtml(text)}</span>`;
+}
+function va20FieldRowHtml(key, selfMap, otherMap, compareEnabled) {
+  const label = va20FieldLabel(key);
+  const selfText = va20DisplayValue(selfMap.get(key));
+  const otherText = va20DisplayValue(otherMap.get(key));
+  const changed = compareEnabled && va12NormText(selfText) !== va12NormText(otherText);
+  return `<div class="field-row${changed ? ' diff' : ''}"><span class="fk">${escapeHtml(label)}</span>${va20FieldValueHtml(key, selfText)}</div>`;
+}
+function va20FieldCellsHtml(oldItem, newItem, mode) {
+  if (mode === 'new') {
+    const mapNew = va20FieldMap(newItem);
+    const keys = va20UnionKeys(new Map(), mapNew);
+    return {
+      oldHtml: `<span class="empty-note">— item não existia nesta versão —</span>`,
+      newHtml: keys.length ? keys.map(k => va20FieldRowHtml(k, mapNew, new Map(), false)).join('') : '<span class="empty-note">—</span>',
+    };
+  }
+  if (mode === 'removed') {
+    const mapOld = va20FieldMap(oldItem);
+    const keys = va20UnionKeys(mapOld, new Map());
+    return {
+      oldHtml: keys.length ? keys.map(k => va20FieldRowHtml(k, mapOld, new Map(), false)).join('') : '<span class="empty-note">—</span>',
+      newHtml: `<span class="empty-note">— item saiu desta versão —</span>`,
+    };
+  }
+  const mapOld = va20FieldMap(oldItem);
+  const mapNew = va20FieldMap(newItem);
+  const keys = va20UnionKeys(mapOld, mapNew);
+  if (!keys.length) return { oldHtml: '<span class="empty-note">—</span>', newHtml: '<span class="empty-note">—</span>' };
+  return {
+    oldHtml: keys.map(k => va20FieldRowHtml(k, mapOld, mapNew, true)).join(''),
+    newHtml: keys.map(k => va20FieldRowHtml(k, mapNew, mapOld, true)).join(''),
+  };
+}
+function va20ToggleFieldText(link) {
+  const span = link.parentElement;
+  const expanded = span.classList.toggle('expanded');
+  span.childNodes[0].textContent = (expanded ? span.dataset.full : span.dataset.short) + ' ';
+  link.textContent = expanded ? 'mostrar menos' : 'mostrar mais';
+}
+
 function va19RowHtml(row, comparison) {
   const { bucket, badge } = va19RowBucket(row);
   const imported = row.imported;
@@ -6290,25 +6361,27 @@ function va19RowHtml(row, comparison) {
   const mode = manualExisting ? 'compare' : row.state === 'new' ? 'new' : row.state === 'removed' ? 'removed' : 'compare';
   const catId = imported ? imported.categoryId : row.existing.category.id;
   const rubricaCode = DOCUMENT_CODE_BY_CATEGORY_ID[catId] || '';
-  const keyText = va19ItemKeyText(imported || existingItem);
   const payee = (imported && imported.payeeName) || (existingItem && existingItem.payeeName) || '';
-  const itemLabelHtml = keyText
-    ? `<span class="item-title">${rubricaCode ? escapeHtml(rubricaCode) + ' · ' : ''}${escapeHtml(keyText)}</span>`
-    : `<span class="item-title">${escapeHtml((imported && imported.title) || (existingItem && existingItem.title) || 'Item')}</span>`;
+  const oldKeyText = existingItem ? va19ItemKeyText(existingItem) : '';
+  const newKeyText = imported ? va19ItemKeyText(imported) : '';
+  const numberHtml = (() => {
+    if (oldKeyText && newKeyText && oldKeyText !== newKeyText) {
+      return `<span class="item-num">${escapeHtml(newKeyText)}</span><span class="item-num-arrow">${escapeHtml(oldKeyText)} → <b>${escapeHtml(newKeyText)}</b></span>`;
+    }
+    if (oldKeyText && !newKeyText) return `<span class="item-num">${escapeHtml(oldKeyText)}</span><span class="item-num-arrow">saiu desta versao</span>`;
+    if (!oldKeyText && newKeyText) return `<span class="item-num">${escapeHtml(newKeyText)}</span><span class="item-num-arrow">novo nesta versao</span>`;
+    return `<span class="item-num">${escapeHtml(newKeyText || oldKeyText || (imported && imported.title) || (existingItem && existingItem.title) || 'Item')}</span>`;
+  })();
+  const itemLabelHtml = `${rubricaCode ? `<div class="item-rubrica">${escapeHtml(rubricaCode)}</div>` : ''}${numberHtml}`;
   const itemSubHtml = manualExisting
     ? `<div class="item-sub">associado a "${escapeHtml(va19CandidateLabel(manualExisting))}"</div>`
     : row.state === 'removed'
     ? `<div class="item-sub">existia como ${escapeHtml(existingItem.tipoLabel || existingItem.title || 'item anterior')}</div>`
     : payee ? `<div class="item-sub">${escapeHtml(payee)}</div>` : '';
-  const descPair = va19FieldPair(va19ItemDescText(existingItem), va19ItemDescText(imported), mode);
-  const valuePair = va19FieldPair(va19ItemValueText(existingItem), va19ItemValueText(imported), mode);
-  const datePair = va19FieldPair(va19ItemDateText(existingItem), va19ItemDateText(imported), mode);
+  const { oldHtml: fieldsOldHtml, newHtml: fieldsNewHtml } = va20FieldCellsHtml(existingItem, imported, mode);
   let decision;
   if (row.state === 'review') {
-    const ignoreNote = row.decision === 'ignore'
-      ? `ignorado nesta importação · <a href="#" onclick="va12SetReviewDecision(${idx}, ''); return false;">desfazer</a>`
-      : `<a href="#" onclick="va12SetReviewDecision(${idx}, 'ignore'); return false;">ignorar nesta importação</a>`;
-    decision = `${va19ReviewAssocSelectHtml(row, comparison)}<div class="assoc-note">${ignoreNote}</div>`;
+    decision = `<select class="reconcile-action" onchange="va12SetReviewDecision(${idx}, this.value)"><option value="">Decidir...</option><option value="same" ${row.decision === 'same' ? 'selected' : ''}>E o mesmo item</option><option value="new" ${row.decision === 'new' ? 'selected' : ''}>E um item novo</option><option value="ignore" ${row.decision === 'ignore' ? 'selected' : ''}>Ignorar nesta importacao</option></select>`;
   } else if (row.state === 'new' && manualExisting) {
     decision = `<span class="fixed">Atualiza item existente</span><div class="assoc-note">associado manualmente · <a href="#" onclick="va19AssociateNew(${idx}, ''); return false;">desfazer</a></div>`;
   } else if (row.state === 'new') {
@@ -6333,10 +6406,9 @@ function va19RowHtml(row, comparison) {
   const confidenceHtml = row.confidence != null && row.state !== 'new' ? `<span class="confidence">${Math.round(row.confidence * 100)}%</span>` : '';
   const hideByDefault = bucket === 'neutral' && row.state === 'unchanged';
   return `<tr class="row-${bucket}${hideByDefault ? ' hidden-unchanged' : ''}">
-    <td>${itemLabelHtml}${itemSubHtml}</td>
-    <td>${descPair}</td>
-    <td>${valuePair}</td>
-    <td>${datePair}</td>
+    <td class="item-cell">${itemLabelHtml}${itemSubHtml}</td>
+    <td class="field-cell old-cell">${fieldsOldHtml}</td>
+    <td class="field-cell new-cell">${fieldsNewHtml}</td>
     <td><span class="badge-state ${bucket}">${badge}</span>${confidenceHtml}</td>
     <td class="decision">${decision}${warningHtml}</td>
   </tr>`;
@@ -6388,7 +6460,7 @@ renderImportStep2 = function() {
         ${chips}
       </div>
       <table>
-        <thead><tr><th style="width:20%">Item</th><th style="width:28%">Descricao</th><th style="width:14%">Valor</th><th style="width:12%">Data</th><th style="width:12%">Situacao</th><th style="width:14%">Decisao</th></tr></thead>
+        <thead><tr><th style="width:13%">Item</th><th style="width:33%">Antigo</th><th style="width:33%">Novo</th><th style="width:10%">Situacao</th><th style="width:11%">Decisao</th></tr></thead>
         <tbody>${rowsHtml}</tbody>
       </table>
     </div>`;
