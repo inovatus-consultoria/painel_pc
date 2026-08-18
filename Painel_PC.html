@@ -950,6 +950,11 @@
   .toolbar-sep { width:1px; align-self:stretch; background:var(--border); margin:2px 2px; }
   .settings-grid-single { grid-template-columns: 1fr; max-width: 420px; }
   #projetosView .topbar-actions select { height: 38px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--ink2); padding: 0 30px 0 10px; font: inherit; font-family: 'DM Sans', sans-serif; font-size: 13px; }
+  .portfolio-table td.projetos-pcs-cell { white-space: normal; display: flex; flex-wrap: wrap; gap: 5px; }
+  .pc-chip { display: inline-flex; align-items: center; border: 1px solid var(--border); border-radius: 99px; padding: 2px 9px; font-size: 10.5px; font-weight: 700; color: var(--accent2); background: var(--green-light); cursor: pointer; white-space: nowrap; }
+  .pc-chip:hover { border-color: var(--accent2); }
+  .pc-chip-fake { color: var(--ink3); background: var(--surface2); cursor: default; }
+  .pc-chip-fake:hover { border-color: var(--border); }
 </style>
 
 <style id="va12-delete-styles">
@@ -1102,7 +1107,7 @@
       </div>
       <div class="portfolio-table-wrap">
         <table class="portfolio-table">
-          <thead><tr><th>Cliente</th><th>Projeto</th><th>Executor</th><th>Fundação</th><th>Observações</th><th>Status</th></tr></thead>
+          <thead><tr><th>Cliente</th><th>Projeto</th><th>Executor</th><th>Fundação</th><th>Observações</th><th>Status</th><th>PCs</th></tr></thead>
           <tbody id="projetosTableBody"></tbody>
         </table>
       </div>
@@ -5266,7 +5271,7 @@ function collectComentariosExportRows() {
             (item.ciclosStatus || []).forEach(entry => {
               if (!entry.comentarioAnalista && !entry.comentarioExecutor && !entry.executorResponse) return;
               rows.push([
-                client.name || '', project.name || '', pc.label || '', cicloLabel(entry.numero),
+                client.client || '', project.name || '', pc.label || '', cicloLabel(entry.numero),
                 cat.label || '', item.title || '',
                 entry.comentarioAnalista || '', entry.comentarioExecutor || '', entry.executorResponse || '',
                 STATUS_LABELS[entry.status] || entry.status || '',
@@ -6030,7 +6035,11 @@ function renderProjetosView() {
     (client.projects || []).forEach((project, pi) => rows.push({ client, ci, project, pi }));
   });
   const tbody = document.getElementById('projetosTableBody');
-  tbody.innerHTML = rows.length ? rows.map(({ client, ci, project, pi }) => `
+  tbody.innerHTML = rows.length ? rows.map(({ client, ci, project, pi }) => {
+    const pcsHtml = (project.pcs || []).length
+      ? project.pcs.map((pc, pci) => `<span class="pc-chip${pc.real ? '' : ' pc-chip-fake'}" onclick="event.stopPropagation(); handlePcClick(${ci},${pi},${pci})" title="${pc.real ? 'Abrir ' + escapeHtml(pc.label) : 'PC de exemplo, não disponível'}">${escapeHtml(pc.label)}</span>`).join('')
+      : '<span class="portfolio-muted">—</span>';
+    return `
     <tr onclick="openProjetoForm(${ci},${pi})">
       <td class="portfolio-primary">${escapeHtml(client.client)}</td>
       <td>${escapeHtml(project.name)}</td>
@@ -6038,7 +6047,9 @@ function renderProjetosView() {
       <td class="portfolio-muted">${escapeHtml(project.fundacao || '—')}</td>
       <td class="portfolio-muted">${escapeHtml((project.notes || '').slice(0, 60))}${(project.notes || '').length > 60 ? '…' : ''}</td>
       <td><span class="badge ${project.active !== false ? 'badge-green' : 'badge-slate'}">${project.active !== false ? 'Ativo' : 'Inativo'}</span></td>
-    </tr>`).join('') : `<tr><td colspan="6"><div class="portfolio-empty">Nenhum projeto cadastrado${projetosFilterClient !== '' ? ' para este cliente' : ''}.</div></td></tr>`;
+      <td class="projetos-pcs-cell">${pcsHtml}</td>
+    </tr>`;
+  }).join('') : `<tr><td colspan="7"><div class="portfolio-empty">Nenhum projeto cadastrado${projetosFilterClient !== '' ? ' para este cliente' : ''}.</div></td></tr>`;
 }
 
 function setProjetosClientFilter(value) { projetosFilterClient = value; renderProjetosView(); }
