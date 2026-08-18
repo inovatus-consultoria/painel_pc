@@ -200,6 +200,11 @@
   .doc-chip-remove { width:18px; height:18px; flex:0 0 18px; display:grid; place-items:center; padding:0; border:0; border-radius:50%; background:transparent; color:currentColor; opacity:.58; cursor:pointer; font:700 14px/1 'DM Sans',sans-serif; }
   .doc-chip-remove:hover { opacity:1; background:rgba(255,255,255,.7); }
   .doc-restore-btn { margin-left:auto; border:0; background:transparent; color:var(--accent); padding:2px 0; cursor:pointer; font:700 10.5px 'DM Sans',sans-serif; text-transform:none; letter-spacing:0; }
+  .doc-hidden-bar { display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; font-size:11px; color:var(--ink3); background:var(--slate-light); border:1px solid var(--border); border-radius:8px; padding:6px 10px; margin-top:6px; }
+  .doc-hidden-pill { border:1px solid var(--border); background:var(--surface); color:var(--ink3); border-radius:99px; padding:2px 8px; margin:2px; cursor:pointer; font-size:10.5px; }
+  .doc-hidden-pill:hover { color:var(--accent); border-color:var(--accent2); }
+  .doc-hidden-restore-all { border:0; background:transparent; color:var(--accent); cursor:pointer; font:700 11px 'DM Sans',sans-serif; white-space:nowrap; }
+  .tabela-doc-oculto-note { border:1px dashed var(--border); background:transparent; color:var(--ink3); border-radius:99px; padding:2px 7px; font-size:9.5px; cursor:pointer; }
   .doc-restore-btn:hover { text-decoration:underline; }
 
   .ciclo-card { border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; margin-bottom: 10px; background: var(--surface); }
@@ -219,42 +224,49 @@
   .editor-internal:focus { background: var(--surface2); border-color: var(--gold); }
   .editor-hint { font-size: 10.5px; color: var(--ink3); margin-top: 5px; }
   .editor-hint kbd { background: var(--surface2); border: 1px solid var(--border); border-radius: 4px; padding: 1px 5px; font-family: inherit; font-size: 10px; }
+  /* 17/08: campos de comentário com formatação leve (negrito/vermelho/verde) viraram
+     contentEditable — placeholder e altura precisam ser recriados na mão (div não tem os dois
+     de graça como textarea). */
+  [contenteditable][data-placeholder]:empty:before { content: attr(data-placeholder); color: var(--ink3); font-style: italic; pointer-events: none; }
+  .format-toolbar { display: flex; align-items: center; gap: 6px; margin-bottom: 5px; }
+  .format-btn { width: 22px; height: 22px; border-radius: 6px; border: 1px solid var(--border); background: var(--surface); cursor: pointer; padding: 0; font: 700 12px 'DM Sans', sans-serif; color: var(--ink); }
+  .format-btn:hover { border-color: var(--accent2); }
+  .format-btn-bold { font-weight: 800; }
+  .format-btn-red { background: #C83A3A; border-color: #C83A3A; }
+  .format-btn-green { background: #2D5C4E; border-color: #2D5C4E; }
+  div.editor-mini[contenteditable] { height: auto; min-height: 44px; overflow-y: visible; white-space: pre-wrap; }
 
   .comment-editor-wrap { position: relative; }
 
-  /* ===== Visão consolidada da Área de Análise (05/08) — tabela enxuta, campos de texto expandem
-     só ao focar e recolhem ao perder o foco, pra caber muitos itens sem ficar gigante ===== */
+  /* ===== Visão consolidada da Área de Análise — tabela com todo o conteúdo sempre visível
+     (17/08: reversão do comportamento retrátil de 05/08 — Ricardo prefere ver tudo de cara,
+     sem precisar passar o mouse ou focar o campo; cada linha simplesmente cresce com o conteúdo). ===== */
   .tabela-head-row, .tabela-row {
     display: grid; grid-template-columns: 200px 170px 1fr 1fr 1fr 96px;
-    gap: 10px; padding: 8px 10px; align-items: start; border-bottom: 1px solid var(--border);
+    gap: 10px; padding: 10px; align-items: start; border-bottom: 1px solid var(--border);
   }
   .tabela-head-row { position: sticky; top: 0; z-index: 2; font-size: 11px; font-weight: 700; color: var(--ink2); background: var(--surface2); border-radius: 6px; }
   .tabela-row:hover { background: var(--surface2); }
   .tabela-item-title { font-size: 12.5px; font-weight: 600; color: var(--ink); }
   .tabela-item-sub { font-size: 11px; color: var(--ink3); margin-top: 2px; }
   .tabela-cell-docs {
-    display: flex; flex-wrap: wrap; gap: 4px; align-content: flex-start;
-    max-height: 28px; overflow: hidden; transition: max-height 0.15s ease, box-shadow 0.15s ease;
-    border-radius: 6px;
-  }
-  .tabela-cell-docs:hover, .tabela-cell-docs:focus-within {
-    max-height: 220px; overflow-y: auto; position: relative; z-index: 3;
-    box-shadow: 0 3px 10px rgba(0,0,0,0.14); background: var(--surface); padding: 3px;
+    display: flex; flex-wrap: wrap; gap: 4px; align-content: flex-start; align-self: start;
   }
   .tabela-doc-empty { font-size: 11px; color: var(--ink3); }
   .tabela-cell-status { display: flex; flex-direction: column; gap: 5px; }
-  .status-select-mini { font-size: 11px; padding: 4px 6px; border-radius: 6px; border: 1px solid var(--border); background: var(--surface); color: var(--ink); }
+  .status-select-mini { font-family: 'DM Sans', sans-serif; font-size: 11px; font-weight: 600; padding: 4px 6px; border-radius: 6px; border: 1px solid var(--border); background: var(--surface); color: var(--ink); }
+  /* 17/08: cor por status do item (Aguardando/Aberto/Fechado) — mesma paleta dos badges (.badge-red/.badge-green/.badge-slate).
+     Escopado pela classe st-* (só nos selects de status do ITEM) pra não colorir o select de status do CICLO, que usa .status-select puro. */
+  .status-select.st-ABERTO, .status-select-mini.st-ABERTO { background: var(--red-light); color: var(--red); border-color: #E8B8B8; }
+  .status-select.st-FECHADO, .status-select-mini.st-FECHADO { background: var(--green-light); color: var(--green); border-color: #BEE0D6; }
+  .status-select.st-AGUARDANDO_ANALISE, .status-select-mini.st-AGUARDANDO_ANALISE { background: var(--slate-light); color: var(--slate); border-color: var(--border); }
   .duvida-toggle-mini { font-size: 11px; padding: 4px 6px; }
   .editor-mini {
-    width: 100%; min-height: 28px; max-height: 28px; overflow-y: auto; resize: none;
+    width: 100%; min-height: 44px; height: 44px; overflow-y: hidden; resize: none;
     font-family: inherit; font-size: 11.5px; padding: 5px 7px; border: 1px solid var(--border);
     border-radius: 6px; background: var(--surface); color: var(--ink);
-    transition: max-height 0.15s ease, min-height 0.15s ease, box-shadow 0.15s ease;
   }
-  .editor-mini:focus {
-    max-height: 160px; min-height: 72px; position: relative; z-index: 3;
-    box-shadow: 0 3px 10px rgba(0,0,0,0.14); border-color: var(--accent2);
-  }
+  .editor-mini:focus { border-color: var(--accent2); }
   .analise-tabela-wrap { max-height: calc(100vh - 320px); overflow-y: auto; }
 
   /* inline suggestion strip (auto, while typing) */
@@ -1822,6 +1834,46 @@ function escapeHtml(str) {
   if (str === null || str === undefined) return '';
   return String(str).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 }
+
+/* ===== Comentário com formatação leve — negrito/vermelho/verde (17/08/2026).
+   Só pra destacar trecho, não é editor de texto rico completo. Guardado como HTML SÓ localmente
+   (campos rich* abaixo, nunca sincronizados com o SharePoint/exportações — o campo de sempre,
+   ex. item.comentarioAnalista, continua puro texto em todo lugar que já existia: sync, Punchlist,
+   Prompt, busca etc.). Some se abrir noutro navegador/dispositivo — Ricardo topou essa limitação
+   (é só conveniência visual, não dado de análise). Aplicado só em Comentário do analista e
+   Resposta do executor — Comentário ao executor fica de fora, de propósito: aquele campo já tem
+   o menu "/" de modelos e abertura automática de status amarrados em comportamento de textarea
+   puro (ver handleExecutorInput/openSlashMenu), então virar contentEditable arriscava quebrar
+   isso por pouco ganho (esse campo raramente precisa de destaque, é texto objetivo pro executor). */
+function commentPlainText(html) {
+  if (!html) return '';
+  const withBreaks = String(html).replace(/<(br|\/div|\/p)\s*\/?>/gi, '\n');
+  const div = document.createElement('div');
+  div.innerHTML = withBreaks;
+  return (div.textContent || '').replace(/\n{3,}/g, '\n\n').replace(/^\n+|\n+$/g, '');
+}
+function richFieldName(field) { return 'rich' + field.charAt(0).toUpperCase() + field.slice(1); }
+function applyCommentFormat(editorId, cmd, color) {
+  const el = document.getElementById(editorId);
+  if (!el) return;
+  el.focus();
+  if (cmd === 'bold') document.execCommand('bold', false, null);
+  else document.execCommand('foreColor', false, color);
+  handleRichCommentInput(el);
+}
+function handleRichCommentInput(el) {
+  const itemId = el.dataset.item, field = el.dataset.field;
+  const found = findItem(itemId);
+  if (!found) return;
+  const entry = found.item.ciclosStatus[selectedCicloIdx];
+  if (!entry) return;
+  entry[richFieldName(field)] = el.innerHTML;
+  updateComentario(itemId, field, commentPlainText(el.innerHTML));
+}
+function richCommentHtml(entry, field) {
+  const rich = entry[richFieldName(field)];
+  return rich !== undefined && rich !== null ? rich : escapeHtml(entry[field] || '');
+}
 function fmtValor(v) {
   if (v === null || v === undefined || v === '') return null;
   const n = parseFloat(String(v).replace(',', '.'));
@@ -2661,6 +2713,59 @@ async function concluirPC() {
     if (pc._gid) await graphUpdateItem(LIST_IDS.PCs, pc._gid, { PCStatus: pcStatusToChoice('CONCLUIDA'), ConcludedAt: changedAt });
   } catch (e) { console.warn(e); showToast('PC concluída localmente, mas houve erro sincronizando com o SharePoint.'); }
 }
+
+/* ===== Excluir retorno (17/08/2026): permite desfazer um "Adicionar retorno" feito por engano.
+   Só o ÚLTIMO ciclo/retorno da PC pode ser excluído (mantém a sequência 1,2,3... sem buracos —
+   pra remover um ciclo do meio, o Ricardo teria que excluir também todos os depois dele, um a
+   um, sempre pelo mais novo). Precisa de pelo menos 2 ciclos (o ciclo 1 nunca é excluído por
+   aqui — remover a PC inteira é o caminho pra isso). PC concluída também bloqueia, porque nesse
+   caso o "último ciclo" pode ser um ciclo de análise de verdade fechado pela ação "Concluir PC",
+   não um retorno criado sem querer. Ao excluir, o ciclo anterior volta de Encerrado pra Com o
+   executor (reabre — é o estado que ele tinha antes de "Adicionar retorno" ter sido clicado). */
+function podeExcluirCiclo() {
+  return !!DATA && DATA.meta.ciclos.length > 1 && !DATA.meta.concluida;
+}
+async function deleteCiclo() {
+  if (!podeExcluirCiclo()) return;
+  const idx = DATA.meta.ciclos.length - 1;
+  const ciclo = DATA.meta.ciclos[idx];
+  if (!confirm(`Excluir ${cicloLabel(ciclo.numero)}? Isso apaga o retorno inteiro — status, comentários e resposta do executor de cada item nesse retorno. Os itens continuam existindo, só voltam a mostrar o retorno anterior. Não tem como desfazer.`)) return;
+  const pc = currentPC ? pcAt(currentPC.ci, currentPC.pi, currentPC.pci) : null;
+  const removedEntries = [];
+  DATA.categories.forEach(cat => {
+    cat.items.forEach(item => {
+      const entry = item.ciclosStatus[idx];
+      if (entry) removedEntries.push(entry);
+      item.ciclosStatus.length = idx;
+    });
+  });
+  DATA.meta.ciclos.length = idx;
+  const anterior = DATA.meta.ciclos[idx - 1];
+  const changedAt = new Date().toISOString();
+  const reabriu = anterior.status === 'ENCERRADO';
+  if (reabriu) { anterior.status = 'COM_EXECUTOR'; anterior.statusChangedAt = changedAt; }
+  selectedCicloIdx = DATA.meta.ciclos.length - 1;
+  saveStore();
+  renderCicloCards(); renderList(); renderDetail(); renderProgress();
+  showToast(`${cicloLabel(ciclo.numero)} excluído.`);
+  try {
+    for (const entry of removedEntries) {
+      const listId = entry._legacy ? LIST_IDS.RevisoesPorCiclo : LIST_IDS.AnalisesItemCiclo;
+      await va12DeleteIfPresent(listId, entry._gid);
+    }
+    for (const history of (ciclo.statusHistory || [])) await va12DeleteIfPresent(LIST_IDS.HistoricoStatusCiclo, history._gid);
+    await va12DeleteIfPresent(LIST_IDS.Ciclos, ciclo._gid);
+    if (reabriu && pc && anterior._gid) {
+      await graphUpdateItem(LIST_IDS.Ciclos, anterior._gid, { Status: 'Com o executor', StatusChangedAt: changedAt });
+      try { await syncCicloStatusHistory(pc._gid, anterior, 'COM_EXECUTOR', changedAt); }
+      catch (historyError) { console.warn('Falha ao registrar reabertura no histórico', historyError); }
+      saveStore();
+    }
+  } catch (e) {
+    console.warn(e);
+    showToast('Retorno removido localmente, mas houve erro sincronizando a exclusão com o SharePoint — confira manualmente.');
+  }
+}
 function renderProgress() {
   const g = globalProgress();
   document.getElementById('progressNum').textContent = g.pct + '%';
@@ -2767,6 +2872,35 @@ async function cycleCheck(itemId, docKey) {
     catch (e) { console.warn(e); showToast('Não consegui sincronizar esse documento com o SharePoint.'); }
   }
 }
+
+/* ===== Ocultar documento da grade (17/08/2026) — de volta, separado do status "Não aplicável".
+   NA é um julgamento de análise (entra em métrica, sync com SharePoint). Ocultar é só visual —
+   tira o card da grade pra reduzir poluição num item com catálogo grande, sem mudar o status do
+   documento por trás. Guardado em item.hiddenDocs (local, não sincroniza com o SharePoint — é
+   preferência de tela, não dado de análise; some se abrir o app em outro navegador/dispositivo). */
+function isDocHidden(item, doc) { return !!(item.hiddenDocs || []).includes(doc); }
+function hideDocumentForItem(itemId, doc) {
+  const found = findItem(itemId);
+  if (!found) return;
+  if (!found.item.hiddenDocs) found.item.hiddenDocs = [];
+  if (!found.item.hiddenDocs.includes(doc)) found.item.hiddenDocs.push(doc);
+  saveStore();
+  renderDetail(); renderList();
+}
+function unhideDocumentForItem(itemId, doc) {
+  const found = findItem(itemId);
+  if (!found || !found.item.hiddenDocs) return;
+  found.item.hiddenDocs = found.item.hiddenDocs.filter(d => d !== doc);
+  saveStore();
+  renderDetail(); renderList();
+}
+function unhideAllDocumentsForItem(itemId) {
+  const found = findItem(itemId);
+  if (!found) return;
+  found.item.hiddenDocs = [];
+  saveStore();
+  renderDetail(); renderList();
+}
 const _comentarioSyncTimers = {};
 function updateComentario(itemId, field, value) {
   const found = findItem(itemId);
@@ -2793,7 +2927,9 @@ function reflectAutoStatusChange(itemId, status) {
   /* Atualiza só o select de status e as métricas — nunca chama renderDetail() aqui, pra não
      recriar o textarea que o usuário está digitando e perder o cursor/foco. */
   const sel = document.getElementById(`statusSelect-${itemId}`);
-  if (sel) sel.value = status;
+  if (sel) { sel.value = status; sel.className = `status-select st-${status}`; }
+  const selMini = document.getElementById(`statusSelectTabela-${itemId}`);
+  if (selMini) { selMini.value = status; selMini.className = `status-select-mini st-${status}`; }
   renderList();
   renderProgress();
 }
@@ -2868,10 +3004,12 @@ function renderDetail() {
     html += `<div class="section-note" style="margin-top:10px;">Importado do Prompt — Pagamento: ${escapeHtml(item.importado.dataPagamento || '—')} · Documento: ${escapeHtml(item.importado.dataDocumento || '—')}${item.importado.rendimentos && item.importado.rendimentos !== '0,00' && item.importado.rendimentos !== '0' ? ' · Rendimentos: ' + escapeHtml(item.importado.rendimentos) : ''}</div>`;
   }
 
+  const hiddenDocs = (item.hiddenDocs || []).filter(d => docs.includes(d));
+  const docsVisiveis = docs.filter(doc => !hiddenDocs.includes(doc));
   html += `<div class="section-label">Documentos exigidos
-    <span class="section-note">— clique no card pra alternar Pendente / OK / Não aplicável.</span>
+    <span class="section-note">— clique no card pra alternar Pendente / OK / Não aplicável; passe o mouse e use o × pra ocultar um documento que não vale pra este item (não exclui, só some da visão).</span>
   </div><div class="doc-grid">`;
-  docs.forEach(doc => {
+  docsVisiveis.forEach(doc => {
     const status = item.checks[doc] || 'NA';
     const cls = status === 'OK' ? 'chip-ok' : status === 'NA' ? 'chip-na' : 'chip-pnd';
     const safeDoc = doc.replace(/'/g,"\\'");
@@ -2882,16 +3020,23 @@ function renderDetail() {
         : `<svg class="doc-chip-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="9"/><path d="M12 8v4m0 4h.01"/></svg>`;
     html += `<div class="doc-chip ${cls}" onclick="cycleCheck('${item.id}','${safeDoc}')" title="${escapeHtml(doc)} — clique pra alternar">
       ${icon}<span class="doc-chip-label">${escapeHtml(doc)}</span>
+      <button class="doc-chip-remove" onclick="event.stopPropagation(); hideDocumentForItem('${item.id}','${safeDoc}')" title="Ocultar este documento — não exclui, só some da visão">&times;</button>
     </div>`;
   });
   html += `</div>`;
+  if (hiddenDocs.length) {
+    html += `<div class="doc-hidden-bar">
+      <span>${hiddenDocs.length} documento${hiddenDocs.length > 1 ? 's' : ''} oculto${hiddenDocs.length > 1 ? 's' : ''}: ${hiddenDocs.map(doc => `<button class="doc-hidden-pill" onclick="unhideDocumentForItem('${item.id}','${doc.replace(/'/g,"\\'")}')" title="Mostrar de novo">${escapeHtml(doc)} ↺</button>`).join(' ')}</span>
+      <button class="doc-hidden-restore-all" onclick="unhideAllDocumentsForItem('${item.id}')">Mostrar todos</button>
+    </div>`;
+  }
 
   html += `<div class="section-label">${escapeHtml(cicloLabel(numeroSel))}${editavel ? ' — ativo' : ' — arquivado, somente leitura'}</div>`;
   html += `<div class="ciclo-card">
       <div class="ciclo-head">
         <span class="ciclo-num">Status do item neste retorno</span>
         ${editavel
-          ? `<select class="status-select" id="statusSelect-${item.id}" onchange="updateStatus('${item.id}', this.value)">
+          ? `<select class="status-select st-${entry.status}" id="statusSelect-${item.id}" onchange="updateStatus('${item.id}', this.value)">
               ${['AGUARDANDO_ANALISE','ABERTO','FECHADO'].map(s => `<option value="${s}" ${s === entry.status ? 'selected' : ''}>${STATUS_LABELS[s]}</option>`).join('')}
             </select>`
           : `<span class="badge ${statusBadgeClass(entry.status)}">${STATUS_LABELS[entry.status]}</span>`}
@@ -2901,10 +3046,15 @@ function renderDetail() {
       <div class="field-block field-internal">
         <div class="field-label">Comentário do analista <span class="lock">(interno — nunca exportado ao executor)</span></div>
         ${editavel
-          ? `<textarea class="editor editor-internal" data-item="${item.id}" data-field="comentarioAnalista"
-              oninput="updateComentario('${item.id}', 'comentarioAnalista', this.value)"
-              placeholder="Sem comentário interno registrado.">${escapeHtml(entry.comentarioAnalista)}</textarea>`
-          : `<div class="field-text ${entry.comentarioAnalista ? '' : 'empty'}">${escapeHtml(entry.comentarioAnalista) || 'Sem comentário interno.'}</div>`}
+          ? `<div class="format-toolbar">
+              <button type="button" class="format-btn format-btn-bold" onmousedown="event.preventDefault()" onclick="applyCommentFormat('richEditor-${item.id}-comentarioAnalista', 'bold')" title="Negrito no trecho selecionado">B</button>
+              <button type="button" class="format-btn format-btn-red" onmousedown="event.preventDefault()" onclick="applyCommentFormat('richEditor-${item.id}-comentarioAnalista', 'color', '#C83A3A')" title="Vermelho no trecho selecionado"></button>
+              <button type="button" class="format-btn format-btn-green" onmousedown="event.preventDefault()" onclick="applyCommentFormat('richEditor-${item.id}-comentarioAnalista', 'color', '#2D5C4E')" title="Verde no trecho selecionado"></button>
+            </div>
+            <div class="editor editor-internal" id="richEditor-${item.id}-comentarioAnalista" contenteditable="true" data-item="${item.id}" data-field="comentarioAnalista"
+              oninput="handleRichCommentInput(this)"
+              data-placeholder="Sem comentário interno registrado.">${richCommentHtml(entry, 'comentarioAnalista')}</div>`
+          : `<div class="field-text ${entry.comentarioAnalista ? '' : 'empty'}">${richCommentHtml(entry, 'comentarioAnalista') || 'Sem comentário interno.'}</div>`}
       </div>
 
       <div class="field-block">
@@ -2922,10 +3072,15 @@ function renderDetail() {
       <div class="field-block">
         <div class="field-label">Resposta do executor <span class="lock">(o que o executor respondeu a esta pendência)</span></div>
         ${editavel
-          ? `<textarea class="editor" data-item="${item.id}" data-field="executorResponse"
-              oninput="updateComentario('${item.id}', 'executorResponse', this.value)"
-              placeholder="Sem resposta registrada ainda.">${escapeHtml(entry.executorResponse)}</textarea>`
-          : `<div class="field-text ${entry.executorResponse ? '' : 'empty'}">${escapeHtml(entry.executorResponse) || 'Sem resposta registrada.'}</div>`}
+          ? `<div class="format-toolbar">
+              <button type="button" class="format-btn format-btn-bold" onmousedown="event.preventDefault()" onclick="applyCommentFormat('richEditor-${item.id}-executorResponse', 'bold')" title="Negrito no trecho selecionado">B</button>
+              <button type="button" class="format-btn format-btn-red" onmousedown="event.preventDefault()" onclick="applyCommentFormat('richEditor-${item.id}-executorResponse', 'color', '#C83A3A')" title="Vermelho no trecho selecionado"></button>
+              <button type="button" class="format-btn format-btn-green" onmousedown="event.preventDefault()" onclick="applyCommentFormat('richEditor-${item.id}-executorResponse', 'color', '#2D5C4E')" title="Verde no trecho selecionado"></button>
+            </div>
+            <div class="editor" id="richEditor-${item.id}-executorResponse" contenteditable="true" data-item="${item.id}" data-field="executorResponse"
+              oninput="handleRichCommentInput(this)"
+              data-placeholder="Sem resposta registrada ainda.">${richCommentHtml(entry, 'executorResponse')}</div>`
+          : `<div class="field-text ${entry.executorResponse ? '' : 'empty'}">${richCommentHtml(entry, 'executorResponse') || 'Sem resposta registrada.'}</div>`}
       </div>
     </div>`;
 
@@ -3949,7 +4104,8 @@ function renderCicloCards() {
   document.getElementById('pcStatusBadge').textContent = 'Ativa';
   const latest = ultimoCiclo();
   const canClose = latest.status === 'COM_EXECUTOR' && !DATA.meta.concluida;
-  document.getElementById('pcStatusActions').innerHTML = `<button class="btn btn-ghost" onclick="setView('detail')">Detalhe</button><button class="btn btn-ghost" onclick="adicionarCiclo()" ${canClose ? '' : 'disabled'}>Adicionar retorno</button><button class="btn btn-primary" onclick="concluirPC()" ${canClose ? '' : 'disabled'}>Concluir PC</button>`;
+  const canDelete = podeExcluirCiclo();
+  document.getElementById('pcStatusActions').innerHTML = `<button class="btn btn-ghost" onclick="setView('detail')">Detalhe</button><button class="btn btn-ghost" onclick="adicionarCiclo()" ${canClose ? '' : 'disabled'}>Adicionar retorno</button>${canDelete ? `<button class="btn btn-ghost btn-danger" onclick="deleteCiclo()" title="Exclui o último retorno criado — criado por engano hoje, por exemplo">Excluir retorno</button>` : ''}<button class="btn btn-primary" onclick="concluirPC()" ${canClose ? '' : 'disabled'}>Concluir PC</button>`;
 }
 
 function selectCiclo(idx) {
@@ -4946,6 +5102,43 @@ function downloadArrayBufferFile(name, buffer, mime) {
   anchor.href = url; anchor.download = name; anchor.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
+/* ===== Exportar base de comentários (17/08/2026) — Excel simples, sem formatação, só pra Ricardo
+   ver tudo que já foi comentado num lugar só. Varre TODA a STORE (todos os clientes, projetos,
+   PCs e ciclos, não só a PC aberta) e joga uma linha por item+ciclo que tenha algum comentário.
+   Usa SheetJS puro (já carregado pro import), não o ExcelJS — não precisa de cor/formatação aqui. */
+function exportComentariosExcel() {
+  const header = ['Cliente', 'Projeto', 'PC', 'Ciclo', 'Rubrica', 'Item', 'Comentário do analista', 'Comentário ao executor', 'Resposta do executor', 'Status no ciclo'];
+  const rows = [header];
+  (STORE.clients || []).forEach(client => {
+    (client.projects || []).forEach(project => {
+      (project.pcs || []).forEach(pc => {
+        const data = pc.real ? pc.data : null;
+        if (!data) return;
+        (data.categories || []).forEach(cat => {
+          (cat.items || []).forEach(item => {
+            (item.ciclosStatus || []).forEach(entry => {
+              if (!entry.comentarioAnalista && !entry.comentarioExecutor && !entry.executorResponse) return;
+              rows.push([
+                client.name || '', project.name || '', pc.label || '', cicloLabel(entry.numero),
+                cat.label || '', item.title || '',
+                entry.comentarioAnalista || '', entry.comentarioExecutor || '', entry.executorResponse || '',
+                STATUS_LABELS[entry.status] || entry.status || '',
+              ]);
+            });
+          });
+        });
+      });
+    });
+  });
+  if (rows.length === 1) return showToast('Nenhum comentário registrado ainda em nenhuma PC.');
+  const ws = XLSX.utils.aoa_to_sheet(rows);
+  ws['!cols'] = [{ wch: 20 }, { wch: 18 }, { wch: 14 }, { wch: 12 }, { wch: 22 }, { wch: 30 }, { wch: 45 }, { wch: 45 }, { wch: 45 }, { wch: 16 }];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Comentários');
+  XLSX.writeFile(wb, `Base_Comentarios_PainelPC_${new Date().toISOString().slice(0, 10)}.xlsx`);
+  showToast(`Exportado — ${rows.length - 1} comentário(s).`);
+}
+
 /* Pega a marca já embutida na tela de login (.login-box img) pra não duplicar o base64 gigante do
    logo em outro lugar do arquivo — nunca copie esse base64 à mão (ver skill editar-painel-pc,
    Passo 1). Importante: usar ESTA imagem, não a da sidebar (.brand-logo img) — aquela é forçada a
@@ -5530,6 +5723,16 @@ function va12EnsureRuntimeDom() {
     button.title = 'Configuracoes';
     button.onclick = openSettingsModal;
     button.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 00.3 1.9l.1.1-2.8 2.8-.1-.1a1.7 1.7 0 00-1.9-.3 1.7 1.7 0 00-1 1.6v.2h-4V21a1.7 1.7 0 00-1-1.6 1.7 1.7 0 00-1.9.3l-.1.1L4.2 17l.1-.1a1.7 1.7 0 00.3-1.9A1.7 1.7 0 003 14H2.8v-4H3a1.7 1.7 0 001.6-1 1.7 1.7 0 00-.3-1.9L4.2 7 7 4.2l.1.1A1.7 1.7 0 009 4.6 1.7 1.7 0 0010 3V2.8h4V3a1.7 1.7 0 001 1.6 1.7 1.7 0 001.9-.3l.1-.1L19.8 7l-.1.1a1.7 1.7 0 00-.3 1.9 1.7 1.7 0 001.6 1h.2v4H21a1.7 1.7 0 00-1.6 1z"/></svg><span class="nav-label">Configuracoes</span>';
+    nav.appendChild(button);
+  }
+  if (!document.getElementById('navExportComentarios')) {
+    const nav = document.querySelector('.view-nav');
+    const button = document.createElement('div');
+    button.id = 'navExportComentarios';
+    button.className = 'view-nav-item';
+    button.title = 'Exportar toda a base de comentários (todas as PCs, todos os ciclos) num Excel';
+    button.onclick = exportComentariosExcel;
+    button.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/><path d="M9 15h6M9 11h6M9 19h3"/></svg><span class="nav-label">Comentários</span>';
     nav.appendChild(button);
   }
   if (!document.getElementById('settingsOverlay')) {
@@ -7626,24 +7829,25 @@ function setAnaliseView(mode) {
 
 function renderTabelaRow(item, cat) {
   const entry = item.ciclosStatus[selectedCicloIdx] || { status: 'AGUARDANDO_ANALISE', comentarioAnalista: '', comentarioExecutor: '', executorResponse: '', duvida: false };
-  const docs = allCatalogDocs(item, cat);
+  const docs = allCatalogDocs(item, cat).filter(doc => !isDocHidden(item, doc));
+  const docsOcultos = (item.hiddenDocs || []).length;
   const docsHtml = docs.map(doc => {
     const status = item.checks[doc] || 'NA';
     const cls = status === 'OK' ? 'chip-ok' : status === 'NA' ? 'chip-na' : 'chip-pnd';
     const safeDoc = doc.replace(/'/g, "\\'");
     return `<span class="doc-chip ${cls}" onclick="cycleCheck('${item.id}','${safeDoc}')" title="${escapeHtml(doc)} — clique pra alternar Pendente / OK / Não aplicável">${escapeHtml(doc)}</span>`;
-  }).join('');
+  }).join('') + (docsOcultos ? `<button class="tabela-doc-oculto-note" onclick="selectItem('${item.id}')" title="Gerenciar documentos ocultos na Área de Análise por item">+${docsOcultos} oculto${docsOcultos > 1 ? 's' : ''}</button>` : '');
   return `<div class="tabela-row" data-item="${item.id}">
     <div class="tabela-cell-item">
       <div class="tabela-item-title">${escapeHtml(item.title)}</div>
       <div class="tabela-item-sub">${escapeHtml(item.payeeName || item.subtitle || '')}</div>
     </div>
     <div class="tabela-cell-docs">${docsHtml || '<span class="tabela-doc-empty">Sem documento exigido.</span>'}</div>
-    <div><textarea class="editor-mini" data-item="${item.id}" data-field="comentarioAnalista" oninput="updateComentario('${item.id}','comentarioAnalista',this.value)" placeholder="Sem comentário interno.">${escapeHtml(entry.comentarioAnalista)}</textarea></div>
-    <div><textarea class="editor-mini" data-item="${item.id}" data-field="comentarioExecutor" oninput="updateComentario('${item.id}','comentarioExecutor',this.value)" placeholder="Sem pendência neste ciclo.">${escapeHtml(entry.comentarioExecutor)}</textarea></div>
-    <div><textarea class="editor-mini" data-item="${item.id}" data-field="executorResponse" oninput="updateComentario('${item.id}','executorResponse',this.value)" placeholder="Sem resposta registrada.">${escapeHtml(entry.executorResponse)}</textarea></div>
+    <div><div class="editor-mini" contenteditable="true" data-item="${item.id}" data-field="comentarioAnalista" oninput="handleRichCommentInput(this)" data-placeholder="Sem comentário interno.">${richCommentHtml(entry, 'comentarioAnalista')}</div></div>
+    <div><textarea class="editor-mini" data-item="${item.id}" data-field="comentarioExecutor" oninput="updateComentario('${item.id}','comentarioExecutor',this.value); autoGrowTextarea(this)" placeholder="Sem pendência neste ciclo.">${escapeHtml(entry.comentarioExecutor)}</textarea></div>
+    <div><div class="editor-mini" contenteditable="true" data-item="${item.id}" data-field="executorResponse" oninput="handleRichCommentInput(this)" data-placeholder="Sem resposta registrada.">${richCommentHtml(entry, 'executorResponse')}</div></div>
     <div class="tabela-cell-status">
-      <select class="status-select-mini" id="statusSelectTabela-${item.id}" onchange="updateStatus('${item.id}', this.value)">
+      <select class="status-select-mini st-${entry.status}" id="statusSelectTabela-${item.id}" onchange="updateStatus('${item.id}', this.value)">
         ${['AGUARDANDO_ANALISE', 'ABERTO', 'FECHADO'].map(s => `<option value="${s}" ${s === entry.status ? 'selected' : ''}>${STATUS_LABELS[s]}</option>`).join('')}
       </select>
       <button class="duvida-toggle-btn duvida-toggle-mini${entry.duvida ? ' active' : ''}" onclick="toggleDuvida('${item.id}')">${entry.duvida ? '✓ Dúvida' : '? Dúvida'}</button>
@@ -7685,6 +7889,15 @@ function renderAnaliseTabela() {
     html = `<div class="analysis-empty"><strong>Nenhum item encontrado</strong><div>Ajuste ou limpe os filtros aplicados.</div></div>`;
   }
   wrap.innerHTML = html;
+  wrap.querySelectorAll('textarea.editor-mini').forEach(autoGrowTextarea);
+}
+/* 17/08: substitui o antigo comportamento "expande só no hover/focus" — agora o campo já nasce
+   do tamanho do conteúdo dele (mínimo de 44px pra caber 2 linhas mesmo vazio) e cresce junto
+   conforme o analista digita, sem exigir foco nem esconder texto por padrão. */
+function autoGrowTextarea(el) {
+  if (!el) return;
+  el.style.height = 'auto';
+  el.style.height = Math.max(44, el.scrollHeight + 2) + 'px';
 }
 
 const va15BaseRenderListForTabela = renderList;
