@@ -234,6 +234,7 @@
   .format-btn-bold { font-weight: 800; }
   .format-btn-red { background: #C83A3A; border-color: #C83A3A; }
   .format-btn-green { background: #2D5C4E; border-color: #2D5C4E; }
+  .format-btn-black { background: #1A2420; border-color: #1A2420; }
   div.editor-mini[contenteditable] { height: auto; min-height: 44px; overflow-y: visible; white-space: pre-wrap; }
 
   .comment-editor-wrap { position: relative; }
@@ -700,6 +701,11 @@
   .draft-state.new { background: var(--green-light); color: var(--green); }
   .draft-state.changed { background: var(--amber-light); color: #7D5A16; }
   .draft-state.removed { background: var(--red-light); color: var(--red); }
+  .comentarios-preview-box { width: min(1180px, 94vw); }
+  .comentarios-preview-table-wrap { max-height: 60vh; overflow: auto; border: 1px solid var(--border); border-radius: 8px; }
+  .comentarios-preview-table th, .comentarios-preview-table td { white-space: pre-wrap; min-width: 90px; }
+  .comentarios-preview-table th:nth-child(7), .comentarios-preview-table th:nth-child(8), .comentarios-preview-table th:nth-child(9),
+  .comentarios-preview-table td:nth-child(7), .comentarios-preview-table td:nth-child(8), .comentarios-preview-table td:nth-child(9) { min-width: 220px; }
   .import-result { border: 1px solid var(--border); border-radius: 8px; padding: 16px; background: var(--surface); }
   .import-result h3 { margin: 0 0 8px; font-size: 15px; }
   .import-result p { margin: 5px 0; color: var(--ink2); font-size: 12.5px; }
@@ -910,6 +916,38 @@
     .summary-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .reconcile-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   }
+
+  /* ===== Reorganização de layout — Área de Análise + Detalhe da PC (18/08/2026), validada com o
+     Ricardo num mockup separado antes de portar aqui (ver MEMORY_v4.md). Cabeçalho da Área de
+     Análise: H1 saiu, virou eyebrow + breadcrumb compactos; busca + filtros + toggle Por item/
+     Tabela viraram uma linha só; "Comentários gerais" virou um botão que abre um painel sob
+     demanda em vez de ocupar uma linha fixa. Detalhe da PC: badge de status subiu pro título;
+     cards de ciclo + controles de status/analista/ações viraram um bloco só conectado
+     (.cycle-panel); seção "Ações" antiga foi removida (duplicava botões do topo); Fontes +
+     Histórico viraram uma seção recolhível (Atividade da PC). */
+  .mini-eyebrow-row { display:flex; align-items:baseline; justify-content:space-between; gap:16px; margin-bottom:14px; flex-wrap:wrap; }
+  .mini-eyebrow { font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.05em; color: var(--ink3); }
+  .mini-breadcrumb { font-size:15px; font-weight:700; color: var(--ink); margin-top:2px; }
+  .mini-breadcrumb .sep { color: var(--border); margin:0 6px; font-weight:400; }
+  .title-with-badge { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+  .cycle-panel { border:1px solid var(--border); border-radius:10px; overflow:hidden; }
+  .cycle-panel .cycle-timeline { padding:0; margin:0; }
+  .cycle-panel .timeline-cycle { border:0; border-right:1px solid var(--border); border-radius:0!important; }
+  .cycle-panel .timeline-cycle.selected { box-shadow: inset 0 -3px 0 var(--accent); }
+  .cycle-panel-controls { background: var(--green-light); border-top:1px solid #BEE0D6; padding:12px 14px; display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+  .cycle-panel-controls .spacer { flex:1; }
+  .btn-icon-label svg { width:14px; height:14px; }
+  .btn-icon-label.active { background: var(--ink); color: #fff; border-color: var(--ink); }
+  .unified-toolbar-row { display:flex; align-items:center; gap:6px; flex-wrap:wrap; background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:7px 9px; margin-bottom:18px; }
+  .search-bar-compact { display:flex; align-items:center; gap:6px; flex:1 1 170px; min-width:150px; max-width:220px; background:var(--surface2); border-radius:8px; padding:6px 9px; }
+  .search-bar-compact svg { width:13px; height:13px; color:var(--ink3); flex-shrink:0; }
+  .search-bar-compact input { border:none; outline:none; flex:1; font-family:'DM Sans',sans-serif; font-size:12px; color:var(--ink); background:transparent; min-width:0; }
+  .search-count-inline { font-size:10.5px; color:var(--ink3); flex-shrink:0; }
+  .unified-toolbar-row select { height:32px; font-size:11.5px; padding:0 24px 0 8px; }
+  .unified-toolbar-row .filter-toggle { min-height:32px; padding:0 9px; font-size:11px; }
+  .unified-toolbar-row .icon-btn { width:32px; height:32px; }
+  .unified-toolbar-row .gestao-switch-btn { padding:6px 12px; font-size:11.5px; }
+  .toolbar-sep { width:1px; align-self:stretch; background:var(--border); margin:2px 2px; }
 </style>
 
 <style id="va12-delete-styles">
@@ -1012,7 +1050,7 @@
         </button>
         <div class="detail-page-heading">
           <div class="detail-eyebrow" id="detailBreadcrumb"></div>
-          <h1 class="page-title" id="detailPcTitle">Detalhe da PC</h1>
+          <div class="title-with-badge"><h1 class="page-title" id="detailPcTitle" style="margin:0;">Detalhe da PC</h1><span class="badge" id="detailPcStatusBadge"></span></div>
         </div>
         <div class="topbar-actions" id="detailTopActions"></div>
       </div>
@@ -1043,10 +1081,10 @@
     </div>
 
     <div id="workspaceView" class="hidden">
-    <div class="topbar">
+    <div class="mini-eyebrow-row">
       <div>
-        <h1 class="page-title">Área de Análise</h1>
-        <div class="meta-row" id="metaRow"></div>
+        <div class="mini-eyebrow">Área de análise</div>
+        <div class="mini-breadcrumb" id="metaRow"></div>
       </div>
       <div class="topbar-actions">
         <button class="btn btn-ghost" onclick="setView('detail')">
@@ -1082,18 +1120,22 @@
         <span class="progress-num" id="progressNum">0%</span>
         <span id="progressCount" class="pc-status-progress-label">0/0</span>
       </div>
+      <button class="btn btn-ghost btn-icon-label" id="generalCommentsToggleBtn" onclick="toggleGeneralCommentsPanel()" title="Abre o painel de comentários gerais do ciclo">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 11.5a8.38 8.38 0 01-.9 3.8 8.5 8.5 0 01-7.6 4.7 8.38 8.38 0 01-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 01-.9-3.8 8.5 8.5 0 014.7-7.6 8.38 8.38 0 013.8-.9h.5a8.48 8.48 0 018 8v.5z"/></svg>
+        Comentários
+      </button>
       <div class="pc-status-spacer"></div>
       <div class="pc-status-actions" id="pcStatusActions"></div>
     </div>
 
-    <div class="cycle-comments-panel" id="workspaceGeneralComments"></div>
+    <div class="cycle-comments-panel hidden" id="workspaceGeneralComments"></div>
 
-    <div class="search-bar">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg>
-      <input id="searchInput" type="text" placeholder="Buscar descrição, favorecido ou item de orçamento">
-      <span class="search-count" id="searchCount"></span>
-    </div>
-    <div class="analysis-filter-bar">
+    <div class="unified-toolbar-row">
+      <div class="search-bar-compact">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg>
+        <input id="searchInput" type="text" placeholder="Buscar item, favorecido...">
+        <span class="search-count-inline" id="searchCount"></span>
+      </div>
       <select id="analysisCategoryFilter" onchange="setAnalysisFilter('category', this.value)" title="Filtrar por categoria"></select>
       <select id="analysisStatusFilter" onchange="setAnalysisFilter('status', this.value)" title="Filtrar por status do item">
         <option value="">Todos os status</option>
@@ -1101,12 +1143,17 @@
         <option value="ABERTO">Aberto</option>
         <option value="FECHADO">Fechado</option>
       </select>
-      <button class="filter-toggle" id="filtroDuvidaBtn" onclick="toggleFiltroDuvida()">Com dúvida</button>
-      <button class="filter-toggle" id="filtroDocumentoBtn" onclick="toggleFiltroDocumento()">Documento pendente</button>
-      <button class="filter-toggle" id="bulkModeButton" onclick="toggleBulkSelectionMode()">Selecionar itens</button>
+      <button class="filter-toggle" id="filtroDuvidaBtn" onclick="toggleFiltroDuvida()">Dúvida</button>
+      <button class="filter-toggle" id="filtroDocumentoBtn" onclick="toggleFiltroDocumento()">Doc. pendente</button>
+      <button class="filter-toggle" id="bulkModeButton" onclick="toggleBulkSelectionMode()">Selecionar</button>
       <button class="icon-btn filter-clear" onclick="clearAnalysisFilters()" title="Limpar filtros">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 12h8M10 18h4"/></svg>
       </button>
+      <span class="toolbar-sep"></span>
+      <div class="gestao-view-switch" id="analiseViewSwitch" style="margin:0;">
+        <button class="gestao-switch-btn active" id="analiseViewItemBtn" onclick="setAnaliseView('item')">Por item</button>
+        <button class="gestao-switch-btn" id="analiseViewTabelaBtn" onclick="setAnaliseView('tabela')">Tabela</button>
+      </div>
     </div>
 
 
@@ -1133,11 +1180,6 @@
       </select>
       <button class="btn btn-primary" onclick="applyBulkItemActions()">Aplicar</button>
       <button class="btn btn-danger" onclick="deleteSelectedItems()">Excluir selecionados</button>
-    </div>
-
-    <div class="gestao-view-switch" id="analiseViewSwitch">
-      <button class="gestao-switch-btn active" id="analiseViewItemBtn" onclick="setAnaliseView('item')">Por item</button>
-      <button class="gestao-switch-btn" id="analiseViewTabelaBtn" onclick="setAnaliseView('tabela')">Tabela</button>
     </div>
 
     <div class="workspace">
@@ -1268,6 +1310,7 @@
           <label><input type="radio" name="outputMode" value="prompt" checked onchange="renderOutputPreview()"><span>Texto Prompt</span></label>
           <label><input type="radio" name="outputMode" value="ref" onchange="renderOutputPreview()"><span>Punchlist REF</span></label>
           <label><input type="radio" name="outputMode" value="checklist" onchange="renderOutputPreview()"><span>Checklist Excel</span></label>
+          <label><input type="radio" name="outputMode" value="word" onchange="renderOutputPreview()"><span>Word (Comentários)</span></label>
         </div>
       </div>
       <div id="outputPreviewContent"></div>
@@ -3016,7 +3059,7 @@ function renderDetail() {
     const icon = status === 'OK'
       ? `<svg class="doc-chip-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6L9 17l-5-5"/></svg>`
       : status === 'NA'
-        ? `<svg class="doc-chip-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 6l12 12M18 6L6 18"/></svg>`
+        ? `<svg class="doc-chip-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="9"/><path d="M8 12h8"/></svg>`
         : `<svg class="doc-chip-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="9"/><path d="M12 8v4m0 4h.01"/></svg>`;
     html += `<div class="doc-chip ${cls}" onclick="cycleCheck('${item.id}','${safeDoc}')" title="${escapeHtml(doc)} — clique pra alternar">
       ${icon}<span class="doc-chip-label">${escapeHtml(doc)}</span>
@@ -3050,6 +3093,7 @@ function renderDetail() {
               <button type="button" class="format-btn format-btn-bold" onmousedown="event.preventDefault()" onclick="applyCommentFormat('richEditor-${item.id}-comentarioAnalista', 'bold')" title="Negrito no trecho selecionado">B</button>
               <button type="button" class="format-btn format-btn-red" onmousedown="event.preventDefault()" onclick="applyCommentFormat('richEditor-${item.id}-comentarioAnalista', 'color', '#C83A3A')" title="Vermelho no trecho selecionado"></button>
               <button type="button" class="format-btn format-btn-green" onmousedown="event.preventDefault()" onclick="applyCommentFormat('richEditor-${item.id}-comentarioAnalista', 'color', '#2D5C4E')" title="Verde no trecho selecionado"></button>
+              <button type="button" class="format-btn format-btn-black" onmousedown="event.preventDefault()" onclick="applyCommentFormat('richEditor-${item.id}-comentarioAnalista', 'color', '#1A2420')" title="Voltar pra cor normal (preta)"></button>
             </div>
             <div class="editor editor-internal" id="richEditor-${item.id}-comentarioAnalista" contenteditable="true" data-item="${item.id}" data-field="comentarioAnalista"
               oninput="handleRichCommentInput(this)"
@@ -3076,6 +3120,7 @@ function renderDetail() {
               <button type="button" class="format-btn format-btn-bold" onmousedown="event.preventDefault()" onclick="applyCommentFormat('richEditor-${item.id}-executorResponse', 'bold')" title="Negrito no trecho selecionado">B</button>
               <button type="button" class="format-btn format-btn-red" onmousedown="event.preventDefault()" onclick="applyCommentFormat('richEditor-${item.id}-executorResponse', 'color', '#C83A3A')" title="Vermelho no trecho selecionado"></button>
               <button type="button" class="format-btn format-btn-green" onmousedown="event.preventDefault()" onclick="applyCommentFormat('richEditor-${item.id}-executorResponse', 'color', '#2D5C4E')" title="Verde no trecho selecionado"></button>
+              <button type="button" class="format-btn format-btn-black" onmousedown="event.preventDefault()" onclick="applyCommentFormat('richEditor-${item.id}-executorResponse', 'color', '#1A2420')" title="Voltar pra cor normal (preta)"></button>
             </div>
             <div class="editor" id="richEditor-${item.id}-executorResponse" contenteditable="true" data-item="${item.id}" data-field="executorResponse"
               oninput="handleRichCommentInput(this)"
@@ -3880,12 +3925,16 @@ function renderPCDetail() {
   const metrics = pcCycleMetrics(pc, selectedCicloIdx);
   document.getElementById('detailBreadcrumb').textContent = `${m.cliente} · Projeto ${m.projeto}`;
   document.getElementById('detailPcTitle').textContent = m.pc || pc.label;
+  const statusBadge = document.getElementById('detailPcStatusBadge');
+  statusBadge.className = 'badge ' + (status === 'CONCLUIDA' ? 'badge-green' : status === 'PLANEJADA' ? 'badge-outline' : 'badge-slate');
+  statusBadge.textContent = status === 'PLANEJADA' ? 'Planejada' : status === 'CONCLUIDA' ? 'Concluída' : 'Ativa';
 
   const topActions = document.getElementById('detailTopActions');
   topActions.innerHTML = status === 'PLANEJADA'
     ? `<button class="btn btn-primary" onclick="openActivationForm()">Ativar PC</button>`
     : status === 'ATIVA'
       ? `<button class="btn btn-ghost" onclick="openImportModal()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 21V9m0 0l-5 5m5-5l5 5M4 3h16"/></svg>Importar</button>
+         <button class="btn btn-ghost" onclick="openManualItemModal()" ${cycle ? '' : 'disabled'}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>Adicionar item</button>
          <button class="btn btn-primary" onclick="openAnalysis()" ${cycle ? '' : 'disabled'}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 12h6M9 16h6M9 8h6M5 3h14a2 2 0 012 2v14a2 2 0 01-2 2H5a2 2 0 012-2V5a2 2 0 012-2z"/></svg>Abrir análise</button>`
       : `<span class="badge badge-green">Consulta</span>`;
 
@@ -3906,13 +3955,15 @@ function renderPCDetail() {
 
   const canReturn = status === 'ATIVA' && latest && latest.status === 'COM_EXECUTOR';
   const canConclude = canReturn;
+  const canDeleteThisCycle = status === 'ATIVA' && DATA.meta.ciclos.length > 1 && !DATA.meta.concluida && cycle === latest;
   const cycleControls = cycle ? (status === 'CONCLUIDA'
-    ? `<div class="cycle-control-row"><span class="badge ${cicloBadgeClass(cycle.status)}">${escapeHtml(CICLO_STATUS_LABELS[cycle.status])}</span><span class="portfolio-muted">Analista: ${escapeHtml(cycle.analista || '—')}</span></div>`
-    : `<div class="cycle-control-row">
+    ? `<div class="cycle-panel-controls"><span class="badge ${cicloBadgeClass(cycle.status)}">${escapeHtml(CICLO_STATUS_LABELS[cycle.status])}</span><span class="portfolio-muted">Analista: ${escapeHtml(cycle.analista || '—')}</span></div>`
+    : `<div class="cycle-panel-controls">
         <label class="context-label">Status</label><select class="status-select" onchange="updateCicloStatus(this.value)">${CICLO_STATUS_ORDER.map(s => `<option value="${s}" ${s === cycle.status ? 'selected' : ''}>${CICLO_STATUS_LABELS[s]}</option>`).join('')}</select>
         <label class="context-label">Analista</label><input class="analista-input" value="${escapeHtml(cycle.analista || '')}" placeholder="Nome" oninput="updateCicloAnalista(this.value)">
         <span class="spacer"></span>
         <button class="btn btn-ghost" onclick="adicionarCiclo()" ${canReturn ? '' : 'disabled'}>Adicionar retorno</button>
+        ${canDeleteThisCycle ? `<button class="btn btn-ghost btn-danger" onclick="deleteCiclo()" title="Exclui o último retorno criado — criado por engano hoje, por exemplo">Excluir retorno</button>` : ''}
         <button class="btn btn-primary" onclick="concluirPC()" ${canConclude ? '' : 'disabled'}>Concluir PC</button>
       </div>`)
     : (status === 'ATIVA' ? `<div class="detail-action-row"><button class="btn btn-primary" onclick="createInitialCycleForCurrentPC()">Criar ciclo inicial</button></div>` : '');
@@ -3927,14 +3978,19 @@ function renderPCDetail() {
       <div><div class="context-label">Período</div><div class="context-value">${escapeHtml(formatPCPeriod(m))}</div></div>
     </div></div>
     <div class="detail-alerts">${renderDetailAlerts(pc, cycle, metrics)}</div>
-    <section class="detail-section"><div class="detail-section-head"><div><div class="detail-section-title">Ciclos e retornos</div><div class="detail-section-note">${status === 'PLANEJADA' ? 'PC planejada' : `${metrics.pct}% analisado · ${metrics.done}/${metrics.total} itens`}</div></div><span class="badge ${status === 'CONCLUIDA' ? 'badge-green' : 'badge-slate'}">${status === 'PLANEJADA' ? 'Planejada' : status === 'CONCLUIDA' ? 'Concluída' : 'Ativa'}</span></div>${timeline}${cycleControls}</section>
+    <section class="detail-section"><div class="detail-section-head"><div><div class="detail-section-title">Ciclos e retornos</div><div class="detail-section-note">${status === 'PLANEJADA' ? 'PC planejada' : `${metrics.pct}% analisado · ${metrics.done}/${metrics.total} itens`}</div></div></div><div class="cycle-panel">${timeline}${cycleControls}</div></section>
     <section class="detail-section"><div class="detail-section-head"><div><div class="detail-section-title">Pendências e progresso por rubrica</div><div class="detail-section-note">${cycle ? escapeHtml(cicloLabel(cycle.numero)) : 'Sem ciclo selecionado'}</div></div></div>${categorySummary}</section>
     <section class="detail-section"><div class="detail-section-head"><div><div class="detail-section-title">Comentários gerais do ciclo</div><div class="detail-section-note">Interno e executor permanecem separados</div></div></div>${renderCycleCommentsFields(cycle)}</section>
-    <section class="detail-section"><div class="detail-section-head"><div><div class="detail-section-title">Ações</div><div class="detail-section-note">Operação da PC e do ciclo selecionado</div></div></div><div class="detail-action-row">
-      ${status === 'PLANEJADA' ? '<button class="btn btn-primary" onclick="openActivationForm()">Ativar PC</button>' : status === 'ATIVA' ? `<button class="btn btn-primary" onclick="openAnalysis()" ${cycle ? '' : 'disabled'}>Analisar itens</button><button class="btn btn-ghost" onclick="openImportModal()">Importar arquivo</button><button class="btn btn-ghost" onclick="openManualItemModal()" ${cycle ? '' : 'disabled'}>Adicionar item</button>` : '<span class="portfolio-muted">PC concluída disponível para consulta.</span>'}
-    </div></section>
-    <section class="detail-section"><div class="source-history-grid"><div><div class="detail-section-title">Fontes</div><div class="compact-list">${sources}</div></div><div><div class="detail-section-title">Histórico do ciclo</div><div class="compact-list">${histories}</div></div></div></section>`;
+    <section class="detail-section">
+      <div class="detail-section-head general-comments-head${detailActivityOpen ? '' : ' collapsed'}" onclick="toggleDetailActivity()">
+        <div><div class="detail-section-title">Atividade da PC</div><div class="detail-section-note">Fontes importadas e histórico de status do ciclo</div></div>
+        <span class="cat-chevron"></span>
+      </div>
+      <div class="source-history-grid${detailActivityOpen ? '' : ' hidden'}" style="margin-top:12px;"><div><div class="detail-section-title">Fontes</div><div class="compact-list">${sources}</div></div><div><div class="detail-section-title">Histórico do ciclo</div><div class="compact-list">${histories}</div></div></div>
+    </section>`;
 }
+let detailActivityOpen = false;
+function toggleDetailActivity() { detailActivityOpen = !detailActivityOpen; renderPCDetail(); }
 
 /* 14/08: editor completo da PC (VA.22) — substitui o antigo openPCBaseDataEditor (baseado em prompt()
    sequenciais) por um modal de verdade. Cliente/Projeto reatribuem a PC a um cadastro já existente
@@ -4057,23 +4113,25 @@ function openAnalysis() {
   setView('workspace');
 }
 
-/* 05/08: retrátil pra ganhar espaço quando não estiver em uso — começa fechado se o ciclo não
-   tem nenhum comentário geral ainda, aberto se já tiver algo escrito. Depois disso é só manual
-   (o toggle do usuário não é sobrescrito a cada render; só muda de novo se ele clicar). */
-let generalCommentsCollapsed = null;
+/* 18/08/2026: painel deixou de ser uma linha sempre visível (retrátil por chevron) e virou um
+   painel que só aparece quando o analista clica no botão "Comentários" da barra de status — ver
+   toggleGeneralCommentsPanel(). Some da tela por padrão pra não competir por altura com a lista
+   de itens (mudança validada no mockup de reorganização de layout, ver MEMORY_v4.md). */
+let generalCommentsPanelOpen = false;
 function renderWorkspaceGeneralComments() {
   const cycle = DATA.meta.ciclos[selectedCicloIdx];
-  if (generalCommentsCollapsed === null) generalCommentsCollapsed = !(cycle.generalInternalComment || cycle.generalExecutorComment);
   document.getElementById('workspaceGeneralComments').innerHTML = `
-    <div class="detail-section-head general-comments-head${generalCommentsCollapsed ? ' collapsed' : ''}" onclick="toggleGeneralComments()">
+    <div class="detail-section-head">
       <div><div class="detail-section-title">Comentários gerais</div><div class="detail-section-note">${escapeHtml(cicloLabel(cycle.numero))}</div></div>
-      <span class="cat-chevron"></span>
+      <button class="icon-btn" onclick="toggleGeneralCommentsPanel()" title="Fechar">&times;</button>
     </div>
-    <div class="general-comments-body${generalCommentsCollapsed ? ' hidden' : ''}">${renderCycleCommentsFields(cycle)}</div>`;
+    <div>${renderCycleCommentsFields(cycle)}</div>`;
 }
-function toggleGeneralComments() {
-  generalCommentsCollapsed = !generalCommentsCollapsed;
-  renderWorkspaceGeneralComments();
+function toggleGeneralCommentsPanel() {
+  generalCommentsPanelOpen = !generalCommentsPanelOpen;
+  document.getElementById('workspaceGeneralComments').classList.toggle('hidden', !generalCommentsPanelOpen);
+  document.getElementById('generalCommentsToggleBtn').classList.toggle('active', generalCommentsPanelOpen);
+  if (generalCommentsPanelOpen) renderWorkspaceGeneralComments();
 }
 
 function updateGeneralComment(field, value) {
@@ -5001,6 +5059,36 @@ function downloadTextFile(name, content, type) {
 function safeFilePart(value) { return String(value || 'PC').replace(/[^a-z0-9_-]+/gi, '_'); }
 function downloadPromptOutput() { downloadTextFile(`${safeFilePart(DATA.meta.pc)}_${safeFilePart(cicloLabel(DATA.meta.ciclos[selectedCicloIdx].numero))}_Prompt.txt`, buildPromptOutput(outputRowsForCurrentCycle())); }
 
+/* ===== Saída Word — só comentários ao executor (18/08/2026), pedido do Ricardo pra uma saída
+   bem simples: um .doc com um cabeçalho mínimo de cliente/projeto/PC e a lista de comentários ao
+   executor do retorno selecionado, sem os comentários internos do analista. Não usa nenhuma lib
+   de docx — gera um HTML simples e baixa como .doc, que o Word abre normalmente (mesma técnica
+   leve, consistente com o app não ter build step nem dependências novas). */
+function buildComentariosWordRows() { return outputRowsForCurrentCycle().filter(row => row.executorComment); }
+function buildComentariosWordHtml() {
+  const cycle = DATA.meta.ciclos[selectedCicloIdx];
+  const rows = buildComentariosWordRows();
+  const general = String(cycle.generalExecutorComment || '').trim();
+  const font = "font-family:Calibri,Arial,sans-serif;";
+  let body = `<h1 style="${font}font-size:16pt;margin:0 0 4pt;">Comentários ao executor — ${escapeHtml(DATA.meta.pc)}</h1>
+    <p style="${font}font-size:10.5pt;color:#444;margin:0 0 16pt;">${escapeHtml(DATA.meta.cliente)} | Projeto ${escapeHtml(DATA.meta.projeto)} | ${escapeHtml(cicloLabel(cycle.numero))}</p>`;
+  if (general) body += `<p style="${font}font-size:11pt;margin:0 0 14pt;"><b>Pendência geral:</b><br>${escapeHtml(general).replace(/\n/g, '<br>')}</p>`;
+  let lastCategory = '';
+  rows.forEach(row => {
+    if (row.category !== lastCategory) { body += `<h2 style="${font}font-size:12.5pt;margin:14pt 0 4pt;">${escapeHtml(row.category)}</h2>`; lastCategory = row.category; }
+    body += `<p style="${font}font-size:11pt;margin:0 0 10pt;"><b>${escapeHtml(row.item)}</b><br>${escapeHtml(row.executorComment).replace(/\n/g, '<br>')}</p>`;
+  });
+  if (!rows.length && !general) body += `<p style="${font}font-size:11pt;">Nenhum comentário ao executor registrado neste ciclo.</p>`;
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"></head><body>${body}</body></html>`;
+}
+function downloadComentariosWord() {
+  const html = buildComentariosWordHtml();
+  const blob = new Blob(['﻿', html], { type: 'application/msword' });
+  const url = URL.createObjectURL(blob); const anchor = document.createElement('a');
+  anchor.href = url; anchor.download = `${safeFilePart(DATA.meta.pc)}_${safeFilePart(cicloLabel(DATA.meta.ciclos[selectedCicloIdx].numero))}_ComentariosExecutor.doc`;
+  anchor.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
 /* Ordena referências de itens como números hierárquicos. A comparação textual simples
    colocava 1.10 antes de 1.2 nas três superfícies (análise, Punchlist e Checklist). */
 function compareItemReferences(a, b) {
@@ -5102,13 +5190,17 @@ function downloadArrayBufferFile(name, buffer, mime) {
   anchor.href = url; anchor.download = name; anchor.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-/* ===== Exportar base de comentários (17/08/2026) — Excel simples, sem formatação, só pra Ricardo
-   ver tudo que já foi comentado num lugar só. Varre TODA a STORE (todos os clientes, projetos,
-   PCs e ciclos, não só a PC aberta) e joga uma linha por item+ciclo que tenha algum comentário.
-   Usa SheetJS puro (já carregado pro import), não o ExcelJS — não precisa de cor/formatação aqui. */
-function exportComentariosExcel() {
-  const header = ['Cliente', 'Projeto', 'PC', 'Ciclo', 'Rubrica', 'Item', 'Comentário do analista', 'Comentário ao executor', 'Resposta do executor', 'Status no ciclo'];
-  const rows = [header];
+/* ===== Ver/exportar base de comentários (17-18/08/2026) — Excel simples, sem formatação, só pra
+   Ricardo ver tudo que já foi comentado num lugar só. Varre TODA a STORE (todos os clientes,
+   projetos, PCs e ciclos, não só a PC aberta) e junta uma linha por item+ciclo que tenha algum
+   comentário. Revisão de 18/08: em vez de baixar o Excel direto no clique, abre uma tela de
+   preview primeiro (`abrirComentariosPreview`/`renderComentariosPreview`) — o Excel só é gerado
+   quando o Ricardo clica "Gerar Excel" ali dentro, com o SheetJS puro (já carregado pro import,
+   não precisa de cor/formatação aqui). */
+const COMENTARIOS_EXPORT_HEADER = ['Cliente', 'Projeto', 'PC', 'Ciclo', 'Rubrica', 'Item', 'Comentário do analista', 'Comentário ao executor', 'Resposta do executor', 'Status no ciclo'];
+let _comentariosExportRows = null;
+function collectComentariosExportRows() {
+  const rows = [];
   (STORE.clients || []).forEach(client => {
     (client.projects || []).forEach(project => {
       (project.pcs || []).forEach(pc => {
@@ -5130,13 +5222,54 @@ function exportComentariosExcel() {
       });
     });
   });
-  if (rows.length === 1) return showToast('Nenhum comentário registrado ainda em nenhuma PC.');
-  const ws = XLSX.utils.aoa_to_sheet(rows);
+  return rows;
+}
+function ensureComentariosModal() {
+  if (document.getElementById('comentariosOverlay')) return;
+  const overlay = document.createElement('div');
+  overlay.id = 'comentariosOverlay';
+  overlay.className = 'modal-overlay hidden';
+  overlay.innerHTML = `<div class="modal-box comentarios-preview-box">
+    <div class="modal-header"><h2>Base de comentários</h2><button class="modal-close" onclick="closeComentariosPreview()" title="Fechar">&times;</button></div>
+    <div class="modal-body" id="comentariosPreviewBody"></div>
+  </div>`;
+  document.body.appendChild(overlay);
+}
+function abrirComentariosPreview() {
+  ensureComentariosModal();
+  _comentariosExportRows = collectComentariosExportRows();
+  renderComentariosPreview();
+  document.getElementById('comentariosOverlay').classList.remove('hidden');
+}
+function closeComentariosPreview() {
+  const overlay = document.getElementById('comentariosOverlay');
+  if (overlay) overlay.classList.add('hidden');
+}
+function renderComentariosPreview() {
+  const body = document.getElementById('comentariosPreviewBody');
+  const rows = _comentariosExportRows || [];
+  if (!rows.length) {
+    body.innerHTML = `<div class="analysis-empty"><strong>Nenhum comentário registrado ainda</strong><div>Assim que algum item tiver comentário do analista, ao executor ou resposta, ele aparece aqui.</div></div>`;
+    return;
+  }
+  const preview = rows.slice(0, 300);
+  body.innerHTML = `
+    <p class="modal-hint">${rows.length} comentário(s) encontrados em todas as PCs. ${rows.length > preview.length ? `Mostrando os primeiros ${preview.length} — o Excel gerado leva todos.` : ''}</p>
+    <div class="comentarios-preview-table-wrap"><table class="draft-table comentarios-preview-table">
+      <thead><tr>${COMENTARIOS_EXPORT_HEADER.map(h => `<th>${escapeHtml(h)}</th>`).join('')}</tr></thead>
+      <tbody>${preview.map(row => `<tr>${row.map(cell => `<td>${escapeHtml(cell)}</td>`).join('')}</tr>`).join('')}</tbody>
+    </table></div>
+    <div class="modal-actions"><button class="btn btn-ghost" onclick="closeComentariosPreview()">Fechar</button><button class="btn btn-primary" onclick="downloadComentariosExcel()">Gerar Excel</button></div>`;
+}
+function downloadComentariosExcel() {
+  const rows = _comentariosExportRows || [];
+  if (!rows.length) return showToast('Nenhum comentário registrado ainda em nenhuma PC.');
+  const ws = XLSX.utils.aoa_to_sheet([COMENTARIOS_EXPORT_HEADER, ...rows]);
   ws['!cols'] = [{ wch: 20 }, { wch: 18 }, { wch: 14 }, { wch: 12 }, { wch: 22 }, { wch: 30 }, { wch: 45 }, { wch: 45 }, { wch: 45 }, { wch: 16 }];
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'Comentários');
   XLSX.writeFile(wb, `Base_Comentarios_PainelPC_${new Date().toISOString().slice(0, 10)}.xlsx`);
-  showToast(`Exportado — ${rows.length - 1} comentário(s).`);
+  showToast(`Exportado — ${rows.length} comentário(s).`);
 }
 
 /* Pega a marca já embutida na tela de login (.login-box img) pra não duplicar o base64 gigante do
@@ -5731,7 +5864,7 @@ function va12EnsureRuntimeDom() {
     button.id = 'navExportComentarios';
     button.className = 'view-nav-item';
     button.title = 'Exportar toda a base de comentários (todas as PCs, todos os ciclos) num Excel';
-    button.onclick = exportComentariosExcel;
+    button.onclick = abrirComentariosPreview;
     button.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/><path d="M9 15h6M9 11h6M9 19h3"/></svg><span class="nav-label">Comentários</span>';
     nav.appendChild(button);
   }
@@ -6920,6 +7053,11 @@ renderOutputPreview = function() {
       : '<div class="portfolio-empty">Nenhuma rubrica com item na análise desta PC.</div>';
     content.innerHTML = `<div class="output-summary"><span class="badge badge-outline">${sheets.length} aba(s) de rubrica</span><span class="badge badge-outline">${totalItens} item(ns) no total</span><span class="badge badge-outline">${escapeHtml(cicloLabel(cycle.numero))} pra trás</span></div>${resumoHtml}`;
     actions.innerHTML = '<button class="btn btn-ghost" onclick="closeOutputPreview()">Fechar</button><button class="btn btn-primary" onclick="downloadChecklist()">Baixar Checklist .xlsx</button>';
+  } else if (mode === 'word') {
+    const wordRows = buildComentariosWordRows();
+    const general = String((cycle.generalExecutorComment || '')).trim();
+    content.innerHTML = `<div class="output-summary"><span class="badge badge-outline">${wordRows.length} comentário(s) ao executor</span><span class="badge badge-outline">${escapeHtml(cicloLabel(cycle.numero))}</span></div><p class="modal-hint">Gera um Word simples, só com os comentários ao executor deste retorno e um cabeçalho básico de cliente / projeto / PC — sem os comentários internos do analista.</p>${!wordRows.length && !general ? '<div class="portfolio-empty">Nenhum comentário ao executor registrado neste ciclo.</div>' : ''}`;
+    actions.innerHTML = '<button class="btn btn-ghost" onclick="closeOutputPreview()">Fechar</button><button class="btn btn-primary" onclick="downloadComentariosWord()">Baixar Word (.doc)</button>';
   } else {
     const punchlist = buildPunchlistWorkbookData();
     const cabecalhoCiclos = [];
