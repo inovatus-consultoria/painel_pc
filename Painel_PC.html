@@ -964,6 +964,8 @@
   .revision-table td.rev-current { color: var(--accent2); font-weight: 700; }
   .revision-table .rev-cycle-label { font-weight: 800; color: var(--ink); }
   .revision-table .rev-days { font-size: 10px; color: var(--ink3); display: block; margin-top: 1px; }
+  .revision-table td.rev-editable { cursor: pointer; transition: background 0.12s; }
+  .revision-table td.rev-editable:hover { background: var(--bg); }
 </style>
 
 <style id="va12-delete-styles">
@@ -1317,6 +1319,7 @@
       <label class="settings-active"><input type="checkbox" id="projetoFormActive" checked> Projeto ativo</label>
       <div class="form-error hidden" id="projetoFormError"></div>
       <div class="modal-actions">
+        <button class="btn btn-ghost btn-danger hidden" id="projetoFormDeleteBtn" style="margin-right:auto;" onclick="deleteProjeto(projetoFormTarget.ci, projetoFormTarget.pi)">Excluir projeto</button>
         <button class="btn btn-ghost" onclick="closeProjetoForm()">Cancelar</button>
         <button class="btn btn-primary" onclick="saveProjetoForm()">Salvar projeto</button>
       </div>
@@ -4073,28 +4076,136 @@ function toggleDetailActivity() { detailActivityOpen = !detailActivityOpen; rend
    etc.). Os dados já existiam (`statusHistory` de cada ciclo, sincronizado com a lista
    HistoricoStatusCiclo do SharePoint) — só apareciam como uma lista de texto cronológica, não como
    uma tabela com uma coluna por etapa. Esta função monta essa tabela: uma linha por ciclo/retorno,
-   colunas dinâmicas (só as etapas que essa PC realmente passou, sempre na ordem de
-   CICLO_STATUS_ORDER — evita 7 colunas fixas quando a PC só usa 5 das 7 etapas possíveis). Fica
-   escondida dentro de "Atividade da PC" (recolhida por padrão), no final, junto de Fontes/
-   Histórico do ciclo — não é informação do dia a dia, é consulta ocasional. */
+   com uma coluna por etapa (sempre as 7 de CICLO_STATUS_ORDER — deixou de ser dinâmico em 18/08
+   quando virou editável: célula vazia agora é um convite pra preencher manualmente, não faz
+   sentido esconder a coluna). Fica escondida dentro de "Atividade da PC" (recolhida por padrão),
+   no final, junto de Fontes/Histórico do ciclo — não é informação do dia a dia, é consulta
+   ocasional. Toda célula é clicável (editRevisionCell) pra editar a data manualmente — útil pras
+   PCs antigas cujo histórico não foi todo capturado automaticamente. */
 function buildRevisionTable(ciclos) {
   if (!ciclos || !ciclos.length) return '<div class="portfolio-empty" style="margin-top:0;">Nenhum ciclo criado.</div>';
-  const usedStatuses = CICLO_STATUS_ORDER.filter(s => ciclos.some(c => (c.statusHistory || []).some(h => h.status === s)));
-  const cols = usedStatuses.length ? usedStatuses : CICLO_STATUS_ORDER;
-  const rows = ciclos.map(c => {
+  const cols = CICLO_STATUS_ORDER;
+  const rows = ciclos.map((c, cIdx) => {
     const history = c.statusHistory || [];
     const cells = cols.map(s => {
       const entry = history.find(h => h.status === s);
-      if (!entry || !entry.enteredAt) return '<td class="rev-empty">—</td>';
+      const clickAttr = `onclick="editRevisionCell(${cIdx}, '${s}')" title="Clique para editar manualmente"`;
+      if (!entry || !entry.enteredAt) return `<td class="rev-empty rev-editable" ${clickAttr}>—</td>`;
       const isCurrent = c.status === s && !entry.exitedAt;
       const endTime = entry.exitedAt ? new Date(entry.exitedAt) : new Date();
       const dias = Math.max(0, Math.round((endTime - new Date(entry.enteredAt)) / 86400000));
       const diasLabel = entry.exitedAt ? `${dias} dia${dias === 1 ? '' : 's'}` : `há ${dias} dia${dias === 1 ? '' : 's'}`;
-      return `<td class="${isCurrent ? 'rev-current' : ''}">${fmtIsoDate(entry.enteredAt)}<span class="rev-days">${diasLabel}</span></td>`;
+      return `<td class="rev-editable ${isCurrent ? 'rev-current' : ''}" ${clickAttr}>${fmtIsoDate(entry.enteredAt)}<span class="rev-days">${diasLabel}</span></td>`;
     });
     return `<tr><td class="rev-cycle-label">${escapeHtml(cicloLabel(c.numero))}</td>${cells.join('')}</tr>`;
   }).join('');
   return `<div class="revision-table-wrap"><table class="revision-table"><thead><tr><th>Ciclo</th>${cols.map(s => `<th>${escapeHtml(CICLO_STATUS_LABELS[s])}</th>`).join('')}</tr></thead><tbody>${rows}</tbody></table></div>`;
+}
+
+let va14RevisionEditTarget = null; // { cicloIdx, status, ciclo, entry }
+
+function va14EnsureRevisionEditDialog() {
+  if (document.getElementById('va14RevisionEditOverlay')) return;
+  const overlay = document.createElement('div');
+  overlay.id = 'va14RevisionEditOverlay';
+  overlay.className = 'modal-overlay hidden';
+  overlay.innerHTML = `<div class="modal-box">
+    <div class="modal-header"><h2>Editar controle de revisão</h2><button class="modal-close" onclick="closeRevisionEditDialog()" title="Fechar">&times;</button></div>
+    <div class="modal-body" id="va14RevisionEditBody"></div>
+  </div>`;
+  document.body.appendChild(overlay);
+}
+
+function editRevisionCell(cicloIdx, status) {
+  if (!DATA || !DATA.meta || !DATA.meta.ciclos) return;
+  const ciclo = DATA.meta.ciclos[cicloIdx];
+  if (!ciclo) return;
+  const history = ciclo.statusHistory || (ciclo.statusHistory = []);
+  const entry = history.find(h => h.status === status);
+  va14EnsureRevisionEditDialog();
+  va14RevisionEditTarget = { cicloIdx, status, ciclo, entry };
+  const enteredVal = entry && entry.enteredAt ? String(entry.enteredAt).slice(0, 10) : '';
+  const exitedVal = entry && entry.exitedAt ? String(entry.exitedAt).slice(0, 10) : '';
+  document.getElementById('va14RevisionEditBody').innerHTML = `
+    <p class="modal-hint">${escapeHtml(cicloLabel(ciclo.numero))} · ${escapeHtml(CICLO_STATUS_LABELS[status] || status)}. Edição manual — útil pra completar o histórico de PCs antigas. As mudanças automáticas de status continuam funcionando normalmente.</p>
+    <div class="form-grid two-cols">
+      <div class="modal-field"><label>Data de entrada</label><input type="date" id="va14RevisionEnteredAt" value="${enteredVal}"></div>
+      <div class="modal-field"><label>Data de saída</label><input type="date" id="va14RevisionExitedAt" value="${exitedVal}"></div>
+    </div>
+    <p class="modal-hint">Deixe "Data de saída" em branco se o ciclo está atualmente nessa etapa.</p>
+    <div class="form-error hidden" id="va14RevisionEditError"></div>
+    <div class="modal-actions">
+      ${entry ? '<button class="btn btn-ghost btn-danger" style="margin-right:auto;" onclick="removeRevisionEntry()">Remover</button>' : ''}
+      <button class="btn btn-ghost" onclick="closeRevisionEditDialog()">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveRevisionEntry()">Salvar</button>
+    </div>`;
+  document.getElementById('va14RevisionEditOverlay').classList.remove('hidden');
+}
+
+function closeRevisionEditDialog() {
+  const overlay = document.getElementById('va14RevisionEditOverlay');
+  if (overlay) overlay.classList.add('hidden');
+  va14RevisionEditTarget = null;
+}
+
+async function saveRevisionEntry() {
+  const target = va14RevisionEditTarget;
+  if (!target) return;
+  const enteredInput = document.getElementById('va14RevisionEnteredAt').value;
+  const exitedInput = document.getElementById('va14RevisionExitedAt').value;
+  showFormError('va14RevisionEditError', '');
+  if (!enteredInput) return showFormError('va14RevisionEditError', 'Informe a data de entrada.');
+  if (exitedInput && exitedInput < enteredInput) return showFormError('va14RevisionEditError', 'A data de saída não pode ser antes da data de entrada.');
+  const enteredAt = new Date(enteredInput + 'T00:00:00').toISOString();
+  const exitedAt = exitedInput ? new Date(exitedInput + 'T00:00:00').toISOString() : null;
+  document.getElementById('va14RevisionEditOverlay').classList.add('hidden');
+  showLoadingGate('Salvando...');
+  try {
+    const pc = currentPC ? pcAt(currentPC.ci, currentPC.pi, currentPC.pci) : null;
+    if (target.entry) {
+      target.entry.enteredAt = enteredAt;
+      target.entry.exitedAt = exitedAt;
+      if (isRealGid(target.entry._gid)) await graphUpdateItem(LIST_IDS.HistoricoStatusCiclo, target.entry._gid, { EnteredAt: enteredAt, ExitedAt: exitedAt });
+    } else {
+      const newEntry = { _gid: null, pcId: pc ? String(pc._gid) : '', status: target.status, enteredAt, exitedAt, notes: '' };
+      if (pc && pc.real && isRealGid(pc._gid) && isRealGid(target.ciclo._gid)) {
+        newEntry._gid = await graphCreateItem(LIST_IDS.HistoricoStatusCiclo, {
+          Title: `${cicloLabel(target.ciclo.numero)} - ${cicloStatusToChoice(target.status)} (manual)`,
+          PCId: pc._gid, CicloId: target.ciclo._gid, Status: cicloStatusToChoice(target.status),
+          EnteredAt: enteredAt, ExitedAt: exitedAt || null, EventNotes: 'Adicionado manualmente',
+        });
+      }
+      target.ciclo.statusHistory = target.ciclo.statusHistory || [];
+      target.ciclo.statusHistory.push(newEntry);
+    }
+    saveStore();
+    va14RevisionEditTarget = null;
+    renderPCDetail();
+    showToast('Controle de revisão atualizado.');
+  } catch (error) {
+    console.warn('Falha ao salvar controle de revisão', error);
+    showToast(`Não consegui salvar: ${graphErrorText(error)}`);
+  } finally { hideLoadingGate(); }
+}
+
+async function removeRevisionEntry() {
+  const target = va14RevisionEditTarget;
+  if (!target || !target.entry) return;
+  if (!confirm('Remover esta entrada do controle de revisão? Não tem como desfazer.')) return;
+  document.getElementById('va14RevisionEditOverlay').classList.add('hidden');
+  showLoadingGate('Removendo...');
+  try {
+    const idx = target.ciclo.statusHistory.indexOf(target.entry);
+    if (idx >= 0) target.ciclo.statusHistory.splice(idx, 1);
+    if (isRealGid(target.entry._gid)) await graphDeleteItem(LIST_IDS.HistoricoStatusCiclo, target.entry._gid);
+    saveStore();
+    va14RevisionEditTarget = null;
+    renderPCDetail();
+    showToast('Entrada removida.');
+  } catch (error) {
+    console.warn('Falha ao remover entrada', error);
+    showToast(`Não consegui remover: ${graphErrorText(error)}`);
+  } finally { hideLoadingGate(); }
 }
 
 /* 14/08: editor completo da PC (VA.22) — substitui o antigo openPCBaseDataEditor (baseado em prompt()
@@ -6114,6 +6225,7 @@ function openProjetoForm(ci, pi) {
   document.getElementById('projetoFormFoundation').value = project ? project.fundacao || '' : '';
   document.getElementById('projetoFormNotes').value = project ? project.notes || '' : '';
   document.getElementById('projetoFormActive').checked = project ? project.active !== false : true;
+  document.getElementById('projetoFormDeleteBtn').classList.toggle('hidden', !hasTarget);
   showFormError('projetoFormError', '');
   document.getElementById('projetoFormOverlay').classList.remove('hidden');
 }
@@ -6153,6 +6265,94 @@ async function saveProjetoForm() {
     showToast('Projeto salvo.');
   } catch (error) { showToast(`Não consegui salvar o projeto: ${graphErrorText(error)}`); }
   finally { hideLoadingGate(); }
+}
+
+/* ===== Excluir projeto (18/08/2026) — mesmo padrão de confirmação da exclusão de PC (digitar o
+   nome pra confirmar), porque apaga em cascata: todas as PCs do projeto (com ciclos/itens/comentários
+   no SharePoint) e o próprio registro do projeto. Não tem como desfazer. */
+let va13DeleteProjetoTarget = null; // { ci, pi, client, project }
+
+function va13EnsureDeleteProjetoDialog() {
+  if (document.getElementById('va13DeleteProjetoOverlay')) return;
+  const overlay = document.createElement('div');
+  overlay.id = 'va13DeleteProjetoOverlay';
+  overlay.className = 'modal-overlay hidden';
+  overlay.innerHTML = `<div class="modal-box delete-confirm-box">
+    <div class="modal-header"><h2>Excluir projeto</h2><button class="modal-close" onclick="closeDeleteProjetoDialog()" title="Fechar">&times;</button></div>
+    <div class="modal-body" id="va13DeleteProjetoBody"></div>
+  </div>`;
+  document.body.appendChild(overlay);
+}
+
+function deleteProjeto(ci, pi) {
+  const client = STORE.clients[Number(ci)];
+  const project = client && client.projects[Number(pi)];
+  if (!project) return;
+  va13EnsureDeleteProjetoDialog();
+  const pcCount = (project.pcs || []).length;
+  const realPcCount = (project.pcs || []).filter(pc => pc.real).length;
+  va13DeleteProjetoTarget = { ci: Number(ci), pi: Number(pi), client, project };
+  const pcsWarning = pcCount
+    ? ` O projeto e ${pcCount === 1 ? 'a PC vinculada' : `as ${pcCount} PCs vinculadas`} (com todo o histórico de análise — ciclos, itens, comentários${realPcCount ? ', dados reais do SharePoint' : ''}) serão apagados.`
+    : ' Este projeto não tem PCs vinculadas.';
+  document.getElementById('va13DeleteProjetoBody').innerHTML = `
+    <div class="delete-warning"><strong>Esta exclusão é definitiva.</strong>${pcsWarning} Esta ação não pode ser desfeita.</div>
+    <div class="modal-field"><label>Digite <span class="delete-confirm-name">${escapeHtml(project.name)}</span> para confirmar</label><input id="va13DeleteProjetoConfirmation" autocomplete="off" oninput="va13ValidateDeleteProjetoConfirmation()"></div>
+    <div class="delete-error hidden" id="va13DeleteProjetoError"></div>
+    <div class="modal-actions"><button class="btn btn-ghost" onclick="closeDeleteProjetoDialog()">Cancelar</button><button class="btn btn-danger" id="va13DeleteProjetoConfirmButton" onclick="confirmDeleteProjeto()" disabled>Excluir definitivamente</button></div>`;
+  closeProjetoForm();
+  document.getElementById('va13DeleteProjetoOverlay').classList.remove('hidden');
+  setTimeout(() => { const el = document.getElementById('va13DeleteProjetoConfirmation'); if (el) el.focus(); }, 0);
+}
+
+function closeDeleteProjetoDialog() {
+  const overlay = document.getElementById('va13DeleteProjetoOverlay');
+  if (overlay) overlay.classList.add('hidden');
+  va13DeleteProjetoTarget = null;
+}
+
+function va13ValidateDeleteProjetoConfirmation() {
+  const input = document.getElementById('va13DeleteProjetoConfirmation');
+  const button = document.getElementById('va13DeleteProjetoConfirmButton');
+  if (!input || !button || !va13DeleteProjetoTarget) return;
+  button.disabled = input.value.trim() !== va13DeleteProjetoTarget.project.name;
+}
+
+async function confirmDeleteProjeto() {
+  const target = va13DeleteProjetoTarget;
+  const input = document.getElementById('va13DeleteProjetoConfirmation');
+  if (!target || !input || input.value.trim() !== target.project.name) return;
+  const errorBox = document.getElementById('va13DeleteProjetoError');
+  errorBox.classList.add('hidden');
+  const hasRealData = target.project.pcs.some(pc => pc.real) || isRealGid(target.project._gid);
+  if (hasRealData && !msalAccount) {
+    errorBox.textContent = 'A sessão do SharePoint não está ativa. Recarregue e entre novamente antes de excluir.';
+    errorBox.classList.remove('hidden');
+    return;
+  }
+  showLoadingGate(`Excluindo ${target.project.name}...`);
+  try {
+    for (const pc of (target.project.pcs || []).slice()) {
+      if (pc.real && isRealGid(pc._gid)) await graphDeletePCCascade(pc);
+    }
+    if (isRealGid(target.project._gid)) await graphDeleteItem(LIST_IDS.Projetos, target.project._gid);
+    const wasCurrentProject = currentPC && currentPC.ci === target.ci && currentPC.pi === target.pi;
+    const index = target.client.projects.indexOf(target.project);
+    if (index < 0) throw new Error('O projeto mudou de posição. Feche esta janela e tente novamente.');
+    target.client.projects.splice(index, 1);
+    if (wasCurrentProject) { currentPC = null; DATA = null; selectedItemId = null; selectedCicloIdx = 0; }
+    saveStore(); filaOrder = null; renderTree(); renderProjetosView();
+    document.getElementById('va13DeleteProjetoOverlay').classList.add('hidden');
+    va13DeleteProjetoTarget = null;
+    if (wasCurrentProject) setView('projetos');
+    else if (currentView === 'trabalho') renderAreaTrabalho();
+    else if (currentView === 'gestao') renderGestao();
+    showToast(`${target.project.name} foi excluído definitivamente.`);
+  } catch (error) {
+    console.warn('Falha ao excluir projeto', error);
+    errorBox.textContent = `Não foi possível concluir a exclusão: ${graphErrorText(error)}`;
+    errorBox.classList.remove('hidden');
+  } finally { hideLoadingGate(); }
 }
 
 openPCForm = function() {
