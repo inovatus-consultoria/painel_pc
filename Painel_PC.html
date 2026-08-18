@@ -943,11 +943,13 @@
   .search-bar-compact svg { width:13px; height:13px; color:var(--ink3); flex-shrink:0; }
   .search-bar-compact input { border:none; outline:none; flex:1; font-family:'DM Sans',sans-serif; font-size:12px; color:var(--ink); background:transparent; min-width:0; }
   .search-count-inline { font-size:10.5px; color:var(--ink3); flex-shrink:0; }
-  .unified-toolbar-row select { height:32px; font-size:11.5px; padding:0 24px 0 8px; }
+  .unified-toolbar-row select { height:32px; font-size:11.5px; padding:0 24px 0 8px; border:1px solid var(--border); border-radius:8px; background:var(--surface); color:var(--ink2); font-family:'DM Sans',sans-serif; }
   .unified-toolbar-row .filter-toggle { min-height:32px; padding:0 9px; font-size:11px; }
   .unified-toolbar-row .icon-btn { width:32px; height:32px; }
   .unified-toolbar-row .gestao-switch-btn { padding:6px 12px; font-size:11.5px; }
   .toolbar-sep { width:1px; align-self:stretch; background:var(--border); margin:2px 2px; }
+  .settings-grid-single { grid-template-columns: 1fr; max-width: 420px; }
+  #projetosView .topbar-actions select { height: 38px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--ink2); padding: 0 30px 0 10px; font: inherit; font-family: 'DM Sans', sans-serif; font-size: 13px; }
 </style>
 
 <style id="va12-delete-styles">
@@ -1007,6 +1009,10 @@
       <div class="view-nav-item" id="navGestao" onclick="setView('gestao')" title="Fila e Gestão">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h10"/></svg>
         <span class="nav-label">Fila / Gestão</span>
+      </div>
+      <div class="view-nav-item" id="navProjetos" onclick="setView('projetos')" title="Cadastro de projetos">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V7z"/></svg>
+        <span class="nav-label">Projetos</span>
       </div>
       <div class="view-nav-item contextual-nav" id="navWorkspace" onclick="setView('workspace')" title="Área de Análise">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 12h6M9 16h6M9 8h6M5 3h14a2 2 0 012 2v14a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2z"/></svg>
@@ -1078,6 +1084,28 @@
         <button class="gestao-switch-btn" id="gestaoTabCliente" onclick="setGestaoView('cliente')">Por cliente/projeto</button>
       </div>
       <div id="gestaoContent"></div>
+    </div>
+
+    <div id="projetosView" class="hidden">
+      <div class="topbar">
+        <div>
+          <h1 class="page-title">Projetos</h1>
+          <div class="meta-row"><span>Cadastro e edição de projetos de todos os clientes</span></div>
+        </div>
+        <div class="topbar-actions">
+          <select id="projetosClientFilter" onchange="setProjetosClientFilter(this.value)" title="Filtrar por cliente"></select>
+          <button class="btn btn-primary" onclick="openProjetoForm()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+            Novo projeto
+          </button>
+        </div>
+      </div>
+      <div class="portfolio-table-wrap">
+        <table class="portfolio-table">
+          <thead><tr><th>Cliente</th><th>Projeto</th><th>Executor</th><th>Fundação</th><th>Observações</th><th>Status</th></tr></thead>
+          <tbody id="projetosTableBody"></tbody>
+        </table>
+      </div>
     </div>
 
     <div id="workspaceView" class="hidden">
@@ -1253,6 +1281,30 @@
       <div class="modal-actions">
         <button class="btn btn-ghost" onclick="closePCEditForm()">Cancelar</button>
         <button class="btn btn-primary" onclick="submitPCEdit()">Salvar alterações</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay hidden" id="projetoFormOverlay">
+  <div class="modal-box form-modal-box">
+    <div class="modal-header">
+      <h2 id="projetoFormTitle">Novo projeto</h2>
+      <button class="modal-close" onclick="closeProjetoForm()">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-grid two-cols">
+        <div class="modal-field full-span"><label>Cliente</label><select id="projetoFormClient"></select></div>
+        <div class="modal-field full-span"><label>Código ou nome</label><input type="text" id="projetoFormName" placeholder="Ex.: 009"></div>
+        <div class="modal-field"><label>Executor</label><input type="text" id="projetoFormExecutor" placeholder="Responsável executor"></div>
+        <div class="modal-field"><label>Fundação</label><input type="text" id="projetoFormFoundation" placeholder="Fundação, se aplicável"></div>
+        <div class="modal-field full-span"><label>Observações</label><textarea id="projetoFormNotes"></textarea></div>
+      </div>
+      <label class="settings-active"><input type="checkbox" id="projetoFormActive" checked> Projeto ativo</label>
+      <div class="form-error hidden" id="projetoFormError"></div>
+      <div class="modal-actions">
+        <button class="btn btn-ghost" onclick="closeProjetoForm()">Cancelar</button>
+        <button class="btn btn-primary" onclick="saveProjetoForm()">Salvar projeto</button>
       </div>
     </div>
   </div>
@@ -3861,13 +3913,16 @@ function setView(view) {
   document.getElementById('trabalhoView').classList.toggle('hidden', view !== 'trabalho');
   document.getElementById('pcDetailView').classList.toggle('hidden', view !== 'detail');
   document.getElementById('gestaoView').classList.toggle('hidden', view !== 'gestao');
+  document.getElementById('projetosView').classList.toggle('hidden', view !== 'projetos');
   document.getElementById('workspaceView').classList.toggle('hidden', view !== 'workspace');
   document.getElementById('navTrabalho').classList.toggle('active', view === 'trabalho');
   document.getElementById('navGestao').classList.toggle('active', view === 'gestao');
+  document.getElementById('navProjetos').classList.toggle('active', view === 'projetos');
   document.getElementById('navWorkspace').classList.toggle('active', view === 'workspace');
   if (view === 'trabalho') renderAreaTrabalho();
   if (view === 'detail') renderPCDetail();
   if (view === 'gestao') renderGestao();
+  if (view === 'projetos') renderProjetosView();
   if (view === 'workspace') {
     renderMeta(); renderCicloCards(); renderWorkspaceGeneralComments(); renderAnalysisFilters();
     renderList(); renderDetail(); renderProgress();
@@ -5909,7 +5964,7 @@ function closeSettingsModal() { document.getElementById('settingsOverlay').class
 
 function renderSettingsModal() {
   const activeClients = STORE.clients || [];
-  document.getElementById('settingsBody').innerHTML = `<div class="settings-grid">
+  document.getElementById('settingsBody').innerHTML = `<div class="settings-grid settings-grid-single">
     <section class="settings-section"><h3>Clientes</h3>
       <div class="modal-field"><label>Cadastro</label><select id="settingsClientSelect" onchange="va12SettingsClientChanged()"><option value="new">+ Novo cliente</option>${activeClients.map((client, ci) => `<option value="${ci}">${escapeHtml(client.client)}</option>`).join('')}</select></div>
       <div class="settings-fields">
@@ -5918,22 +5973,10 @@ function renderSettingsModal() {
         <label class="settings-active"><input type="checkbox" id="settingsClientActive" checked> Cliente ativo</label>
       </div>
       <div class="modal-actions"><button class="btn btn-primary" onclick="saveSettingsClient()">Salvar cliente</button></div>
-    </section>
-    <section class="settings-section"><h3>Projetos</h3>
-      <div class="settings-fields">
-        <div class="modal-field full"><label>Cliente</label><select id="settingsProjectClient" onchange="va12SettingsProjectClientChanged()">${activeClients.map((client, ci) => `<option value="${ci}">${escapeHtml(client.client)}</option>`).join('')}</select></div>
-        <div class="modal-field full"><label>Projeto</label><select id="settingsProjectSelect" onchange="va12SettingsProjectChanged()"></select></div>
-        <div class="modal-field full"><label>Codigo ou nome</label><input id="settingsProjectName"></div>
-        <div class="modal-field"><label>Executor</label><input id="settingsProjectExecutor"></div>
-        <div class="modal-field"><label>Fundacao</label><input id="settingsProjectFoundation"></div>
-        <div class="modal-field full"><label>Observacoes</label><textarea id="settingsProjectNotes"></textarea></div>
-        <label class="settings-active full"><input type="checkbox" id="settingsProjectActive" checked> Projeto ativo</label>
-      </div>
-      <div class="modal-actions"><button class="btn btn-primary" onclick="saveSettingsProject()">Salvar projeto</button></div>
+      <p class="modal-hint" style="margin-top:14px;">Cadastro e edição de projetos agora tem tela própria — ver "Projetos" no menu lateral.</p>
     </section>
   </div>`;
   va12SettingsClientChanged();
-  va12SettingsProjectClientChanged();
 }
 
 function va12SettingsClientChanged() {
@@ -5942,25 +5985,6 @@ function va12SettingsClientChanged() {
   document.getElementById('settingsClientName').value = client ? client.client : '';
   document.getElementById('settingsClientCode').value = client ? client.code || '' : '';
   document.getElementById('settingsClientActive').checked = client ? client.active !== false : true;
-}
-
-function va12SettingsProjectClientChanged() {
-  const ci = Number(document.getElementById('settingsProjectClient').value || 0);
-  const client = STORE.clients[ci];
-  const select = document.getElementById('settingsProjectSelect');
-  select.innerHTML = `<option value="new">+ Novo projeto</option>${client ? (client.projects || []).map((project, pi) => `<option value="${pi}">${escapeHtml(project.name)}</option>`).join('') : ''}`;
-  va12SettingsProjectChanged();
-}
-
-function va12SettingsProjectChanged() {
-  const ci = Number(document.getElementById('settingsProjectClient').value || 0);
-  const value = document.getElementById('settingsProjectSelect').value;
-  const project = value === 'new' ? null : STORE.clients[ci] && STORE.clients[ci].projects[Number(value)];
-  document.getElementById('settingsProjectName').value = project ? project.name : '';
-  document.getElementById('settingsProjectExecutor').value = project ? project.executor || '' : '';
-  document.getElementById('settingsProjectFoundation').value = project ? project.fundacao || '' : '';
-  document.getElementById('settingsProjectNotes').value = project ? project.notes || '' : '';
-  document.getElementById('settingsProjectActive').checked = project ? project.active !== false : true;
 }
 
 async function saveSettingsClient() {
@@ -5986,31 +6010,92 @@ async function saveSettingsClient() {
   finally { hideLoadingGate(); }
 }
 
-async function saveSettingsProject() {
-  const ci = Number(document.getElementById('settingsProjectClient').value || 0);
+/* ===== Tela de Projetos (Fase 4, 18/08/2026) — substitui a antiga aba "Projetos" de dentro de
+   Configurações (que só editava um projeto por vez, de um cliente escolhido antes). Agora é uma
+   tela própria com uma tabela única de TODOS os projetos de TODOS os clientes lado a lado — clica
+   numa linha pra editar num modal (mesmo padrão de edição em modal já usado no resto do app, ex.
+   Editar PC). "+ Novo projeto" no topo abre o mesmo modal em branco. O fluxo rápido de criar
+   projeto direto na hora de criar uma PC (dentro de openPCForm/"+ Novo projeto" no seletor) foi
+   mantido como está — já resolve o caso de "não tem projeto, cria na hora sem sair do fluxo"; esta
+   tela é o lugar pra ver/gerenciar todos de uma vez, não substitui aquele atalho. */
+let projetosFilterClient = '';
+function renderProjetosView() {
+  const filterSelect = document.getElementById('projetosClientFilter');
+  if (filterSelect) {
+    filterSelect.innerHTML = `<option value="">Todos os clientes</option>${STORE.clients.map((client, ci) => `<option value="${ci}" ${String(ci) === projetosFilterClient ? 'selected' : ''}>${escapeHtml(client.client)}</option>`).join('')}`;
+  }
+  const rows = [];
+  STORE.clients.forEach((client, ci) => {
+    if (projetosFilterClient !== '' && String(ci) !== projetosFilterClient) return;
+    (client.projects || []).forEach((project, pi) => rows.push({ client, ci, project, pi }));
+  });
+  const tbody = document.getElementById('projetosTableBody');
+  tbody.innerHTML = rows.length ? rows.map(({ client, ci, project, pi }) => `
+    <tr onclick="openProjetoForm(${ci},${pi})">
+      <td class="portfolio-primary">${escapeHtml(client.client)}</td>
+      <td>${escapeHtml(project.name)}</td>
+      <td class="portfolio-muted">${escapeHtml(project.executor || '—')}</td>
+      <td class="portfolio-muted">${escapeHtml(project.fundacao || '—')}</td>
+      <td class="portfolio-muted">${escapeHtml((project.notes || '').slice(0, 60))}${(project.notes || '').length > 60 ? '…' : ''}</td>
+      <td><span class="badge ${project.active !== false ? 'badge-green' : 'badge-slate'}">${project.active !== false ? 'Ativo' : 'Inativo'}</span></td>
+    </tr>`).join('') : `<tr><td colspan="6"><div class="portfolio-empty">Nenhum projeto cadastrado${projetosFilterClient !== '' ? ' para este cliente' : ''}.</div></td></tr>`;
+}
+
+function setProjetosClientFilter(value) { projetosFilterClient = value; renderProjetosView(); }
+
+let projetoFormTarget = null; // { ci, pi } | null (novo)
+function openProjetoForm(ci, pi) {
+  const hasTarget = ci !== undefined && ci !== null && pi !== undefined && pi !== null;
+  projetoFormTarget = hasTarget ? { ci: Number(ci), pi: Number(pi) } : null;
+  const project = hasTarget ? STORE.clients[Number(ci)].projects[Number(pi)] : null;
+  document.getElementById('projetoFormTitle').textContent = project ? 'Editar projeto' : 'Novo projeto';
+  const clientSelect = document.getElementById('projetoFormClient');
+  clientSelect.innerHTML = STORE.clients.map((client, idx) => `<option value="${idx}">${escapeHtml(client.client)}</option>`).join('');
+  if (!STORE.clients.length) { showToast('Cadastre um cliente antes de criar um projeto (Configurações).'); return; }
+  clientSelect.value = hasTarget ? String(Number(ci)) : (projetosFilterClient !== '' ? projetosFilterClient : '0');
+  document.getElementById('projetoFormName').value = project ? project.name : '';
+  document.getElementById('projetoFormExecutor').value = project ? project.executor || '' : '';
+  document.getElementById('projetoFormFoundation').value = project ? project.fundacao || '' : '';
+  document.getElementById('projetoFormNotes').value = project ? project.notes || '' : '';
+  document.getElementById('projetoFormActive').checked = project ? project.active !== false : true;
+  showFormError('projetoFormError', '');
+  document.getElementById('projetoFormOverlay').classList.remove('hidden');
+}
+function closeProjetoForm() { document.getElementById('projetoFormOverlay').classList.add('hidden'); }
+
+async function saveProjetoForm() {
+  const ci = Number(document.getElementById('projetoFormClient').value);
   const client = STORE.clients[ci];
-  const select = document.getElementById('settingsProjectSelect');
-  const name = document.getElementById('settingsProjectName').value.trim();
-  const executor = document.getElementById('settingsProjectExecutor').value.trim();
-  const foundation = document.getElementById('settingsProjectFoundation').value.trim();
-  const notes = document.getElementById('settingsProjectNotes').value.trim();
-  const active = document.getElementById('settingsProjectActive').checked;
-  if (!client || !name) return showToast('Selecione o cliente e informe o projeto.');
+  const name = document.getElementById('projetoFormName').value.trim();
+  const executor = document.getElementById('projetoFormExecutor').value.trim();
+  const foundation = document.getElementById('projetoFormFoundation').value.trim();
+  const notes = document.getElementById('projetoFormNotes').value.trim();
+  const active = document.getElementById('projetoFormActive').checked;
+  if (!client || !name) return showFormError('projetoFormError', 'Selecione o cliente e informe o projeto.');
+  closeProjetoForm();
   showLoadingGate('Salvando projeto...');
   try {
     const fields = { Title: name, ClienteId: client._gid, ProjectCode: name, ExecutorName: executor, FundacaoName: foundation, Active: active, Notes: notes };
-    if (select.value === 'new') {
-      const gid = await graphCreateItem(LIST_IDS.Projetos, fields);
-      client.projects.push({ _gid: gid, name, executor, fundacao: foundation, active, notes, pcs: [] });
-    } else {
-      const project = client.projects[Number(select.value)];
+    if (projetoFormTarget && STORE.clients[projetoFormTarget.ci] === client) {
+      const project = client.projects[projetoFormTarget.pi];
       await graphUpdateItem(LIST_IDS.Projetos, project._gid, fields);
       Object.assign(project, { name, executor, fundacao: foundation, active, notes });
+    } else if (projetoFormTarget) {
+      // Cliente do projeto foi trocado no modal: apaga da lista antiga, recria na nova (mesma lógica de "mover PC" já usada em submitPCEdit).
+      const oldClient = STORE.clients[projetoFormTarget.ci];
+      const project = oldClient.projects[projetoFormTarget.pi];
+      await graphUpdateItem(LIST_IDS.Projetos, project._gid, fields);
+      Object.assign(project, { name, executor, fundacao: foundation, active, notes });
+      oldClient.projects.splice(projetoFormTarget.pi, 1);
+      client.projects.push(project);
+    } else {
+      const gid = await graphCreateItem(LIST_IDS.Projetos, fields);
+      client.projects.push({ _gid: gid, name, executor, fundacao: foundation, active, notes, pcs: [] });
     }
-    saveStore(); renderTree(); renderSettingsModal();
+    saveStore(); renderTree(); renderProjetosView();
     if (currentView === 'trabalho') renderAreaTrabalho();
     showToast('Projeto salvo.');
-  } catch (error) { showToast(`Nao consegui salvar o projeto: ${graphErrorText(error)}`); }
+  } catch (error) { showToast(`Não consegui salvar o projeto: ${graphErrorText(error)}`); }
   finally { hideLoadingGate(); }
 }
 
