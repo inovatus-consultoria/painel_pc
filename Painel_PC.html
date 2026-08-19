@@ -243,16 +243,22 @@
      (17/08: reversão do comportamento retrátil de 05/08 — Ricardo prefere ver tudo de cara,
      sem precisar passar o mouse ou focar o campo; cada linha simplesmente cresce com o conteúdo). ===== */
   .tabela-head-row, .tabela-row {
-    display: grid; grid-template-columns: 200px 170px 1fr 1fr 1fr 96px;
+    display: grid; grid-template-columns: 200px 200px 1fr 1fr 1fr 96px;
     gap: 10px; padding: 10px; align-items: start; border-bottom: 1px solid var(--border);
   }
   .tabela-head-row { position: sticky; top: 0; z-index: 2; font-size: 11px; font-weight: 700; color: var(--ink2); background: var(--surface2); border-radius: 6px; }
   .tabela-row:hover { background: var(--surface2); }
   .tabela-item-title { font-size: 12.5px; font-weight: 600; color: var(--ink); }
   .tabela-item-sub { font-size: 11px; color: var(--ink3); margin-top: 2px; }
+  /* 19/08: grade de 2 colunas em vez de flex-wrap — nome do documento trunca com reticências
+     (título completo no hover) pra caber em 1 linha por chip. Com isso 8 documentos viram 4 linhas
+     em vez de 8, sem esconder nada atrás de hover/foco (só o texto truncado, o chip continua clicável
+     e com o status sempre visível pela cor). */
   .tabela-cell-docs {
-    display: flex; flex-wrap: wrap; gap: 4px; align-content: flex-start; align-self: start;
+    display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px 6px; align-content: flex-start; align-self: start;
   }
+  .tabela-cell-docs .doc-chip { overflow: hidden; }
+  .tabela-cell-docs .doc-chip-text { display: block; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
   .tabela-doc-empty { font-size: 11px; color: var(--ink3); }
   .tabela-cell-status { display: flex; flex-direction: column; gap: 5px; }
   .status-select-mini { font-family: 'DM Sans', sans-serif; font-size: 11px; font-weight: 600; padding: 4px 6px; border-radius: 6px; border: 1px solid var(--border); background: var(--surface); color: var(--ink); }
@@ -8314,7 +8320,7 @@ function renderTabelaRow(item, cat) {
     const status = item.checks[doc] || 'NA';
     const cls = status === 'OK' ? 'chip-ok' : status === 'NA' ? 'chip-na' : 'chip-pnd';
     const safeDoc = doc.replace(/'/g, "\\'");
-    return `<span class="doc-chip ${cls}" onclick="cycleCheck('${item.id}','${safeDoc}')" title="${escapeHtml(doc)} — clique pra alternar Pendente / OK / Não aplicável">${escapeHtml(doc)}</span>`;
+    return `<span class="doc-chip ${cls}" onclick="cycleCheck('${item.id}','${safeDoc}')" title="${escapeHtml(doc)} — clique pra alternar Pendente / OK / Não aplicável"><span class="doc-chip-text">${escapeHtml(doc)}</span></span>`;
   }).join('') + (docsOcultos ? `<button class="tabela-doc-oculto-note" onclick="selectItem('${item.id}')" title="Gerenciar documentos ocultos na Área de Análise por item">+${docsOcultos} oculto${docsOcultos > 1 ? 's' : ''}</button>` : '');
   return `<div class="tabela-row" data-item="${item.id}">
     <div class="tabela-cell-item">
