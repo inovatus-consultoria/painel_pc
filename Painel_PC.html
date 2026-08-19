@@ -594,8 +594,14 @@
   .summary-grid { display: grid; grid-template-columns: repeat(3, minmax(180px, 1fr)); gap: 8px 18px; }
   .summary-row { padding: 9px 0; border-bottom: 1px solid var(--surface2); }
   .summary-row-head { display: flex; justify-content: space-between; gap: 8px; font-size: 11.5px; }
-  .summary-row-name { font-weight: 700; color: var(--ink2); }
+  .summary-row-name { font-weight: 700; color: var(--ink2); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .summary-row-meta { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
   .summary-row-count { color: var(--ink3); }
+  /* 19/08: "N em aberto" separado do progresso (% analisado) — antes ficavam juntos numa
+     fração só ("N abertos / total · X%"), o que dava a entender que X% era proporção de abertos.
+     O selo cinza (0 abertos) vira vermelho quando há algo realmente aberto/pendente. */
+  .summary-row-open-badge { padding: 1px 7px; border-radius: 99px; font-weight: 700; font-size: 10.5px; background: var(--slate-light); color: var(--slate); border: 1px solid var(--border); white-space: nowrap; }
+  .summary-row-open-badge.has-open { background: var(--red-light); color: var(--red); border-color: #E8B8B8; }
   .summary-row .track { height: 4px; background: var(--surface2); margin-top: 6px; border-radius: 99px; overflow: hidden; }
   .summary-row .fill { height: 100%; background: var(--accent2); }
   .cycle-comments-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
@@ -3397,6 +3403,36 @@ function categoriaInfo(elementoCusto) {
   return CATEGORIA_MAP[elementoCusto] || { id: 'outros', label: elementoCusto || 'Outros', docsFixed: ['Comprovante'] };
 }
 
+/* 19/08: nome curto só pro card "Pendências e progresso por rubrica" — o nome oficial completo
+   (cat.label) continua sendo usado em todo o resto do app (cabeçalho de categoria, filtro, Excel etc.),
+   esse mapa é só pra exibição compacta. Cobre as duas variações que o app já produz pro mesmo
+   conceito: os labels curtos do CATEGORIA_MAP ("Equipe Executora") e os labels longos gerados pela
+   migração de PC antiga a partir do nome da aba do REF ("Despesas com equipe executora", ver
+   va14RefMeta). Categoria não mapeada aqui aparece com o nome completo mesmo (title com o nome
+   inteiro sempre, pro hover, mais reticências via CSS se não couber). */
+const RUBRICA_LABEL_SHORT = {
+  'despesas com equipe executora': 'Equipe', 'equipe executora': 'Equipe',
+  'despesas com material de consumo': 'Consumo', 'material de consumo': 'Consumo',
+  'despesas com passagens': 'Passagens',
+  'despesas com diárias e ajuda de custo': 'Diárias', 'diária ou ajuda de custo': 'Diárias',
+  'despesas com serviços': 'Serviços',
+  'despesas com serviço tib': 'Serviço TIB',
+  'despesas com protótipo': 'Protótipo',
+  'despesas com obras e instalações': 'Obras', 'obras e instalações': 'Obras',
+  'despesas com equipamentos e material permanente': 'Equipamento', 'equipamento e material permanente': 'Equipamento',
+  'despesas com outros bens e direitos': 'Outros bens', 'outros bens e direitos': 'Outros bens',
+  'despesas com tributos': 'Tributos',
+  'despesas com custos diretos': 'Custos diretos',
+  'despesas com capacitação de fornecedores': 'Capacitação',
+  'despesas com recursos humanos': 'Recursos humanos',
+  'despesas com testes': 'Testes',
+  'outras despesas': 'Outras despesas',
+};
+function shortRubricaCardLabel(label) {
+  const raw = String(label || '').trim();
+  return RUBRICA_LABEL_SHORT[raw.toLowerCase()] || raw;
+}
+
 let importCtx = null;
 
 function openImportModal() {
@@ -4021,7 +4057,7 @@ function renderPCDetail() {
     : `<div class="portfolio-empty">Nenhum ciclo criado.</div>`;
 
   const categorySummary = DATA.categories.length
-    ? `<div class="summary-grid">${DATA.categories.map(cat => { const cm = categoryMetrics(pc, selectedCicloIdx, cat); return `<div class="summary-row"><div class="summary-row-head"><span class="summary-row-name">${escapeHtml(cat.label)}</span><span class="summary-row-count">${cm.open} abertos / ${cm.total} · ${cm.pct}%</span></div><div class="track"><div class="fill" style="width:${cm.pct}%"></div></div></div>`; }).join('')}</div>`
+    ? `<div class="summary-grid">${DATA.categories.map(cat => { const cm = categoryMetrics(pc, selectedCicloIdx, cat); return `<div class="summary-row"><div class="summary-row-head"><span class="summary-row-name" title="${escapeHtml(cat.label)}">${escapeHtml(shortRubricaCardLabel(cat.label))}</span><span class="summary-row-meta"><span class="summary-row-count">${cm.total} itens · ${cm.pct}% analisado</span><span class="summary-row-open-badge${cm.open ? ' has-open' : ''}">${cm.open} em aberto</span></span></div><div class="track"><div class="fill" style="width:${cm.pct}%"></div></div></div>`; }).join('')}</div>`
     : `<div class="portfolio-empty">Nenhum item nesta PC.</div>`;
 
   const sources = (m.fontes || []).length
