@@ -156,10 +156,12 @@
   .item-card-title { font-size: 13px; font-weight: 600; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .item-card-sub { font-size: 11.5px; color: var(--ink3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 1px; }
   .item-card-badges { display: flex; gap: 4px; flex-shrink: 0; align-items: center; }
-  .item-card-order { display: flex; flex-direction: column; gap: 1px; flex-shrink: 0; }
-  .item-order-btn { width: 18px; height: 15px; border: 1px solid var(--border); background: var(--surface); color: var(--ink3); border-radius: 3px; cursor: pointer; padding: 0; font: 700 9px/1 'DM Sans', sans-serif; display: flex; align-items: center; justify-content: center; }
-  .item-order-btn:hover { border-color: var(--accent2); color: var(--accent2); }
-  .tabela-item-order { flex-direction: row; margin-bottom: 3px; }
+  .item-drag-handle { flex-shrink: 0; cursor: grab; color: var(--ink3); font-size: 13px; line-height: 1; padding: 0 2px; user-select: none; }
+  .item-drag-handle:active { cursor: grabbing; }
+  .item-card[draggable="true"] { cursor: default; }
+  .item-card.dragging, .tabela-row.dragging { opacity: .4; }
+  .item-card.drag-over, .tabela-row.drag-over { box-shadow: inset 0 2px 0 var(--accent); }
+  .tabela-row[draggable="true"] { position: relative; }
 
   .badge { display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; border-radius: 99px; font-size: 9.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; white-space: nowrap; }
   .badge-green { background: var(--green-light); color: var(--green); }
@@ -190,6 +192,9 @@
   .removido-alert svg { width: 15px; height: 15px; flex-shrink: 0; margin-top: 1px; }
 
   .section-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em; color: var(--ink3); margin: 22px 0 10px; display: flex; align-items: center; gap: 8px; }
+  .btn-editar-retorno { margin-left: 6px; border: 1px solid #E8C86A; background: var(--amber-light); color: #8A6010; border-radius: 99px; padding: 4px 12px; font: 700 10.5px 'DM Sans', sans-serif; text-transform: none; letter-spacing: 0; cursor: pointer; }
+  .btn-editar-retorno:hover { filter: brightness(0.96); }
+  .btn-editar-retorno-fechar { border-color: var(--border); background: var(--slate-light); color: var(--slate); }
   .section-note { font-size: 10.5px; font-weight: 500; text-transform: none; letter-spacing: 0; color: var(--ink3); }
 
   /* --- Document chips: compactos, OK/PND e remoção por item --- */
@@ -3261,7 +3266,13 @@ function renderDetail() {
   }
   }
 
-  html += `<div class="section-label">${escapeHtml(cicloLabel(numeroSel))}${editavel ? ' — ativo' : ' — arquivado, somente leitura <button type="button" class="doc-restore-btn" onclick="toggleCicloEditOverride()">Editar</button>'}</div>`;
+  const cicloEncerradoSel = DATA.meta.ciclos[selectedCicloIdx].status === 'ENCERRADO';
+  const cicloStatusNote = !cicloEncerradoSel
+    ? ' — ativo'
+    : (editavel
+        ? ' — edição temporária <button type="button" class="btn-editar-retorno btn-editar-retorno-fechar" onclick="toggleCicloEditOverride()">🔓 Fechar edição</button>'
+        : ' — arquivado, somente leitura <button type="button" class="btn-editar-retorno" onclick="toggleCicloEditOverride()">🔒 Editar mesmo assim</button>');
+  html += `<div class="section-label">${escapeHtml(cicloLabel(numeroSel))}${cicloStatusNote}</div>`;
   html += `<div class="ciclo-card">
       <div class="ciclo-head">
         <span class="ciclo-num">Status do item neste retorno</span>
@@ -4621,7 +4632,7 @@ function renderList() {
     html += `<div class="cat-group" data-cat="${escapeHtml(cat.id)}"><div class="cat-header" onclick="toggleCat('${cat.id}')"><div class="cat-header-left"><span class="cat-chevron"></span><span class="cat-title">${escapeHtml(cat.label)}</span></div><div class="cat-header-right"><span class="cat-pct">${prog.pct}%</span><div class="cat-mini-bar"><div class="cat-mini-fill" style="width:${prog.pct}%"></div></div><span class="cat-count">${visibleItems.length}</span></div></div><div class="cat-items">`;
     visibleItems.forEach(item => {
       const status = itemCicloStatus(item, selectedCicloIdx);
-      html += `<div class="item-card${item.id === selectedItemId ? ' selected' : ''}" onclick="selectItem('${item.id}')"><span class="item-status-dot ${dotClass(status)}"></span><div class="item-card-order" onclick="event.stopPropagation()"><button type="button" class="item-order-btn" onclick="moveItemManual('${item.id}',-1)" title="Mover pra cima">↑</button><button type="button" class="item-order-btn" onclick="moveItemManual('${item.id}',1)" title="Mover pra baixo">↓</button></div><div class="item-card-body"><div class="item-card-title">${escapeHtml(item.title)}</div><div class="item-card-sub">${escapeHtml(item.payeeName || item.subtitle || 'Sem detalhamento')}</div></div><div class="item-card-badges">${itemTemDuvida(item, selectedCicloIdx) ? '<span class="badge badge-duvida">? Dúvida</span>' : ''}${itemHasPendingDocument(item, cat) ? '<span class="badge badge-amber">Doc. pendente</span>' : ''}<span class="badge ${statusBadgeClass(status)}">${STATUS_LABELS[status]}</span></div></div>`;
+      html += `<div class="item-card${item.id === selectedItemId ? ' selected' : ''}" draggable="true" data-item="${item.id}" ondragstart="handleItemDragStart(event,'${item.id}')" ondragend="handleItemDragEnd(event)" ondragover="handleItemDragOver(event)" ondragleave="handleItemDragLeave(event)" ondrop="handleItemDrop(event,'${item.id}')" onclick="selectItem('${item.id}')"><span class="item-drag-handle" title="Arrastar pra reordenar">⠿</span><span class="item-status-dot ${dotClass(status)}"></span><div class="item-card-body"><div class="item-card-title">${escapeHtml(item.title)}</div><div class="item-card-sub">${escapeHtml(item.payeeName || item.subtitle || 'Sem detalhamento')}</div></div><div class="item-card-badges">${itemTemDuvida(item, selectedCicloIdx) ? '<span class="badge badge-duvida">? Dúvida</span>' : ''}${itemHasPendingDocument(item, cat) ? '<span class="badge badge-amber">Doc. pendente</span>' : ''}<span class="badge ${statusBadgeClass(status)}">${STATUS_LABELS[status]}</span></div></div>`;
     });
     html += '</div></div>';
   });
@@ -5483,16 +5494,51 @@ function orderedItems(items) {
   });
 }
 /* 25/08: ordenação manual de item, mesmo molde da Fila (Ciclos.ManualQueuePosition) — só que
-   por categoria da PC, campo Itens.ManualItemPosition. Mover renumera TODOS os itens visíveis
-   (ordem atual, já considerando manualPosition existente) daquela categoria em sequência. */
-async function moveItemManual(itemId, direction) {
-  const found = findItem(itemId);
-  if (!found) return;
-  const ordered = orderedItems(found.cat.items);
-  const idx = ordered.findIndex(it => it.id === itemId);
-  const targetIdx = idx + direction;
-  if (idx < 0 || targetIdx < 0 || targetIdx >= ordered.length) return;
-  [ordered[idx], ordered[targetIdx]] = [ordered[targetIdx], ordered[idx]];
+   por categoria da PC, campo Itens.ManualItemPosition. Reordenar renumera TODOS os itens visíveis
+   (ordem atual, já considerando manualPosition existente) daquela categoria em sequência.
+   26/08: trocado de setas ↑/↓ pra arrastar de verdade (drag-and-drop HTML5, dentro da mesma
+   categoria/rubrica só — arrastar entre categorias não é suportado, não faz sentido no modelo). */
+let dragItemId = null;
+function handleItemDragStart(e, itemId) {
+  dragItemId = itemId;
+  if (e.dataTransfer) { e.dataTransfer.effectAllowed = 'move'; try { e.dataTransfer.setData('text/plain', itemId); } catch (err) {} }
+  const card = e.currentTarget; if (card) card.classList.add('dragging');
+}
+function handleItemDragEnd(e) {
+  dragItemId = null;
+  document.querySelectorAll('.item-card.dragging, .tabela-row.dragging').forEach(el => el.classList.remove('dragging'));
+  document.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over'));
+}
+function handleItemDragOver(e) {
+  e.preventDefault();
+  if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+  const target = e.currentTarget;
+  if (target && !target.classList.contains('drag-over')) {
+    document.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over'));
+    target.classList.add('drag-over');
+  }
+}
+function handleItemDragLeave(e) {
+  e.currentTarget.classList.remove('drag-over');
+}
+function handleItemDrop(e, targetItemId) {
+  e.preventDefault();
+  const sourceId = dragItemId || (e.dataTransfer && e.dataTransfer.getData('text/plain'));
+  e.currentTarget.classList.remove('drag-over');
+  dragItemId = null;
+  if (!sourceId || sourceId === targetItemId) return;
+  reorderItemsByDrag(sourceId, targetItemId);
+}
+async function reorderItemsByDrag(sourceId, targetId) {
+  const foundSrc = findItem(sourceId);
+  const foundTgt = findItem(targetId);
+  if (!foundSrc || !foundTgt || foundSrc.cat.id !== foundTgt.cat.id) { showToast('Só dá pra reordenar itens dentro da mesma categoria.'); return; }
+  const ordered = orderedItems(foundSrc.cat.items);
+  const fromIdx = ordered.findIndex(it => it.id === sourceId);
+  const toIdx = ordered.findIndex(it => it.id === targetId);
+  if (fromIdx < 0 || toIdx < 0) return;
+  const [moved] = ordered.splice(fromIdx, 1);
+  ordered.splice(toIdx, 0, moved);
   ordered.forEach((it, i) => { it.manualPosition = i + 1; });
   saveStore();
   renderList(); renderDetail();
@@ -8554,9 +8600,9 @@ function renderTabelaRow(item, cat) {
     const safeDoc = doc.replace(/'/g, "\\'");
     return `<span class="doc-chip ${cls}" onclick="cycleCheck('${item.id}','${safeDoc}')" title="${escapeHtml(doc)} — clique pra alternar Pendente / OK / Não aplicável"><span class="doc-chip-text">${escapeHtml(doc)}</span><button class="doc-chip-remove" onclick="event.stopPropagation(); hideDocumentForItem('${item.id}','${safeDoc}')" title="Ocultar este documento">&times;</button></span>`;
   }).join('') + (docsOcultos ? `<button class="tabela-doc-oculto-note" onclick="selectItem('${item.id}')" title="Gerenciar documentos ocultos na Área de Análise por item">+${docsOcultos} oculto${docsOcultos > 1 ? 's' : ''}</button>` : '');
-  return `<div class="tabela-row" data-item="${item.id}">
+  return `<div class="tabela-row" draggable="true" data-item="${item.id}" ondragstart="handleItemDragStart(event,'${item.id}')" ondragend="handleItemDragEnd(event)" ondragover="handleItemDragOver(event)" ondragleave="handleItemDragLeave(event)" ondrop="handleItemDrop(event,'${item.id}')">
     <div class="tabela-cell-item">
-      <div class="item-card-order tabela-item-order"><button type="button" class="item-order-btn" onclick="moveItemManual('${item.id}',-1)" title="Mover pra cima">↑</button><button type="button" class="item-order-btn" onclick="moveItemManual('${item.id}',1)" title="Mover pra baixo">↓</button></div>
+      <span class="item-drag-handle" title="Arrastar pra reordenar">⠿</span>
       <div class="tabela-item-title">${escapeHtml(item.title)}</div>
       <div class="tabela-item-sub">${escapeHtml(item.payeeName || item.subtitle || '')}</div>
     </div>
@@ -9040,10 +9086,3 @@ initApp();
 </script>
 </body>
 </html>
-
-
-
-
-
-
-
