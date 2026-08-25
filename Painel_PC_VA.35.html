@@ -1999,11 +1999,13 @@ function escapeHtml(str) {
    (campos rich* abaixo, nunca sincronizados com o SharePoint/exportações — o campo de sempre,
    ex. item.comentarioAnalista, continua puro texto em todo lugar que já existia: sync, Punchlist,
    Prompt, busca etc.). Some se abrir noutro navegador/dispositivo — Ricardo topou essa limitação
-   (é só conveniência visual, não dado de análise). Aplicado só em Comentário do analista e
-   Resposta do executor — Comentário ao executor fica de fora, de propósito: aquele campo já tem
-   o menu "/" de modelos e abertura automática de status amarrados em comportamento de textarea
-   puro (ver handleExecutorInput/openSlashMenu), então virar contentEditable arriscava quebrar
-   isso por pouco ganho (esse campo raramente precisa de destaque, é texto objetivo pro executor). */
+   (é só conveniência visual, não dado de análise). 26/08: aplicado só em Comentário do analista —
+   Resposta do executor voltou a ser textarea puro (tinha ganhado o mesmo toolbar em 25/08, mas
+   Ricardo pediu pra tirar: campo do executor não precisa de destaque visual). Comentário ao
+   executor também fica de fora, de propósito: aquele campo já tem o menu "/" de modelos e
+   abertura automática de status amarrados em comportamento de textarea puro (ver
+   handleExecutorInput/openSlashMenu), então virar contentEditable arriscava quebrar isso por
+   pouco ganho (esse campo raramente precisa de destaque, é texto objetivo pro executor). */
 function commentPlainText(html) {
   if (!html) return '';
   const withBreaks = String(html).replace(/<(br|\/div|\/p)\s*\/?>/gi, '\n');
@@ -3313,15 +3315,9 @@ function renderDetail() {
 
       <div class="field-block">
         <div class="field-label">Resposta do executor <span class="lock">(o que o executor respondeu a esta pendência — sempre editável, mesmo com o retorno arquivado)</span></div>
-        <div class="format-toolbar">
-          <button type="button" class="format-btn format-btn-bold" onmousedown="event.preventDefault()" onclick="applyCommentFormat('richEditor-${item.id}-executorResponse', 'bold')" title="Negrito no trecho selecionado">B</button>
-          <button type="button" class="format-btn format-btn-red" onmousedown="event.preventDefault()" onclick="applyCommentFormat('richEditor-${item.id}-executorResponse', 'color', '#C83A3A')" title="Vermelho no trecho selecionado"></button>
-          <button type="button" class="format-btn format-btn-green" onmousedown="event.preventDefault()" onclick="applyCommentFormat('richEditor-${item.id}-executorResponse', 'color', '#2D5C4E')" title="Verde no trecho selecionado"></button>
-          <button type="button" class="format-btn format-btn-black" onmousedown="event.preventDefault()" onclick="applyCommentFormat('richEditor-${item.id}-executorResponse', 'color', '#1A2420')" title="Voltar pra cor normal (preta)"></button>
-        </div>
-        <div class="editor" id="richEditor-${item.id}-executorResponse" contenteditable="true" data-item="${item.id}" data-field="executorResponse"
-          oninput="handleRichCommentInput(this)"
-          data-placeholder="Sem resposta registrada ainda.">${richCommentHtml(entry, 'executorResponse')}</div>
+        <textarea class="editor" data-item="${item.id}" data-field="executorResponse"
+          oninput="updateComentario('${item.id}','executorResponse',this.value)"
+          placeholder="Sem resposta registrada ainda.">${escapeHtml(entry.executorResponse)}</textarea>
       </div>
     </div>`;
 
@@ -8613,7 +8609,7 @@ function renderTabelaRow(item, cat) {
     <div>${editavel
       ? `<textarea class="editor-mini" data-item="${item.id}" data-field="comentarioExecutor" oninput="updateComentario('${item.id}','comentarioExecutor',this.value); autoGrowTextarea(this)" placeholder="Sem pendência neste ciclo.">${escapeHtml(entry.comentarioExecutor)}</textarea>`
       : `<div class="editor-mini field-text">${escapeHtml(entry.comentarioExecutor) || 'Sem pendência neste ciclo.'}</div>`}</div>
-    <div><div class="editor-mini" contenteditable="true" data-item="${item.id}" data-field="executorResponse" oninput="handleRichCommentInput(this)" data-placeholder="Sem resposta registrada.">${richCommentHtml(entry, 'executorResponse')}</div></div>
+    <div><textarea class="editor-mini" data-item="${item.id}" data-field="executorResponse" oninput="updateComentario('${item.id}','executorResponse',this.value); autoGrowTextarea(this)" placeholder="Sem resposta registrada.">${escapeHtml(entry.executorResponse)}</textarea></div>
     <div class="tabela-cell-status">
       ${editavel
         ? `<select class="status-select-mini st-${entry.status}" id="statusSelectTabela-${item.id}" onchange="updateStatus('${item.id}', this.value)">
