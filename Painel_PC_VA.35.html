@@ -913,6 +913,10 @@
   .assoc-select { display: block; margin-top: 5px; width: 100%; max-width: 220px; font-size: 10.5px; padding: 3px 5px; border-radius: 6px; border: 1px solid var(--border); background: #fff; color: var(--ink2); }
   .assoc-note { font-size: 10.5px; color: var(--ink3); margin-top: 3px; }
   .assoc-note a { color: var(--accent); cursor: pointer; text-decoration: underline; }
+  .view-toggle { display: flex; gap: 6px; margin: 4px 0 10px; }
+  .btn-tab { font-size: 12px; font-weight: 600; padding: 6px 12px; border-radius: 999px; border: 1px solid var(--border); background: #fff; color: var(--ink2); cursor: pointer; }
+  .btn-tab.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .btn-tab:hover:not(.active) { background: var(--surface); }
 
   .output-item-list { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
   .output-item-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 11px 12px; border: 1px solid var(--border); border-radius: 7px; background: var(--surface); }
@@ -7124,7 +7128,7 @@ function va19ToggleFilter(bucket) {
 function va19RowBucket(row) {
   const imported = row.imported;
   if (imported && imported.importWarnings) return { bucket: 'erro', badge: 'Aviso' };
-  if (row.state === 'new' && row.manualAssoc) return { bucket: 'alterado', badge: 'Alterado' };
+  if (row.manualAssoc) return { bucket: 'alterado', badge: 'Alterado' };
   if ((row.state === 'changed' || row.state === 'unchanged') && row.overrideNew) return { bucket: 'novo', badge: 'Novo' };
   if (row.state === 'removed' && row.dismissed) return { bucket: 'neutral', badge: 'Dispensado' };
   return VA19_STATE_META[row.state];
@@ -7150,7 +7154,8 @@ function va19ToggleChangedOverride(rowIndex) {
 function va19EntryOwnerRow(entry, comparison, excludeRowIndex) {
   return comparison.rows.find((other, i) => {
     if (i === excludeRowIndex) return false;
-    if (other.state === 'new') return other.manualAssoc && other.manualAssoc.entry === entry;
+    if (other.manualAssoc) return other.manualAssoc.entry === entry;
+    if (other.state === 'new') return false;
     if (other.state === 'review') return other.existing === entry && other.decision !== 'new';
     if (other.state === 'changed' || other.state === 'unchanged') return other.existing === entry && !other.overrideNew;
     return false;
@@ -7205,7 +7210,16 @@ function va19AssociateNew(rowIndex, pidxValue) {
       const wrapper = comparison.removed.find(w => w.existing === entry);
       if (wrapper) wrapper.consumedBy = rowIndex;
       row.manualAssoc = { entry };
+      if (row.state === 'review') row.decision = 'same';
+      if (row.state === 'changed' || row.state === 'unchanged') row.overrideNew = false;
     }
+  } else {
+    // Ricardo (26/08/2026) - "nenhum" na tela de associacao por numero equivale a dizer
+    // "nao e este item" - reusa exatamente os mesmos sinalizadores que os controles
+    // antigos por bucket ja usavam, pra tela de numero e tela por categoria nunca
+    // divergirem sobre o estado real de uma linha.
+    if (row.state === 'review') row.decision = '';
+    if (row.state === 'changed' || row.state === 'unchanged') row.overrideNew = true;
   }
   renderImportStep2();
 }
@@ -7366,10 +7380,10 @@ function va19RowHtml(row, comparison) {
     : payee ? `<div class="item-sub">${escapeHtml(payee)}</div>` : '';
   const { oldHtml: fieldsOldHtml, newHtml: fieldsNewHtml } = va20FieldCellsHtml(existingItem, imported, mode);
   let decision;
-  if (row.state === 'review') {
-    decision = `<select class="reconcile-action" onchange="va12SetReviewDecision(${idx}, this.value)"><option value="">Decidir...</option><option value="same" ${row.decision === 'same' ? 'selected' : ''}>E o mesmo item</option><option value="new" ${row.decision === 'new' ? 'selected' : ''}>E um item novo</option><option value="ignore" ${row.decision === 'ignore' ? 'selected' : ''}>Ignorar nesta importacao</option></select>`;
-  } else if (row.state === 'new' && manualExisting) {
+  if (manualExisting) {
     decision = `<span class="fixed">Atualiza item existente</span><div class="assoc-note">associado manualmente · <a href="#" onclick="va19AssociateNew(${idx}, ''); return false;">desfazer</a></div>`;
+  } else if (row.state === 'review') {
+    decision = `<select class="reconcile-action" onchange="va12SetReviewDecision(${idx}, this.value)"><option value="">Decidir...</option><option value="same" ${row.decision === 'same' ? 'selected' : ''}>E o mesmo item</option><option value="new" ${row.decision === 'new' ? 'selected' : ''}>E um item novo</option><option value="ignore" ${row.decision === 'ignore' ? 'selected' : ''}>Ignorar nesta importacao</option></select>${va19AssocSelectHtml(row, comparison)}`;
   } else if (row.state === 'new') {
     decision = `<span class="fixed">Criar item</span>${va19AssocSelectHtml(row, comparison)}`;
   } else if (row.state === 'removed') {
@@ -7398,6 +7412,95 @@ function va19RowHtml(row, comparison) {
     <td><span class="badge-state ${bucket}">${badge}</span>${confidenceHtml}</td>
     <td class="decision">${decision}${warningHtml}</td>
   </tr>`;
+}
+
+/* ===== VA.37 -- aba "Associacao por numero" (Ricardo, 26/08/2026): na pratica, o que se
+   faz numa revisao de importacao e reassociar numero de item antigo com numero novo --
+   as vezes ate numa linha que o matching automatico ja classificou como "sem alteracao"
+   ou "alterado" com confianca alta. A vista por categoria (novo/alterado/revisar/
+   removido) continua a vista padrao (boa pra ver o que mudou campo a campo); esta e uma
+   aba adicional no mesmo modal, so pra reassociar livremente pelo numero, sem precisar
+   abrir o detalhe de cada item. Reusa a MESMA mecanica de associacao (`va19AssociateNew`,
+   `manualAssoc`, `overrideNew`) que a vista por categoria ja usa -- nao e um modelo de
+   dado novo, so uma segunda forma de editar o mesmo estado. */
+
+// "Pareamento atual" de uma linha, seguindo a mesma prioridade que confirmImport usa de
+// verdade (manualAssoc > decisao/override explicito > candidato automatico).
+function va21CurrentPairing(row) {
+  if (row.manualAssoc) return row.manualAssoc.entry;
+  if (row.state === 'new') return null;
+  if (row.state === 'review') return row.decision === 'new' ? null : (row.existing || null);
+  if ((row.state === 'changed' || row.state === 'unchanged') && row.overrideNew) return null;
+  return row.existing || null;
+}
+
+// ordena chave tipo "9.1"/"9.10"/"9.2" numericamente por segmento, nao como texto puro.
+function va21NaturalKeyCompare(a, b) {
+  const pa = String(a || '').match(/\d+|\D+/g) || [];
+  const pb = String(b || '').match(/\d+|\D+/g) || [];
+  const len = Math.max(pa.length, pb.length);
+  for (let i = 0; i < len; i++) {
+    const x = pa[i] || '', y = pb[i] || '';
+    if (/^\d+$/.test(x) && /^\d+$/.test(y)) {
+      const diff = Number(x) - Number(y);
+      if (diff !== 0) return diff;
+    } else if (x !== y) {
+      return x < y ? -1 : 1;
+    }
+  }
+  return 0;
+}
+
+function va21NumeroRowHtml(row, comparison) {
+  const idx = row._index;
+  const paired = va21CurrentPairing(row);
+  const catId = row.imported.categoryId;
+  const candidates = (comparison.existingPool || [])
+    .filter(entry => entry.category.id === catId)
+    .slice()
+    .sort((a, b) => va21NaturalKeyCompare(va19ItemKeyText(a.item), va19ItemKeyText(b.item)));
+  const options = candidates.map(entry => {
+    const owner = entry !== paired ? va19EntryOwnerRow(entry, comparison, idx) : null;
+    const note = owner ? ' (associado a outra linha)' : '';
+    const label = va19ItemKeyText(entry.item) || '(sem numero)';
+    return `<option value="${entry._pidx}" ${entry === paired ? 'selected' : ''}>${escapeHtml(label)}${note}</option>`;
+  }).join('');
+  const newKey = va19ItemKeyText(row.imported) || '(sem numero)';
+  const changedNote = paired && row.manualAssoc ? ' <span class="assoc-note">associado manualmente</span>' : '';
+  return `<tr>
+    <td class="item-cell">${escapeHtml(newKey)}</td>
+    <td><select class="assoc-select" onchange="va19AssociateNew(${idx}, this.value)"><option value="">-- nenhum, item novo --</option>${options}</select>${changedNote}</td>
+  </tr>`;
+}
+
+function va21NumeroTabHtml(categoryGroups, comparison) {
+  return categoryGroups.map(group => {
+    const rows = group.rows.filter(row => row.imported);
+    if (!rows.length) return '';
+    const rowsHtml = rows.map(row => va21NumeroRowHtml(row, comparison)).join('');
+    const orphanEntries = (comparison.existingPool || [])
+      .filter(entry => entry.category.id === group.id && !rows.some(row => va21CurrentPairing(row) === entry))
+      .sort((a, b) => va21NaturalKeyCompare(va19ItemKeyText(a.item), va19ItemKeyText(b.item)));
+    const orphansHtml = orphanEntries.length
+      ? `<p class="modal-hint">Nao usados nesta importacao: ${orphanEntries.map(e => escapeHtml(va19ItemKeyText(e.item) || '(sem numero)')).join(', ')} <i>(ficam "possivel removido" se continuar assim)</i></p>`
+      : '';
+    return `<div class="cat-section">
+      <div class="cat-head" onclick="va19ToggleCategory(this)">
+        <div class="chev"></div>
+        <div class="name">${escapeHtml(group.label)}</div>
+      </div>
+      <table>
+        <thead><tr><th style="width:20%">No (novo)</th><th style="width:80%">Associado ao item existente</th></tr></thead>
+        <tbody>${rowsHtml}</tbody>
+      </table>
+      ${orphansHtml}
+    </div>`;
+  }).join('');
+}
+
+function va21SetViewMode(mode) {
+  controlledImport.viewMode = mode;
+  renderImportStep2();
 }
 
 renderImportStep2 = function() {
@@ -7429,6 +7532,18 @@ renderImportStep2 = function() {
     categoriesMap.get(catId).rows.push(row);
   });
   const categoryGroups = [...categoriesMap.values()].sort((a, b) => a.label.localeCompare(b.label, 'pt-BR'));
+
+  // aba "Associacao por numero" (VA.37) ignora o filtro por bucket -- nao faz sentido
+  // filtrar "so revisar" numa tela que serve justamente pra mexer em qualquer linha.
+  const numeroCategoriesMap = new Map();
+  previewRows.forEach(row => {
+    if (!row.imported) return;
+    const catId = row.imported.categoryId;
+    const catLabel = row.imported.categoryLabel;
+    if (!numeroCategoriesMap.has(catId)) numeroCategoriesMap.set(catId, { id: catId, label: catLabel, rows: [] });
+    numeroCategoriesMap.get(catId).rows.push(row);
+  });
+  const numeroCategoryGroups = [...numeroCategoriesMap.values()].sort((a, b) => a.label.localeCompare(b.label, 'pt-BR'));
 
   const categoriesHtml = categoryGroups.map(group => {
     const bucketCounts = {};
@@ -7465,8 +7580,14 @@ renderImportStep2 = function() {
       ${statHtml('erro', 'aviso/erro', liveCounts.erro)}
       <div class="toggle-wrap"><span>Mostrar sem alteracao</span><div class="toggle" id="va19UnchangedToggle" onclick="va19ToggleUnchanged()"></div></div>
     </div>
-    ${uiFilter ? `<p class="modal-hint">Filtrando: so ${VA19_FILTER_LABEL[uiFilter]}. <a href="#" onclick="va19ToggleFilter('${uiFilter}'); return false;">Mostrar tudo</a></p>` : ''}
-    <div class="categories" id="va19Categories">${categoriesHtml || '<p class="modal-hint">Nenhum item para comparar.</p>'}</div>
+    <div class="view-toggle">
+      <button type="button" class="btn-tab${controlledImport.viewMode === 'numeros' ? '' : ' active'}" onclick="va21SetViewMode('categoria')">Por categoria</button>
+      <button type="button" class="btn-tab${controlledImport.viewMode === 'numeros' ? ' active' : ''}" onclick="va21SetViewMode('numeros')">Associacao por numero</button>
+    </div>
+    ${controlledImport.viewMode === 'numeros'
+      ? `<div class="categories" id="va19Categories">${va21NumeroTabHtml(numeroCategoryGroups, comparison) || '<p class="modal-hint">Nenhum item para comparar.</p>'}</div>`
+      : `${uiFilter ? `<p class="modal-hint">Filtrando: so ${VA19_FILTER_LABEL[uiFilter]}. <a href="#" onclick="va19ToggleFilter('${uiFilter}'); return false;">Mostrar tudo</a></p>` : ''}
+    <div class="categories" id="va19Categories">${categoriesHtml || '<p class="modal-hint">Nenhum item para comparar.</p>'}</div>`}
     ${previewRows.length < allRows.length ? `<p class="modal-hint">Previa limitada a ${previewRows.length} linhas; todas serao processadas.</p>` : ''}
     <div class="import-blocked-note hidden" id="va12ImportBlocked"></div>
     <div class="modal-actions"><button class="btn btn-ghost" onclick="closeImportModal()">Cancelar</button><button class="btn btn-primary" id="va12ConfirmImport" onclick="confirmImport()">Confirmar importacao</button></div>`;
@@ -7562,14 +7683,21 @@ confirmImport = async function() {
     for (const row of comparison.rows) {
       try {
         if (row.warningDecision === 'skip' || row.decision === 'ignore') { result.skipped++; continue; }
+        // Ricardo (25-26/08/2026): associacao manual a um item existente - seja pela
+        // linha "revisar"/"novo" (select "Na verdade e...") ou pela tela de "Associacao
+        // por numero" (VA.36/37, qualquer linha, inclusive "alterado"/"sem alteracao").
+        // Atualiza o item escolhido de verdade, preservando id/historico; o candidato
+        // auto-sugerido original (se for outro) fica de fora do match e vai pro lote
+        // "possivel removido" no final, a menos que outra linha o reivindique.
+        if (row.manualAssoc) {
+          if (row.existing && row.existing !== row.manualAssoc.entry) extraRemoved.push(row.existing);
+          row.existing = row.manualAssoc.entry;
+          await va12UpdateImported(row, target, result); continue;
+        }
         if (row.state === 'review' && row.decision === 'new') {
           if (row.existing) extraRemoved.push(row.existing);
           await va12CreateImported(row, target, result); continue;
         }
-        // VA.24 (rodada 2): usuario associou manualmente este "Novo" a um item que
-        // constava como "Possivel removido" - trata como atualizacao do item existente,
-        // nao criacao de duplicata.
-        if (row.state === 'new' && row.manualAssoc) { row.existing = row.manualAssoc.entry; await va12UpdateImported(row, target, result); continue; }
         // VA.24 (rodada 3): usuario corrigiu uma linha "Alterado" dizendo que na verdade
         // e outro item - cria como novo e devolve o item que estava associado pro grupo
         // de possiveis removidos.
