@@ -1997,6 +1997,7 @@ function toggleCicloEditOverride() {
 }
 let filtroDuvida = false; /* 08/07: filtro do responsável regulatório — só itens marcados com dúvida */
 let filtroRemovido = false; /* 26/08: isola só os possíveis removidos na lista — por padrão lista mostra tudo */
+let collapsedCategories = new Set(); /* 26/08: categorias retraídas na Área de Análise (lista e Tabela) — precisa sobreviver a um re-render (toggleCat só mexia na classList direto no DOM, então clicar num item — que chama renderList/renderDetail — desfazia a retração de TODAS as categorias, não só da selecionada) */
 
 /* ===== Nomenclatura do ciclo (03/07): Ciclo 1 = "1ª análise", Ciclo N (N>=2) = "(N-1)º retorno".
    É só rótulo de exibição — o eixo de status do ciclo (Aguardando análise/Em análise/.../Encerrado) não muda de nome. ===== */
@@ -3076,11 +3077,15 @@ function renderList() {
 function toggleCat(catId) {
   /* 05/08: existem duas visões da Área de Análise (lista e tabela) renderizando cada uma o seu
      próprio .cat-group com o mesmo data-cat — usar querySelector pegava sempre o primeiro do DOM
-     (o da lista, mesmo escondida), então a tabela nunca parecia recolher. Agora sincroniza os dois. */
+     (o da lista, mesmo escondida), então a tabela nunca parecia recolher. Agora sincroniza os dois.
+     26/08: o estado agora mora em `collapsedCategories` (não só na classList) — sem isso, qualquer
+     re-render (ex.: clicar num item chama renderList/renderDetail) reconstruía o HTML do zero e
+     reabria todas as categorias retraídas, já que a classe 'collapsed' só existia no DOM antigo. */
   const groups = document.querySelectorAll(`.cat-group[data-cat="${catId}"]`);
   if (!groups.length) return;
   const collapse = !groups[0].classList.contains('collapsed');
   groups.forEach(el => el.classList.toggle('collapsed', collapse));
+  if (collapse) collapsedCategories.add(catId); else collapsedCategories.delete(catId);
 }
 
 function toggleFiltroDuvida() {
@@ -4687,7 +4692,7 @@ function renderList() {
     totalShown += visibleItems.length;
     if (visibleItems.length === 0) return;
     const prog = catProgress(cat);
-    html += `<div class="cat-group" data-cat="${escapeHtml(cat.id)}"><div class="cat-header" onclick="toggleCat('${cat.id}')"><div class="cat-header-left"><span class="cat-chevron"></span><span class="cat-title">${escapeHtml(cat.label)}</span></div><div class="cat-header-right"><span class="cat-pct">${prog.pct}%</span><div class="cat-mini-bar"><div class="cat-mini-fill" style="width:${prog.pct}%"></div></div><span class="cat-count">${visibleItems.length}</span></div></div><div class="cat-items">`;
+    html += `<div class="cat-group${collapsedCategories.has(cat.id) ? ' collapsed' : ''}" data-cat="${escapeHtml(cat.id)}"><div class="cat-header" onclick="toggleCat('${cat.id}')"><div class="cat-header-left"><span class="cat-chevron"></span><span class="cat-title">${escapeHtml(cat.label)}</span></div><div class="cat-header-right"><span class="cat-pct">${prog.pct}%</span><div class="cat-mini-bar"><div class="cat-mini-fill" style="width:${prog.pct}%"></div></div><span class="cat-count">${visibleItems.length}</span></div></div><div class="cat-items">`;
     visibleItems.forEach(item => {
       const status = itemCicloStatus(item, selectedCicloIdx);
       const removido = !!item.possivelRemovido;
@@ -8888,7 +8893,7 @@ function renderAnaliseTabela() {
     totalShown += visibleItems.length;
     if (!visibleItems.length) return;
     const prog = catProgress(cat);
-    html += `<div class="cat-group tabela-cat-group" data-cat="${escapeHtml(cat.id)}">
+    html += `<div class="cat-group tabela-cat-group${collapsedCategories.has(cat.id) ? ' collapsed' : ''}" data-cat="${escapeHtml(cat.id)}">
       <div class="cat-header" onclick="toggleCat('${cat.id}')">
         <div class="cat-header-left"><span class="cat-chevron"></span><span class="cat-title">${escapeHtml(cat.label)}</span></div>
         <div class="cat-header-right"><span class="cat-pct">${prog.pct}%</span><div class="cat-mini-bar"><div class="cat-mini-fill" style="width:${prog.pct}%"></div></div><span class="cat-count">${visibleItems.length}</span></div>
