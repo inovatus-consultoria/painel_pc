@@ -208,25 +208,30 @@
   .btn-editar-retorno-fechar { border-color: var(--border); background: var(--slate-light); color: var(--slate); }
   .section-note { font-size: 10.5px; font-weight: 500; text-transform: none; letter-spacing: 0; color: var(--ink3); }
 
-  /* --- Document chips: compactos, OK/PND e remoção por item --- */
-  .doc-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 5px; }
-  .doc-grid-compact { grid-template-columns: repeat(auto-fit, minmax(112px, 1fr)); gap: 4px; }
-  .doc-grid-compact .doc-chip { padding: 3px 5px 3px 7px; font-size: 10px; }
+  /* --- Document chips: compactos, OK/PND e remoção por item ---
+     26/08: revisão de layout — chips mais compactos (tag/check em vez de card),
+     nome de exibição pode ser encurtado via DOC_SHORT_LABELS (nome completo
+     continua no title e nos dados, só a exibição muda — ver docShortLabel()),
+     e o botão de remover só aparece no hover/foco (acessível por teclado via
+     :focus-within, já que o botão real recebe foco por Tab normalmente). */
+  .doc-grid { display: flex; flex-wrap: wrap; gap: 5px 6px; }
+  .doc-grid-compact { gap: 4px 6px; }
   .section-label-toggle { cursor: pointer; user-select: none; }
   .section-label-toggle .cat-chevron { transition: transform .12s; }
   .section-label-toggle .cat-chevron-open { transform: rotate(90deg); }
   .doc-chip-custom { border-style: dashed; }
   .doc-chip-add { background: transparent; border: 1px dashed var(--border); color: var(--accent2); justify-content: center; cursor: pointer; }
   .doc-chip-add:hover { border-color: var(--accent2); background: var(--green-light); }
-  .doc-chip { min-width:0; display:flex; align-items:center; gap:5px; border-radius:7px; padding:5px 6px 5px 8px; font-size:10.5px; line-height:1.2; font-weight:600; cursor:pointer; border:1px solid transparent; transition:filter .12s; user-select:none; }
+  .doc-chip { min-width:0; display:flex; align-items:center; gap:5px; min-height:27px; border-radius:6px; padding:4px 7px 4px 9px; font-size:11px; line-height:1.25; font-weight:600; cursor:pointer; border:1px solid transparent; transition:filter .12s; user-select:none; position:relative; }
   .doc-chip:hover { filter: brightness(0.97); }
-  .doc-chip.chip-ok { background: var(--green-light); color: var(--green); border-color: #BEE0D6; }
-  .doc-chip.chip-pnd { background: var(--amber-light); color: #8A6010; border-color: #E8C86A; }
+  .doc-chip.chip-ok { background: var(--green-light); color: var(--green); border-color: #cfe6dd; }
+  .doc-chip.chip-pnd { background: var(--amber-light); color: #8A6010; border-color: #efe0bd; }
   .doc-chip.chip-na { background: var(--slate-light); color: var(--slate); border-color: var(--border); opacity: .8; }
   .doc-chip-icon { width:12px; height:12px; flex-shrink:0; }
-  .doc-chip-label { min-width:0; flex:1; overflow-wrap:anywhere; }
-  .doc-chip-remove { width:18px; height:18px; flex:0 0 18px; display:grid; place-items:center; padding:0; border:0; border-radius:50%; background:transparent; color:currentColor; opacity:.58; cursor:pointer; font:700 14px/1 'DM Sans',sans-serif; }
-  .doc-chip-remove:hover { opacity:1; background:rgba(255,255,255,.7); }
+  .doc-chip-label, .doc-chip-text { min-width:0; max-width: 190px; overflow-wrap:anywhere; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+  .doc-chip-remove { width:16px; height:16px; flex:0 0 16px; display:grid; place-items:center; padding:0; border:0; border-radius:50%; background:transparent; color:currentColor; opacity:0; cursor:pointer; font:700 13px/1 'DM Sans',sans-serif; transition:opacity .12s; }
+  .doc-chip:hover .doc-chip-remove, .doc-chip:focus-within .doc-chip-remove { opacity:.62; }
+  .doc-chip-remove:hover, .doc-chip-remove:focus { opacity:1; background:rgba(255,255,255,.7); }
   .doc-restore-btn { margin-left:auto; border:0; background:transparent; color:var(--accent); padding:2px 0; cursor:pointer; font:700 10.5px 'DM Sans',sans-serif; text-transform:none; letter-spacing:0; }
   .doc-hidden-bar { display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; font-size:11px; color:var(--ink3); background:var(--slate-light); border:1px solid var(--border); border-radius:8px; padding:6px 10px; margin-top:6px; }
   .doc-hidden-pill { border:1px solid var(--border); background:var(--surface); color:var(--ink3); border-radius:99px; padding:2px 8px; margin:2px; cursor:pointer; font-size:10.5px; }
@@ -271,25 +276,28 @@
   /* ===== Visão consolidada da Área de Análise — tabela com todo o conteúdo sempre visível
      (17/08: reversão do comportamento retrátil de 05/08 — Ricardo prefere ver tudo de cara,
      sem precisar passar o mouse ou focar o campo; cada linha simplesmente cresce com o conteúdo). ===== */
+  /* 26/08: item e documentos deixam de ser 2 colunas paralelas — os checks agora vivem DENTRO
+     da 1ª célula (.tabela-cell-item), logo abaixo do título, ocupando toda a largura dela e
+     quebrando linha livremente (flex-wrap). A 1ª coluna do grid fica bem mais larga (2.1fr em vez
+     dos antigos 200px) justamente pra dar espaço pros documentos; as outras 4 colunas (comentário
+     analista, comentário executor, resposta, status) continuam como estavam. */
   .tabela-head-row, .tabela-row {
-    display: grid; grid-template-columns: 200px 200px 1fr 1fr 1fr 96px;
-    gap: 10px; padding: 10px; align-items: start; border-bottom: 1px solid var(--border);
+    display: grid; grid-template-columns: minmax(280px, 2.1fr) 1fr 1fr 1fr 90px;
+    gap: 10px 14px; padding: 12px 10px; align-items: start; border-bottom: 1px solid var(--border);
   }
-  .tabela-head-row { position: sticky; top: 0; z-index: 2; font-size: 11px; font-weight: 700; color: var(--ink2); background: var(--surface2); border-radius: 6px; }
+  .tabela-head-row { position: sticky; top: 0; z-index: 2; font-size: 11px; font-weight: 700; color: var(--ink2); background: var(--surface2); border-radius: 6px; padding: 8px 10px; }
   .tabela-row:hover { background: var(--surface2); }
+  .tabela-cell-item { display: flex; flex-direction: column; gap: 7px; min-width: 0; }
+  .tabela-item-head { display: flex; align-items: baseline; gap: 6px; min-width: 0; }
   .tabela-item-title { font-size: 12.5px; font-weight: 600; color: var(--ink); }
-  .tabela-item-sub { font-size: 11px; color: var(--ink3); margin-top: 2px; }
-  /* 19/08: grade de 2 colunas em vez de flex-wrap — nome do documento trunca com reticências
-     (título completo no hover) pra caber em 1 linha por chip. Com isso 8 documentos viram 4 linhas
-     em vez de 8, sem esconder nada atrás de hover/foco (só o texto truncado, o chip continua clicável
-     e com o status sempre visível pela cor). */
-  .tabela-cell-docs {
-    display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px 6px; align-content: flex-start; align-self: start;
-  }
-  .tabela-cell-docs .doc-chip { overflow: hidden; }
-  .tabela-cell-docs .doc-chip-text { display: block; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+  .tabela-item-sub { font-size: 11px; color: var(--ink3); }
+  .tabela-cell-docs { display: flex; flex-wrap: wrap; gap: 5px 6px; }
   .tabela-doc-empty { font-size: 11px; color: var(--ink3); }
   .tabela-cell-status { display: flex; flex-direction: column; gap: 5px; }
+  @media (max-width: 980px) {
+    .tabela-head-row, .tabela-row { grid-template-columns: 1fr; }
+    .tabela-head-row span:not(:first-child) { display: none; }
+  }
   .status-select-mini { font-family: 'DM Sans', sans-serif; font-size: 11px; font-weight: 600; padding: 4px 6px; border-radius: 6px; border: 1px solid var(--border); background: var(--surface); color: var(--ink); }
   /* 17/08: cor por status do item (Aguardando/Aberto/Fechado) — mesma paleta dos badges (.badge-red/.badge-green/.badge-slate).
      Escopado pela classe st-* (só nos selects de status do ITEM) pra não colorir o select de status do CICLO, que usa .status-select puro. */
@@ -2153,6 +2161,23 @@ function allCatalogDocs(item, cat) {
   return (cat && cat.docsFixed) ? cat.docsFixed : Object.keys(item.checks || {});
 }
 
+/* 26/08: nome de exibição mais curto pros chips de documento — só a exibição muda, o nome
+   completo continua sendo o dado real (title, dados, checks, export) e é usado no lookup e no
+   title do chip. Documento sem entrada aqui aparece com o nome completo mesmo (o CSS limita a
+   2 linhas com clamp). Adicione aqui conforme mais nomes longos aparecerem em outras rubricas. */
+const DOC_SHORT_LABELS = {
+  'Relatório de viagem técnico assinado': 'Relatório de viagem',
+  'Comprovante de depósito bancário da diária': 'Depósito da diária',
+  'Comprovante de embarque (aérea)': 'Comprovante de embarque',
+  'Nota fiscal / fatura de hospedagem (terrestre)': 'NF / fatura hospedagem',
+  'Certificado de participação em evento': 'Certificado do evento',
+  'Ata de reunião assinada (terrestre)': 'Ata assinada',
+  'Cupom fiscal local (terrestre)': 'Cupom fiscal',
+  'Declaração da empresa visitada (terrestre)': 'Declaração da visita',
+  'Verificação no Extrato CC': 'Verificação extrato CC',
+};
+function docShortLabel(doc) { return DOC_SHORT_LABELS[doc] || doc; }
+
 function matchesSearch(item, cat, term) {
   if (!term) return true;
   const t = term.toLowerCase();
@@ -3292,7 +3317,7 @@ function renderDetail() {
       ? `deleteCustomCheckFromItem('${item.id}','${safeDoc}')" title="Excluir este check personalizado (apaga de vez)"`
       : `hideDocumentForItem('${item.id}','${safeDoc}')" title="Ocultar este documento — não exclui, só some da visão"`;
     html += `<div class="doc-chip ${cls}${isCustom ? ' doc-chip-custom' : ''}" onclick="cycleCheck('${item.id}','${safeDoc}')" title="${escapeHtml(doc)}${isCustom ? ' (personalizado)' : ''} — clique pra alternar">
-      ${icon}<span class="doc-chip-label">${escapeHtml(doc)}</span>
+      ${icon}<span class="doc-chip-label">${escapeHtml(docShortLabel(doc))}</span>
       <button class="doc-chip-remove" onclick="event.stopPropagation(); ${removeAction}>&times;</button>
     </div>`;
   });
@@ -8797,15 +8822,18 @@ function renderTabelaRow(item, cat) {
     const status = item.checks[doc] || 'NA';
     const cls = status === 'OK' ? 'chip-ok' : status === 'NA' ? 'chip-na' : 'chip-pnd';
     const safeDoc = doc.replace(/'/g, "\\'");
-    return `<span class="doc-chip ${cls}" onclick="cycleCheck('${item.id}','${safeDoc}')" title="${escapeHtml(doc)} — clique pra alternar Pendente / OK / Não aplicável"><span class="doc-chip-text">${escapeHtml(doc)}</span><button class="doc-chip-remove" onclick="event.stopPropagation(); hideDocumentForItem('${item.id}','${safeDoc}')" title="Ocultar este documento">&times;</button></span>`;
+    const icon = status === 'OK' ? '✓' : status === 'NA' ? '–' : '○';
+    return `<span class="doc-chip ${cls}" onclick="cycleCheck('${item.id}','${safeDoc}')" title="${escapeHtml(doc)} — clique pra alternar Pendente / OK / Não aplicável"><span class="doc-chip-icon">${icon}</span><span class="doc-chip-text">${escapeHtml(docShortLabel(doc))}</span><button class="doc-chip-remove" onclick="event.stopPropagation(); hideDocumentForItem('${item.id}','${safeDoc}')" title="Ocultar este documento">&times;</button></span>`;
   }).join('') + (docsOcultos ? `<button class="tabela-doc-oculto-note" onclick="selectItem('${item.id}')" title="Gerenciar documentos ocultos na Área de Análise por item">+${docsOcultos} oculto${docsOcultos > 1 ? 's' : ''}</button>` : '');
   return `<div class="tabela-row${item.possivelRemovido ? ' tabela-row-removido' : ''}" draggable="true" data-item="${item.id}" ondragstart="handleItemDragStart(event,'${item.id}')" ondragend="handleItemDragEnd(event)" ondragover="handleItemDragOver(event)" ondragleave="handleItemDragLeave(event)" ondrop="handleItemDrop(event,'${item.id}')">
     <div class="tabela-cell-item">
-      <span class="item-drag-handle" title="Arrastar pra reordenar">⠿</span>
-      <div class="tabela-item-title">${escapeHtml(item.title)}</div>
-      <div class="tabela-item-sub">${escapeHtml(item.payeeName || item.subtitle || '')}</div>
+      <div class="tabela-item-head">
+        <span class="item-drag-handle" title="Arrastar pra reordenar">⠿</span>
+        <div class="tabela-item-title">${escapeHtml(item.title)}</div>
+      </div>
+      ${(item.payeeName || item.subtitle) ? `<div class="tabela-item-sub">${escapeHtml(item.payeeName || item.subtitle || '')}</div>` : ''}
+      <div class="tabela-cell-docs">${docsHtml || '<span class="tabela-doc-empty">Sem documento exigido.</span>'}</div>
     </div>
-    <div class="tabela-cell-docs">${docsHtml || '<span class="tabela-doc-empty">Sem documento exigido.</span>'}</div>
     <div>${editavel
       ? `<div class="editor-mini" contenteditable="true" data-item="${item.id}" data-field="comentarioAnalista" oninput="handleRichCommentInput(this)" data-placeholder="Sem comentário interno.">${richCommentHtml(entry, 'comentarioAnalista')}</div>`
       : `<div class="editor-mini field-text">${richCommentHtml(entry, 'comentarioAnalista') || 'Sem comentário interno.'}</div>`}</div>
@@ -8848,7 +8876,7 @@ function renderAnaliseTabela() {
         <div class="cat-header-right"><span class="cat-pct">${prog.pct}%</span><div class="cat-mini-bar"><div class="cat-mini-fill" style="width:${prog.pct}%"></div></div><span class="cat-count">${visibleItems.length}</span></div>
       </div>
       <div class="cat-items">
-        <div class="tabela-head-row"><span>Item</span><span>Documentos</span><span>Comentário do analista</span><span>Comentário ao executor</span><span>Resposta do executor</span><span>Status</span></div>
+        <div class="tabela-head-row"><span>Item / documentos</span><span>Comentário do analista</span><span>Comentário ao executor</span><span>Resposta do executor</span><span>Status</span></div>
         ${visibleItems.map(item => renderTabelaRow(item, cat)).join('')}
       </div>
     </div>`;
