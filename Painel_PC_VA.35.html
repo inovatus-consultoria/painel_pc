@@ -8446,7 +8446,7 @@ parseRefImportDraft = function(workbook) {
         if (totalIndex >= 0) blocks.forEach(block => { if (!block.cols.some(c => c.index === totalIndex)) block.cols.push({ index: totalIndex, raw: va14RefText(header[totalIndex]), label: 'VALOR TOTAL' }); });
       }
       if (!blocks.length) return;
-      const rangeEnd = hi + 1 < headerRows.length ? headerRows[hi + 1] : rows.length;
+      const rangeEnd = hi + 1 < headerRows.length ? headerRows[hi + 1] - 1 : rows.length;
       blocks.forEach(block => {
         for (let rowIndex = headerIndex + 1; rowIndex < rangeEnd; rowIndex++) {
           const row = rows[rowIndex] || [];
@@ -9332,4 +9332,3 @@ initApp();
 </script>
 </body>
 </html>
-
