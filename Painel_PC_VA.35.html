@@ -75,7 +75,14 @@
   .tree-badge.real { background: var(--accent2); color: #fff; }
   .tree-node.disabled { cursor: default; opacity: 0.55; }
 
-  .sidebar-foot { margin-top: auto; padding-top: 14px; border-top: 1px solid rgba(255,255,255,0.08); font-size: 10.5px; color: rgba(255,255,255,0.32); padding-left: 10px; line-height: 1.5; }
+  .sidebar-foot { margin-top: auto; padding: 14px 8px 0; border-top: 1px solid rgba(255,255,255,0.08); }
+  .sidebar-foot .user-info { display: flex; align-items: center; gap: 10px; padding: 8px; }
+  .sidebar-foot .user-avatar { width: 32px; height: 32px; border-radius: 50%; background: var(--accent); display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; color: #fff; flex-shrink: 0; }
+  .sidebar-foot .user-name { font-size: 12px; color: rgba(255,255,255,0.75); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .sidebar-foot .user-email { font-size: 10px; color: rgba(255,255,255,0.35); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .sidebar-foot .btn-logout { width: 100%; padding: 8px; background: rgba(255,255,255,0.05); border: none; border-radius: 6px; color: rgba(255,255,255,0.5); font-size: 12px; margin-top: 8px; cursor: pointer; transition: all .15s; font-family: 'DM Sans', sans-serif; }
+  .sidebar-foot .btn-logout:hover { background: rgba(255,255,255,0.1); color: rgba(255,255,255,0.8); }
+  .sidebar-foot .sidebar-version { font-size: 9px; color: rgba(255,255,255,0.2); text-align: center; margin-top: 8px; }
 
   /* ===== Main ===== */
   .main { flex: 1; min-width: 0; padding: 28px 32px 40px; }
@@ -190,6 +197,10 @@
 
   .removido-alert { display: flex; align-items: flex-start; gap: 10px; background: var(--amber-light); border: 1px solid #E8C86A; color: #8A6010; border-radius: 10px; padding: 12px 14px; font-size: 12.5px; margin-top: 16px; line-height: 1.5; }
   .removido-alert svg { width: 15px; height: 15px; flex-shrink: 0; margin-top: 1px; }
+  .item-card-removido { opacity: 0.62; background: var(--surface2); }
+  .item-card-removido:hover { opacity: 0.85; }
+  .ciclo-card-locked { filter: grayscale(0.6); opacity: 0.78; background: var(--surface2); border-radius: 10px; }
+  .tabela-row-removido { filter: grayscale(0.5); opacity: 0.7; }
 
   .section-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em; color: var(--ink3); margin: 22px 0 10px; display: flex; align-items: center; gap: 8px; }
   .btn-editar-retorno { margin-left: 6px; border: 1px solid #E8C86A; background: var(--amber-light); color: #8A6010; border-radius: 99px; padding: 4px 12px; font: 700 10.5px 'DM Sans', sans-serif; text-transform: none; letter-spacing: 0; cursor: pointer; }
@@ -616,18 +627,20 @@
   .cycle-control-row .spacer { flex: 1; }
   .detail-action-row { display: flex; gap: 8px; flex-wrap: wrap; }
   .detail-action-row .btn:disabled { opacity: .42; cursor: not-allowed; }
-  .summary-grid { display: grid; grid-template-columns: repeat(3, minmax(180px, 1fr)); gap: 8px 18px; }
-  .summary-row { padding: 9px 0; border-bottom: 1px solid var(--surface2); }
-  .summary-row-head { display: flex; justify-content: space-between; gap: 8px; font-size: 11.5px; }
-  .summary-row-name { font-weight: 700; color: var(--ink2); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .summary-row-meta { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
-  .summary-row-count { color: var(--ink3); }
-  /* 19/08: "N em aberto" separado do progresso (% analisado) — antes ficavam juntos numa
-     fração só ("N abertos / total · X%"), o que dava a entender que X% era proporção de abertos.
-     O selo cinza (0 abertos) vira vermelho quando há algo realmente aberto/pendente. */
-  .summary-row-open-badge { padding: 1px 7px; border-radius: 99px; font-weight: 700; font-size: 10.5px; background: var(--slate-light); color: var(--slate); border: 1px solid var(--border); white-space: nowrap; }
-  .summary-row-open-badge.has-open { background: var(--red-light); color: var(--red); border-color: #E8B8B8; }
-  .summary-row .track { height: 4px; background: var(--surface2); margin-top: 6px; border-radius: 99px; overflow: hidden; }
+  /* 26/08: virou cartão de verdade (antes era só uma linha com borda fina embaixo — sem
+     separação real entre rubricas, e nome/contagem/%/badge todos com o mesmo peso visual, o
+     olho não sabia onde pousar primeiro). Agora cada rubrica é uma caixa isolada; dentro dela,
+     o % é o elemento mais forte (o dado que realmente importa pra escanear rápido), o nome vira
+     rótulo secundário, "N itens" fica discreto, e o badge "N em aberto" só aparece quando N>0 —
+     com tudo zerado, não sobra ruído nenhum (10 selos cinza repetidos não davam nenhuma informação). */
+  .summary-grid { display: grid; grid-template-columns: repeat(3, minmax(180px, 1fr)); gap: 10px; }
+  .summary-row { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 12px 13px; min-width: 0; }
+  .summary-row-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+  .summary-row-pct { font-size: 20px; font-weight: 800; color: var(--accent2); line-height: 1; }
+  .summary-row-name { font-weight: 600; font-size: 12px; color: var(--ink2); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-top: 7px; }
+  .summary-row-count { color: var(--ink3); font-size: 10.5px; margin-top: 1px; }
+  .summary-row-open-badge { padding: 1px 7px; border-radius: 99px; font-weight: 700; font-size: 10.5px; background: var(--red-light); color: var(--red); border: 1px solid #E8B8B8; white-space: nowrap; flex-shrink: 0; }
+  .summary-row .track { height: 5px; background: var(--surface2); margin-top: 9px; border-radius: 99px; overflow: hidden; }
   .summary-row .fill { height: 100%; background: var(--accent2); }
   .cycle-comments-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
   .cycle-comment-field label { display: block; font-size: 10px; font-weight: 700; text-transform: uppercase; color: var(--ink3); margin-bottom: 5px; }
@@ -1036,7 +1049,7 @@
       Entrar com Microsoft
     </button>
   </div>
-  <div class="login-version">Painel PC · VA.14 · SharePoint Lists</div>
+  <div class="login-version">Versão da ferramenta atualizada em 26/08/2026</div>
 </div>
 
 <div id="loading-overlay">
@@ -1078,10 +1091,7 @@
     </div>
     <div class="tree-section-label">Empresas</div>
     <div class="tree" id="treeCol"></div>
-    <div class="sidebar-foot">
-      <div id="authStatus" style="margin-bottom:8px;"></div>
-      VA.14 · SharePoint Lists · Microsoft Graph
-    </div>
+    <div class="sidebar-foot" id="authStatus"></div>
   </aside>
 
   <main class="main">
@@ -1230,6 +1240,7 @@
       </select>
       <button class="filter-toggle" id="filtroDuvidaBtn" onclick="toggleFiltroDuvida()">Dúvida</button>
       <button class="filter-toggle" id="filtroDocumentoBtn" onclick="toggleFiltroDocumento()">Doc. pendente</button>
+      <button class="filter-toggle" id="filtroRemovidoBtn" onclick="toggleFiltroRemovido()" title="Mostrar só os itens possivelmente removidos">Removidos</button>
       <button class="filter-toggle" id="bulkModeButton" onclick="toggleBulkSelectionMode()">Selecionar</button>
       <button class="icon-btn filter-clear" onclick="clearAnalysisFilters()" title="Limpar filtros">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 12h8M10 18h4"/></svg>
@@ -1520,13 +1531,31 @@ function doLogout() {
   showLoginScreen();
   msalApp.logoutPopup({ account }).catch(() => {});
 }
+/* 26/08: rodapé no mesmo padrão do Painel Gestão de Projetos — avatar com iniciais, nome/email,
+   botão de logout (não link sublinhado) e uma linha de versão da ferramenta com data, sem citar
+   a stack técnica (SharePoint/Graph são detalhe de implementação, não interessam ao usuário). */
+const PAINEL_PC_VERSAO_DATA = '26/08/2026';
+function va22Initials(name) {
+  const parts = String(name || '').trim().split(/\s+/).filter(Boolean);
+  if (!parts.length) return 'U';
+  return (parts[0][0] + (parts.length > 1 ? parts[parts.length - 1][0] : '')).toUpperCase();
+}
 function renderAuthUI() {
   const el = document.getElementById('authStatus');
   if (!el) return;
   if (msalAccount) {
-    el.innerHTML = `Conectado como ${escapeHtml(msalAccount.name || msalAccount.username)} · <a href="#" onclick="doLogout();return false;" style="color:inherit;text-decoration:underline;">sair</a>`;
+    const name = msalAccount.name || msalAccount.username || 'Usuário';
+    el.innerHTML = `<div class="user-info">
+        <div class="user-avatar">${escapeHtml(va22Initials(name))}</div>
+        <div>
+          <div class="user-name">${escapeHtml(name)}</div>
+          <div class="user-email">${escapeHtml(msalAccount.username || '')}</div>
+        </div>
+      </div>
+      <button type="button" class="btn-logout" onclick="doLogout()">Sair</button>
+      <div class="sidebar-version">Versão da ferramenta atualizada em ${PAINEL_PC_VERSAO_DATA}</div>`;
   } else {
-    el.innerHTML = '';
+    el.innerHTML = `<div class="sidebar-version">Versão da ferramenta atualizada em ${PAINEL_PC_VERSAO_DATA}</div>`;
   }
 }
 
@@ -1970,6 +1999,7 @@ function toggleCicloEditOverride() {
   if (document.getElementById('pcDetailContent')) renderPCDetail();
 }
 let filtroDuvida = false; /* 08/07: filtro do responsável regulatório — só itens marcados com dúvida */
+let filtroRemovido = false; /* 26/08: isola só os possíveis removidos na lista — por padrão lista mostra tudo */
 
 /* ===== Nomenclatura do ciclo (03/07): Ciclo 1 = "1ª análise", Ciclo N (N>=2) = "(N-1)º retorno".
    É só rótulo de exibição — o eixo de status do ciclo (Aguardando análise/Em análise/.../Encerrado) não muda de nome. ===== */
@@ -2063,10 +2093,12 @@ function pcAt(ci, pi, pci) { return STORE.clients[ci].projects[pi].pcs[pci]; }
 
 function ultimoCiclo() { return DATA.meta.ciclos[DATA.meta.ciclos.length - 1]; }
 function cicloAtivo() { const u = ultimoCiclo(); return u.status !== 'ENCERRADO' ? u : null; }
-function isCicloEditavel(idx) {
+function isCicloEditavel(idx, item) {
+  if (cicloEditOverride) return true;
+  if (item && item.possivelRemovido) return false; // 26/08: item possível removido trava por padrão, igual retorno arquivado — mesmo botão "Editar mesmo assim" libera
   const c = DATA && DATA.meta && DATA.meta.ciclos[idx];
   if (!c) return true;
-  return c.status !== 'ENCERRADO' || cicloEditOverride; // 25/08: trava por padrão quando ENCERRADO, liberável pelo botão Editar (ver cicloEditOverride)
+  return c.status !== 'ENCERRADO'; // 25/08: trava por padrão quando ENCERRADO, liberável pelo botão Editar (ver cicloEditOverride)
 }
 
 function itemCicloStatus(item, idx) {
@@ -3132,7 +3164,7 @@ const _comentarioSyncTimers = {};
 function updateComentario(itemId, field, value) {
   const found = findItem(itemId);
   if (!found) return;
-  if (field !== 'executorResponse' && !isCicloEditavel(selectedCicloIdx)) return;
+  if (field !== 'executorResponse' && !isCicloEditavel(selectedCicloIdx, found.item)) return;
   const entry = found.item.ciclosStatus[selectedCicloIdx];
   entry[field] = value;
   /* 05/08: por padrão, escrever um comentário ao executor reabre o item (status ABERTO),
@@ -3176,7 +3208,7 @@ async function syncComentario(itemId, cicloIdx, field, value, alsoSyncStatus) {
 async function updateStatus(itemId, value) {
   const found = findItem(itemId);
   if (!found) return;
-  if (!isCicloEditavel(selectedCicloIdx)) return;
+  if (!isCicloEditavel(selectedCicloIdx, found.item)) return;
   const entry = found.item.ciclosStatus[selectedCicloIdx];
   entry.status = value;
   saveStore();
@@ -3203,7 +3235,7 @@ function renderDetail() {
   const { item, cat } = found;
   const valorFmt = fmtValor(item.valor);
   const docs = allCatalogDocs(item, cat);
-  const editavel = isCicloEditavel(selectedCicloIdx);
+  const editavel = isCicloEditavel(selectedCicloIdx, item);
   const entry = item.ciclosStatus[selectedCicloIdx] || { status: 'AGUARDANDO_ANALISE', comentarioAnalista: '', comentarioExecutor: '' };
   const numeroSel = DATA.meta.ciclos[selectedCicloIdx].numero;
 
@@ -3216,14 +3248,16 @@ function renderDetail() {
       </div>
       <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:flex-end;">
         ${valorFmt ? `<div class="detail-valor">${valorFmt}</div>` : ''}
-        <button class="btn btn-ghost btn-danger" onclick="deleteItem('${item.id}')">Excluir item</button>
+        ${editavel ? `<button class="btn btn-ghost btn-danger" onclick="deleteItem('${item.id}')">Excluir item</button>` : ''}
       </div>
     </div>`;
 
   if (item.possivelRemovido) {
     html += `<div class="removido-alert">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 9v4m0 4h.01M10.29 3.86l-8.18 14.18A2 2 0 004 21h16a2 2 0 001.89-2.96L13.71 3.86a2 2 0 00-3.42 0z"/></svg>
-      <div><b>Possível removido.</b> Este item existia numa PC anterior deste projeto e não foi encontrado no relatório Prompt importado para esta PC. <i>(placeholder de layout)</i></div>
+      <div><b>Possível removido.</b> Este item existia numa PC anterior deste projeto e não foi encontrado no relatório importado para esta PC — não será mais analisado. ${editavel
+        ? `Edição liberada temporariamente. <button type="button" class="btn-editar-retorno btn-editar-retorno-fechar" onclick="toggleCicloEditOverride()">🔓 Fechar edição</button>`
+        : `Campos travados pra evitar análise por engano. <button type="button" class="btn-editar-retorno" onclick="toggleCicloEditOverride()">🔒 Editar mesmo assim</button>`}</div>
     </div>`;
   }
 
@@ -3279,7 +3313,7 @@ function renderDetail() {
         ? ' — edição temporária <button type="button" class="btn-editar-retorno btn-editar-retorno-fechar" onclick="toggleCicloEditOverride()">🔓 Fechar edição</button>'
         : ' — arquivado, somente leitura <button type="button" class="btn-editar-retorno" onclick="toggleCicloEditOverride()">🔒 Editar mesmo assim</button>');
   html += `<div class="section-label">${escapeHtml(cicloLabel(numeroSel))}${cicloStatusNote}</div>`;
-  html += `<div class="ciclo-card">
+  html += `<div class="ciclo-card${item.possivelRemovido && !editavel ? ' ciclo-card-locked' : ''}">
       <div class="ciclo-head">
         <span class="ciclo-num">Status do item neste retorno</span>
         ${editavel
@@ -4189,7 +4223,7 @@ function renderPCDetail() {
     : `<div class="portfolio-empty">Nenhum ciclo criado.</div>`;
 
   const categorySummary = DATA.categories.length
-    ? `<div class="summary-grid">${DATA.categories.map(cat => { const cm = categoryMetrics(pc, selectedCicloIdx, cat); return `<div class="summary-row"><div class="summary-row-head"><span class="summary-row-name" title="${escapeHtml(cat.label)}">${escapeHtml(shortRubricaCardLabel(cat.label))}</span><span class="summary-row-meta"><span class="summary-row-count">${cm.total} itens · ${cm.pct}% analisado</span><span class="summary-row-open-badge${cm.open ? ' has-open' : ''}">${cm.open} em aberto</span></span></div><div class="track"><div class="fill" style="width:${cm.pct}%"></div></div></div>`; }).join('')}</div>`
+    ? `<div class="summary-grid">${DATA.categories.map(cat => { const cm = categoryMetrics(pc, selectedCicloIdx, cat); return `<div class="summary-row"><div class="summary-row-head"><span class="summary-row-pct">${cm.pct}%</span>${cm.open ? `<span class="summary-row-open-badge">${cm.open} em aberto</span>` : ''}</div><div class="summary-row-name" title="${escapeHtml(cat.label)}">${escapeHtml(shortRubricaCardLabel(cat.label))}</div><div class="summary-row-count">${cm.total} ${cm.total === 1 ? 'item' : 'itens'}</div><div class="track"><div class="fill" style="width:${cm.pct}%"></div></div></div>`; }).join('')}</div>`
     : `<div class="portfolio-empty">Nenhum item nesta PC.</div>`;
 
   const sources = (m.fontes || []).length
@@ -4582,6 +4616,7 @@ function renderAnalysisFilters() {
   document.getElementById('analysisStatusFilter').value = analysisFilterStatus;
   document.getElementById('filtroDuvidaBtn').classList.toggle('active', filtroDuvida);
   document.getElementById('filtroDocumentoBtn').classList.toggle('active', filtroDocumento);
+  document.getElementById('filtroRemovidoBtn').classList.toggle('active', filtroRemovido);
 }
 
 function setAnalysisFilter(type, value) {
@@ -4602,11 +4637,18 @@ function toggleFiltroDocumento() {
   renderList();
 }
 
+function toggleFiltroRemovido() {
+  filtroRemovido = !filtroRemovido;
+  document.getElementById('filtroRemovidoBtn').classList.toggle('active', filtroRemovido);
+  renderList();
+}
+
 function clearAnalysisFilters() {
   analysisFilterCategory = '';
   analysisFilterStatus = '';
   filtroDuvida = false;
   filtroDocumento = false;
+  filtroRemovido = false;
   searchTerm = '';
   document.getElementById('searchInput').value = '';
   renderAnalysisFilters();
@@ -4623,6 +4665,7 @@ function renderList() {
       if (!matchesSearch(item, cat, searchTerm)) return false;
       if (filtroDuvida && !itemTemDuvida(item, selectedCicloIdx)) return false;
       if (filtroDocumento && !itemHasPendingDocument(item, cat)) return false;
+      if (filtroRemovido && !item.possivelRemovido) return false;
       if (analysisFilterStatus && itemCicloStatus(item, selectedCicloIdx) !== analysisFilterStatus) return false;
       return true;
     }));
@@ -4632,7 +4675,11 @@ function renderList() {
     html += `<div class="cat-group" data-cat="${escapeHtml(cat.id)}"><div class="cat-header" onclick="toggleCat('${cat.id}')"><div class="cat-header-left"><span class="cat-chevron"></span><span class="cat-title">${escapeHtml(cat.label)}</span></div><div class="cat-header-right"><span class="cat-pct">${prog.pct}%</span><div class="cat-mini-bar"><div class="cat-mini-fill" style="width:${prog.pct}%"></div></div><span class="cat-count">${visibleItems.length}</span></div></div><div class="cat-items">`;
     visibleItems.forEach(item => {
       const status = itemCicloStatus(item, selectedCicloIdx);
-      html += `<div class="item-card${item.id === selectedItemId ? ' selected' : ''}" draggable="true" data-item="${item.id}" ondragstart="handleItemDragStart(event,'${item.id}')" ondragend="handleItemDragEnd(event)" ondragover="handleItemDragOver(event)" ondragleave="handleItemDragLeave(event)" ondrop="handleItemDrop(event,'${item.id}')" onclick="selectItem('${item.id}')"><span class="item-drag-handle" title="Arrastar pra reordenar">⠿</span><span class="item-status-dot ${dotClass(status)}"></span><div class="item-card-body"><div class="item-card-title">${escapeHtml(item.title)}</div><div class="item-card-sub">${escapeHtml(item.payeeName || item.subtitle || 'Sem detalhamento')}</div></div><div class="item-card-badges">${itemTemDuvida(item, selectedCicloIdx) ? '<span class="badge badge-duvida">? Dúvida</span>' : ''}${itemHasPendingDocument(item, cat) ? '<span class="badge badge-amber">Doc. pendente</span>' : ''}<span class="badge ${statusBadgeClass(status)}">${STATUS_LABELS[status]}</span></div></div>`;
+      const removido = !!item.possivelRemovido;
+      const badgesHtml = removido
+        ? '<span class="badge badge-removido" title="Item presente na PC anterior, não encontrado no relatório importado desta PC. Não será mais analisado.">Possível removido</span>'
+        : `${itemTemDuvida(item, selectedCicloIdx) ? '<span class="badge badge-duvida">? Dúvida</span>' : ''}${itemHasPendingDocument(item, cat) ? '<span class="badge badge-amber">Doc. pendente</span>' : ''}<span class="badge ${statusBadgeClass(status)}">${STATUS_LABELS[status]}</span>`;
+      html += `<div class="item-card${item.id === selectedItemId ? ' selected' : ''}${removido ? ' item-card-removido' : ''}" draggable="true" data-item="${item.id}" ondragstart="handleItemDragStart(event,'${item.id}')" ondragend="handleItemDragEnd(event)" ondragover="handleItemDragOver(event)" ondragleave="handleItemDragLeave(event)" ondrop="handleItemDrop(event,'${item.id}')" onclick="selectItem('${item.id}')"><span class="item-drag-handle" title="Arrastar pra reordenar">⠿</span><span class="item-status-dot ${dotClass(status)}"></span><div class="item-card-body"><div class="item-card-title">${escapeHtml(item.title)}</div><div class="item-card-sub">${escapeHtml(item.payeeName || item.subtitle || 'Sem detalhamento')}</div></div><div class="item-card-badges">${badgesHtml}</div></div>`;
     });
     html += '</div></div>';
   });
@@ -5152,7 +5199,7 @@ function parsePromptImportDraft(workbook) {
     const docs = info.docsFixed || info.docsDefault || ['Comprovante'];
     const sourceKey = stableSourceKey([pcNumber, info.id, budgetRaw, descriptionRaw, paymentDate, documentDate, amount]);
     const item = {
-      title: String(budgetRaw || descriptionRaw || 'Item sem descrição').slice(0, 250), sourceKey, sourceType: 'Prompt',
+      title: va14ShortTitleText(budgetRaw || (descriptionRaw ? String(descriptionRaw).split(' | ')[0] : '') || 'Item sem descrição', 90), sourceKey, sourceType: 'Prompt',
       categoryId: info.id, categoryLabel: info.label, expenseType: '', budgetItem: String(budgetRaw || ''),
       description: descriptionRaw, payeeName: '', payeeDocumentMasked: '', paymentDate, documentDate, amount, incomeAmount,
       checks: Object.fromEntries(docs.map(doc => [doc, 'NA'])), sourceSheetName: 'Todas as Despesas',
@@ -8285,7 +8332,17 @@ function va14RefHeader(rows,code){const re=new RegExp('^'+code+'\.\d+\b','i');re
 function va14RefColumns(row,code){const re=new RegExp('^'+code+'\.\d+\b','i');return (row||[]).map((v,index)=>({v,index})).filter(x=>re.test(va14RefText(x.v))).map(x=>({index:x.index,raw:va14RefText(x.v),label:va14RefText(x.v).replace(/^[A-Z]\d*\.\d+\s*[-–:]?\s*/i,'')}));}
 function va14RefFields(row,cols){const fields={};cols.forEach(c=>{if(!va14RefEmpty(row[c.index]))fields[c.label||c.raw]=maskSensitive(row[c.index]);});return fields;}
 function va14RefFind(cols,re){return cols.find(c=>re.test(foldText(c.label)));}
-function va14RefImportItem(meta,sheetName,rowIndex,item,fields,cols,extra){const descCols=cols.filter(c=>/DESCRICAO|DESPESA|ATIVIDADE|SERVICO|MATERIAL|JUSTIFICATIVA|DETALHAMENTO|OBJETO|FINALIDADE/i.test(c.label));const description=descCols.map(c=>fields[c.label||c.raw]).filter(Boolean).join(' | ')||Object.values(fields).map(va14RefText).filter(Boolean).slice(0,2).join(' | ')||meta.label;const amountCol=(meta.code==='F'&&cols.find(c=>/^VALOR TOTAL/.test(foldText(c.label))))||va14RefFind(cols,/VALOR|CUSTO|REMUNERACAO|REMUNERAÇÃO/),dateCol=va14RefFind(cols,/DATA DE EMISSAO|DATA DE EMISSÃO|DATA DO COMPROVANTE|DATA DE ENCERRAMENTO/),payeeCol=va14RefFind(cols,/QUEM RECEBEU|FORNECEDOR|BENEFICIARIO|BENEFICIÁRIO|RAZAO SOCIAL|RAZÃO SOCIAL|NOME/),docCol=va14RefFind(cols,/CPF|CNPJ/);const amount=amountCol?excelNumber(fields[amountCol.label||amountCol.raw]):null,warnings=[];if(amount===null&&meta.code!=='D'&&meta.code!=='E')warnings.push('Valor não identificado automaticamente.');return {title:(item+' - '+description).slice(0,250),sourceKey:'REF|'+meta.code+'|'+item,sourceType:'REF',categoryId:meta.id,categoryLabel:meta.label,expenseType:'',budgetItem:String(item),description,payeeName:payeeCol?va14RefText(fields[payeeCol.label||payeeCol.raw]):'',payeeDocumentMasked:docCol?va14RefText(fields[docCol.label||docCol.raw]):'',paymentDate:null,documentDate:dateCol?toIsoDateCell(fields[dateCol.label||dateCol.raw]):null,amount,incomeAmount:null,checks:Object.fromEntries((REF_DOCUMENTS_BY_CODE[meta.code] || []).map(doc => [doc, 'PND'])),sourceSheetName:sheetName,sourceRowNumber:rowIndex+1,importWarnings:warnings.join(' '),possibleRemoved:false,canonicalData:{schemaVersion:2,source:'REF',sheet:sheetName,category:meta.label,categoryCode:meta.code,item:String(item),sourceRowNumber:rowIndex+1,fields:{...fields,...(extra||{})}}};}
+/* 26/08: título curto — antes usava a descrição inteira concatenada (todas as colunas de
+   descrição juntas) como título em negrito, o que ficava enorme e ilegível. Agora o título é
+   só um trecho curto: pra rubrica F (equipe) usa o nome do favorecido quando identificado;
+   pras demais, pega só o primeiro trecho de descrição (não todos concatenados) e corta curto.
+   O campo `description` continua completo — é ele que alimenta o subtítulo/detalhamento. */
+function va14ShortTitleText(text, max) {
+  const t = String(text || '').trim();
+  if (!t) return '';
+  return t.length > max ? t.slice(0, max - 1).trim() + '…' : t;
+}
+function va14RefImportItem(meta,sheetName,rowIndex,item,fields,cols,extra){const descCols=cols.filter(c=>/DESCRICAO|DESPESA|ATIVIDADE|SERVICO|MATERIAL|JUSTIFICATIVA|DETALHAMENTO|OBJETO|FINALIDADE/i.test(c.label));const description=descCols.map(c=>fields[c.label||c.raw]).filter(Boolean).join(' | ')||Object.values(fields).map(va14RefText).filter(Boolean).slice(0,2).join(' | ')||meta.label;const amountCol=(meta.code==='F'&&cols.find(c=>/^VALOR TOTAL/.test(foldText(c.label))))||va14RefFind(cols,/VALOR|CUSTO|REMUNERACAO|REMUNERAÇÃO/),dateCol=va14RefFind(cols,/DATA DE EMISSAO|DATA DE EMISSÃO|DATA DO COMPROVANTE|DATA DE ENCERRAMENTO/),payeeCol=va14RefFind(cols,/QUEM RECEBEU|FORNECEDOR|BENEFICIARIO|BENEFICIÁRIO|RAZAO SOCIAL|RAZÃO SOCIAL|NOME/),docCol=va14RefFind(cols,/CPF|CNPJ/);const amount=amountCol?excelNumber(fields[amountCol.label||amountCol.raw]):null,warnings=[];if(amount===null&&meta.code!=='D'&&meta.code!=='E')warnings.push('Valor não identificado automaticamente.');const payeeName=payeeCol?va14RefText(fields[payeeCol.label||payeeCol.raw]):'';const shortDescFirst=va14ShortTitleText((descCols[0]&&fields[descCols[0].label||descCols[0].raw])||description.split(' | ')[0],70);const title=(meta.code==='F'&&payeeName)?va14ShortTitleText(payeeName,250):va14ShortTitleText(item+(shortDescFirst?' - '+shortDescFirst:''),90);return {title,sourceKey:'REF|'+meta.code+'|'+item,sourceType:'REF',categoryId:meta.id,categoryLabel:meta.label,expenseType:'',budgetItem:String(item),description,payeeName,payeeDocumentMasked:docCol?va14RefText(fields[docCol.label||docCol.raw]):'',paymentDate:null,documentDate:dateCol?toIsoDateCell(fields[dateCol.label||dateCol.raw]):null,amount,incomeAmount:null,checks:Object.fromEntries((REF_DOCUMENTS_BY_CODE[meta.code] || []).map(doc => [doc, 'PND'])),sourceSheetName:sheetName,sourceRowNumber:rowIndex+1,importWarnings:warnings.join(' '),possibleRemoved:false,canonicalData:{schemaVersion:2,source:'REF',sheet:sheetName,category:meta.label,categoryCode:meta.code,item:String(item),sourceRowNumber:rowIndex+1,fields:{...fields,...(extra||{})}}};}
 parseRefImportDraft=function(workbook){const items=[],warnings=[],sheetInfo=new Map((((workbook.Workbook||{}).Sheets)||[]).map(x=>[x.name,x]));workbook.SheetNames.forEach(sheetName=>{const meta=va14RefMeta(sheetName);if(!meta.code||(sheetInfo.get(sheetName)||{}).Hidden)return;const rows=XLSX.utils.sheet_to_json(workbook.Sheets[sheetName],{header:1,defval:null,raw:true}),h=va14RefHeader(rows,meta.code);if(h<0)return;const header=rows[h]||[];let cols=va14RefColumns(header,meta.code);if(meta.code==='F'){const totalIndex=header.findIndex(v=>/^VALOR TOTAL/.test(foldText(v)));if(totalIndex>=0)cols.push({index:totalIndex,raw:va14RefText(header[totalIndex]),label:'VALOR TOTAL'});}if(!cols.length)return;const itemCol=header.findIndex(v=>foldText(v)==='ITEM');let gaps=0,teamIndex=0;for(let r=h+1;r<rows.length;r++){const row=rows[r]||[],fields=va14RefFields(row,cols);if(!Object.keys(fields).length){if(++gaps>2)break;continue;}gaps=0;if(meta.code==='D'){const name=Object.entries(fields).find(([k])=>/NOME/i.test(k)),cpf=Object.entries(fields).find(([k])=>/CPF/i.test(k));if(!name&&!cpf)continue;teamIndex++;items.push(va14RefImportItem(meta,sheetName,r,String(r+1),fields,cols,{teamIndex,teamLine:r+1,teamName:name?name[1]:'',teamCpf:cpf?cpf[1]:''}));}else{const item=va14RefText(itemCol>=0?row[itemCol]:row[0]);if(!item||/^(ITEM|TOTAL)/i.test(item))continue;items.push(va14RefImportItem(meta,sheetName,r,item,fields,cols));}}});if(!items.length)warnings.push('Nenhuma linha preenchida foi encontrada nas abas de rubricas do REF.');return {groups:items.length?[{key:'REF',label:'Itens preenchidos do REF',items}]:[],warnings};};
 compareImportItems=function(items,sourceType){const all=DATA.categories.flatMap(category=>category.items.map(item=>({category,item}))),id=item=>{const c=item.canonicalData||{};return foldText(c.source)+'|'+foldText(c.categoryCode||va13CategoryCode(item.sourceSheetName||item.categoryLabel||''))+'|'+va13ItemKey(c.item||item.budgetItem||item.sourceItemKey);},old=all.filter(x=>foldText((x.item.canonicalData||{}).source)===foldText(sourceType)),byId=new Map(old.map(x=>[id(x.item),x])),keys=new Set(items.map(id)),rows=items.map(imported=>{const existing=byId.get(id(imported));return existing?{state:importedItemFingerprint(imported)===importedItemFingerprint(existing.item)?'unchanged':'changed',imported,existing}:{state:'new',imported,existing:null};}),removed=old.filter(x=>!keys.has(id(x.item))).map(existing=>({state:'removed',imported:null,existing}));return {rows,removed,counts:{new:rows.filter(x=>x.state==='new').length,changed:rows.filter(x=>x.state==='changed').length,unchanged:rows.filter(x=>x.state==='unchanged').length,removed:removed.length,warnings:items.filter(x=>x.importWarnings).length}};};
 const va14BaseChecklistParser=parseChecklistImportDraft;
@@ -8733,7 +8790,7 @@ function setAnaliseView(mode) {
 
 function renderTabelaRow(item, cat) {
   const entry = item.ciclosStatus[selectedCicloIdx] || { status: 'AGUARDANDO_ANALISE', comentarioAnalista: '', comentarioExecutor: '', executorResponse: '', duvida: false };
-  const editavel = isCicloEditavel(selectedCicloIdx);
+  const editavel = isCicloEditavel(selectedCicloIdx, item);
   const docs = allCatalogDocs(item, cat).filter(doc => !isDocHidden(item, doc));
   const docsOcultos = (item.hiddenDocs || []).length;
   const docsHtml = docs.map(doc => {
@@ -8742,7 +8799,7 @@ function renderTabelaRow(item, cat) {
     const safeDoc = doc.replace(/'/g, "\\'");
     return `<span class="doc-chip ${cls}" onclick="cycleCheck('${item.id}','${safeDoc}')" title="${escapeHtml(doc)} — clique pra alternar Pendente / OK / Não aplicável"><span class="doc-chip-text">${escapeHtml(doc)}</span><button class="doc-chip-remove" onclick="event.stopPropagation(); hideDocumentForItem('${item.id}','${safeDoc}')" title="Ocultar este documento">&times;</button></span>`;
   }).join('') + (docsOcultos ? `<button class="tabela-doc-oculto-note" onclick="selectItem('${item.id}')" title="Gerenciar documentos ocultos na Área de Análise por item">+${docsOcultos} oculto${docsOcultos > 1 ? 's' : ''}</button>` : '');
-  return `<div class="tabela-row" draggable="true" data-item="${item.id}" ondragstart="handleItemDragStart(event,'${item.id}')" ondragend="handleItemDragEnd(event)" ondragover="handleItemDragOver(event)" ondragleave="handleItemDragLeave(event)" ondrop="handleItemDrop(event,'${item.id}')">
+  return `<div class="tabela-row${item.possivelRemovido ? ' tabela-row-removido' : ''}" draggable="true" data-item="${item.id}" ondragstart="handleItemDragStart(event,'${item.id}')" ondragend="handleItemDragEnd(event)" ondragover="handleItemDragOver(event)" ondragleave="handleItemDragLeave(event)" ondrop="handleItemDrop(event,'${item.id}')">
     <div class="tabela-cell-item">
       <span class="item-drag-handle" title="Arrastar pra reordenar">⠿</span>
       <div class="tabela-item-title">${escapeHtml(item.title)}</div>
@@ -8778,6 +8835,7 @@ function renderAnaliseTabela() {
       if (!matchesSearch(item, cat, searchTerm)) return false;
       if (filtroDuvida && !itemTemDuvida(item, selectedCicloIdx)) return false;
       if (filtroDocumento && !itemHasPendingDocument(item, cat)) return false;
+      if (filtroRemovido && !item.possivelRemovido) return false;
       if (analysisFilterStatus && itemCicloStatus(item, selectedCicloIdx) !== analysisFilterStatus) return false;
       return true;
     }));
@@ -9107,7 +9165,7 @@ function va18NormalizedItemFromRow(row) {
   const meta = va14RefMeta(sheetNameLike);
   const docs = REF_DOCUMENTS_BY_CODE[row.rubrica] || ['Comprovante'];
   return {
-    title: (row.itemKey + (row.descricao ? ' - ' + row.descricao : '')).slice(0, 250), sourceKey: 'PREVIA|' + row.rubrica + '|' + row.itemKey, sourceType: 'Previa',
+    title: (row.rubrica === 'F' && row.beneficiario) ? va14ShortTitleText(row.beneficiario, 250) : va14ShortTitleText(row.itemKey + (row.descricao ? ' - ' + row.descricao.split(' | ')[0] : ''), 90), sourceKey: 'PREVIA|' + row.rubrica + '|' + row.itemKey, sourceType: 'Previa',
     categoryId: meta.id, categoryLabel: meta.label, expenseType: '', budgetItem: row.itemKey, description: row.descricao,
     payeeName: row.beneficiario, payeeDocumentMasked: row.documento, paymentDate: null, documentDate: row.data || null,
     amount: row.valor, incomeAmount: null, checks: Object.fromEntries(docs.map(doc => [doc, 'NA'])),
