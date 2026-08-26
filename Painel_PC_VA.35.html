@@ -7467,33 +7467,44 @@ function va21NumeroRowHtml(row, comparison) {
   }).join('');
   const newKey = va19ItemKeyText(row.imported) || '(sem numero)';
   const changedNote = paired && row.manualAssoc ? ' <span class="assoc-note">associado manualmente</span>' : '';
+  const { bucket, badge } = va19RowBucket(row);
   return `<tr>
     <td class="item-cell">${escapeHtml(newKey)}</td>
     <td><select class="assoc-select" onchange="va19AssociateNew(${idx}, this.value)"><option value="">-- nenhum, item novo --</option>${options}</select>${changedNote}</td>
+    <td><span class="badge-state ${bucket}">${badge}</span></td>
+  </tr>`;
+}
+
+// linha de um item que existia antes e nao foi reivindicado por nenhuma linha nova
+// (nao tem contrapartida "novo" pra associar dali -- so aparece pra visibilidade,
+// igual Ricardo pediu: coluna Novo vazia, Status = Removido).
+function va21RemovidoRowHtml(entry) {
+  const label = va19ItemKeyText(entry.item) || '(sem numero)';
+  return `<tr>
+    <td class="item-cell">&mdash;</td>
+    <td>${escapeHtml(label)}</td>
+    <td><span class="badge-state removido">Removido</span></td>
   </tr>`;
 }
 
 function va21NumeroTabHtml(categoryGroups, comparison) {
   return categoryGroups.map(group => {
     const rows = group.rows.filter(row => row.imported);
-    if (!rows.length) return '';
-    const rowsHtml = rows.map(row => va21NumeroRowHtml(row, comparison)).join('');
     const orphanEntries = (comparison.existingPool || [])
       .filter(entry => entry.category.id === group.id && !rows.some(row => va21CurrentPairing(row) === entry))
       .sort((a, b) => va21NaturalKeyCompare(va19ItemKeyText(a.item), va19ItemKeyText(b.item)));
-    const orphansHtml = orphanEntries.length
-      ? `<p class="modal-hint">Nao usados nesta importacao: ${orphanEntries.map(e => escapeHtml(va19ItemKeyText(e.item) || '(sem numero)')).join(', ')} <i>(ficam "possivel removido" se continuar assim)</i></p>`
-      : '';
+    if (!rows.length && !orphanEntries.length) return '';
+    const rowsHtml = rows.map(row => va21NumeroRowHtml(row, comparison)).join('')
+      + orphanEntries.map(entry => va21RemovidoRowHtml(entry)).join('');
     return `<div class="cat-section">
       <div class="cat-head" onclick="va19ToggleCategory(this)">
         <div class="chev"></div>
         <div class="name">${escapeHtml(group.label)}</div>
       </div>
       <table>
-        <thead><tr><th style="width:20%">No (novo)</th><th style="width:80%">Associado ao item existente</th></tr></thead>
+        <thead><tr><th style="width:15%">Novo</th><th style="width:65%">Antigo</th><th style="width:20%">Status</th></tr></thead>
         <tbody>${rowsHtml}</tbody>
       </table>
-      ${orphansHtml}
     </div>`;
   }).join('');
 }
@@ -7542,6 +7553,13 @@ renderImportStep2 = function() {
     const catLabel = row.imported.categoryLabel;
     if (!numeroCategoriesMap.has(catId)) numeroCategoriesMap.set(catId, { id: catId, label: catLabel, rows: [] });
     numeroCategoriesMap.get(catId).rows.push(row);
+  });
+  // categorias que so tem item removido (nenhuma linha nova importada pra rubrica) nao
+  // apareceriam no map acima -- garante que elas tambem entrem, so pra listar os
+  // "removidos" (Ricardo pediu pra aparecerem sempre nessa aba).
+  (comparison.existingPool || []).forEach(entry => {
+    const catId = entry.category.id;
+    if (!numeroCategoriesMap.has(catId)) numeroCategoriesMap.set(catId, { id: catId, label: entry.category.label, rows: [] });
   });
   const numeroCategoryGroups = [...numeroCategoriesMap.values()].sort((a, b) => a.label.localeCompare(b.label, 'pt-BR'));
 
