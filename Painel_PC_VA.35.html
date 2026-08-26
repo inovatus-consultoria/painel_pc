@@ -208,30 +208,25 @@
   .btn-editar-retorno-fechar { border-color: var(--border); background: var(--slate-light); color: var(--slate); }
   .section-note { font-size: 10.5px; font-weight: 500; text-transform: none; letter-spacing: 0; color: var(--ink3); }
 
-  /* --- Document chips: compactos, OK/PND e remoção por item ---
-     26/08: revisão de layout — chips mais compactos (tag/check em vez de card),
-     nome de exibição pode ser encurtado via DOC_SHORT_LABELS (nome completo
-     continua no title e nos dados, só a exibição muda — ver docShortLabel()),
-     e o botão de remover só aparece no hover/foco (acessível por teclado via
-     :focus-within, já que o botão real recebe foco por Tab normalmente). */
-  .doc-grid { display: flex; flex-wrap: wrap; gap: 5px 6px; }
-  .doc-grid-compact { gap: 4px 6px; }
+  /* --- Document chips: compactos, OK/PND e remoção por item --- */
+  .doc-grid, .doc-grid-compact { display: flex; flex-wrap: wrap; gap: 5px; }
+  .doc-grid-compact { gap: 4px; }
   .section-label-toggle { cursor: pointer; user-select: none; }
   .section-label-toggle .cat-chevron { transition: transform .12s; }
   .section-label-toggle .cat-chevron-open { transform: rotate(90deg); }
   .doc-chip-custom { border-style: dashed; }
   .doc-chip-add { background: transparent; border: 1px dashed var(--border); color: var(--accent2); justify-content: center; cursor: pointer; }
   .doc-chip-add:hover { border-color: var(--accent2); background: var(--green-light); }
-  .doc-chip { min-width:0; display:flex; align-items:center; gap:5px; min-height:27px; border-radius:6px; padding:4px 7px 4px 9px; font-size:11px; line-height:1.25; font-weight:600; cursor:pointer; border:1px solid transparent; transition:filter .12s; user-select:none; position:relative; }
+  .doc-chip { min-width:0; max-width:190px; min-height:27px; display:flex; align-items:center; gap:5px; border-radius:6px; padding:4px 7px 4px 9px; font-size:11px; line-height:1.2; font-weight:600; cursor:pointer; border:1px solid transparent; transition:filter .12s; user-select:none; }
   .doc-chip:hover { filter: brightness(0.97); }
   .doc-chip.chip-ok { background: var(--green-light); color: var(--green); border-color: #cfe6dd; }
   .doc-chip.chip-pnd { background: var(--amber-light); color: #8A6010; border-color: #efe0bd; }
   .doc-chip.chip-na { background: var(--slate-light); color: var(--slate); border-color: var(--border); opacity: .8; }
   .doc-chip-icon { width:12px; height:12px; flex-shrink:0; }
-  .doc-chip-label, .doc-chip-text { min-width:0; max-width: 190px; overflow-wrap:anywhere; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
-  .doc-chip-remove { width:16px; height:16px; flex:0 0 16px; display:grid; place-items:center; padding:0; border:0; border-radius:50%; background:transparent; color:currentColor; opacity:0; cursor:pointer; font:700 13px/1 'DM Sans',sans-serif; transition:opacity .12s; }
-  .doc-chip:hover .doc-chip-remove, .doc-chip:focus-within .doc-chip-remove { opacity:.62; }
-  .doc-chip-remove:hover, .doc-chip-remove:focus { opacity:1; background:rgba(255,255,255,.7); }
+  .doc-chip-label, .doc-chip-text { min-width:0; max-width:190px; flex:1; overflow-wrap:anywhere; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+  .doc-chip-remove { width:18px; height:18px; flex:0 0 18px; display:grid; place-items:center; padding:0; border:0; border-radius:50%; background:transparent; color:currentColor; opacity:0; cursor:pointer; font:700 14px/1 'DM Sans',sans-serif; transition:opacity .12s; }
+  .doc-chip:hover .doc-chip-remove, .doc-chip:focus-within .doc-chip-remove { opacity:.58; }
+  .doc-chip-remove:hover { opacity:1 !important; background:rgba(255,255,255,.7); }
   .doc-restore-btn { margin-left:auto; border:0; background:transparent; color:var(--accent); padding:2px 0; cursor:pointer; font:700 10.5px 'DM Sans',sans-serif; text-transform:none; letter-spacing:0; }
   .doc-hidden-bar { display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; font-size:11px; color:var(--ink3); background:var(--slate-light); border:1px solid var(--border); border-radius:8px; padding:6px 10px; margin-top:6px; }
   .doc-hidden-pill { border:1px solid var(--border); background:var(--surface); color:var(--ink3); border-radius:99px; padding:2px 8px; margin:2px; cursor:pointer; font-size:10.5px; }
@@ -276,28 +271,22 @@
   /* ===== Visão consolidada da Área de Análise — tabela com todo o conteúdo sempre visível
      (17/08: reversão do comportamento retrátil de 05/08 — Ricardo prefere ver tudo de cara,
      sem precisar passar o mouse ou focar o campo; cada linha simplesmente cresce com o conteúdo). ===== */
-  /* 26/08: item e documentos deixam de ser 2 colunas paralelas — os checks agora vivem DENTRO
-     da 1ª célula (.tabela-cell-item), logo abaixo do título, ocupando toda a largura dela e
-     quebrando linha livremente (flex-wrap). A 1ª coluna do grid fica bem mais larga (2.1fr em vez
-     dos antigos 200px) justamente pra dar espaço pros documentos; as outras 4 colunas (comentário
-     analista, comentário executor, resposta, status) continuam como estavam. */
+  /* 26/08 (VA.38, reconstruída — ver MEMORY_v4.md): item e documentos deixam de ser 2 colunas
+     paralelas estreitas (200px cada, nome de documento truncava e a coluna desperdiçava largura
+     que os campos de comentário precisavam) — viram 1 célula só (.tabela-cell-item), documentos
+     empilhados/flex-wrap logo abaixo do título. Grid continua de verdade, agora com 5 colunas. */
   .tabela-head-row, .tabela-row {
     display: grid; grid-template-columns: minmax(280px, 2.1fr) 1fr 1fr 1fr 90px;
-    gap: 10px 14px; padding: 12px 10px; align-items: start; border-bottom: 1px solid var(--border);
+    gap: 10px; padding: 10px; align-items: start; border-bottom: 1px solid var(--border);
   }
-  .tabela-head-row { position: sticky; top: 0; z-index: 2; font-size: 11px; font-weight: 700; color: var(--ink2); background: var(--surface2); border-radius: 6px; padding: 8px 10px; }
+  .tabela-head-row { position: sticky; top: 0; z-index: 2; font-size: 11px; font-weight: 700; color: var(--ink2); background: var(--surface2); border-radius: 6px; }
   .tabela-row:hover { background: var(--surface2); }
-  .tabela-cell-item { display: flex; flex-direction: column; gap: 7px; min-width: 0; }
-  .tabela-item-head { display: flex; align-items: baseline; gap: 6px; min-width: 0; }
   .tabela-item-title { font-size: 12.5px; font-weight: 600; color: var(--ink); }
-  .tabela-item-sub { font-size: 11px; color: var(--ink3); }
-  .tabela-cell-docs { display: flex; flex-wrap: wrap; gap: 5px 6px; }
+  .tabela-item-sub { font-size: 11px; color: var(--ink3); margin-top: 2px; }
+  .tabela-cell-item { min-width: 0; }
+  .tabela-cell-item .doc-grid { margin-top: 8px; }
   .tabela-doc-empty { font-size: 11px; color: var(--ink3); }
   .tabela-cell-status { display: flex; flex-direction: column; gap: 5px; }
-  @media (max-width: 980px) {
-    .tabela-head-row, .tabela-row { grid-template-columns: 1fr; }
-    .tabela-head-row span:not(:first-child) { display: none; }
-  }
   .status-select-mini { font-family: 'DM Sans', sans-serif; font-size: 11px; font-weight: 600; padding: 4px 6px; border-radius: 6px; border: 1px solid var(--border); background: var(--surface); color: var(--ink); }
   /* 17/08: cor por status do item (Aguardando/Aberto/Fechado) — mesma paleta dos badges (.badge-red/.badge-green/.badge-slate).
      Escopado pela classe st-* (só nos selects de status do ITEM) pra não colorir o select de status do CICLO, que usa .status-select puro. */
@@ -2160,21 +2149,22 @@ function docsForItem(item, cat) {
 function allCatalogDocs(item, cat) {
   return (cat && cat.docsFixed) ? cat.docsFixed : Object.keys(item.checks || {});
 }
-
-/* 26/08: nome de exibição mais curto pros chips de documento — só a exibição muda, o nome
-   completo continua sendo o dado real (title, dados, checks, export) e é usado no lookup e no
-   title do chip. Documento sem entrada aqui aparece com o nome completo mesmo (o CSS limita a
-   2 linhas com clamp). Adicione aqui conforme mais nomes longos aparecerem em outras rubricas. */
+/* 26/08 (VA.38, reconstruída após acidente de sobrescrita — ver MEMORY_v4.md): nome de exibição
+   curto pro chip de documento, só na exibição — o nome completo (chave real de item.checks) nunca
+   muda, continua no title/tooltip do chip. Mapa cobre por enquanto só os nomes de Viagem (H/I) que
+   mais se beneficiam de encurtar; não é lista fechada — falta popular pras outras rubricas conforme
+   for aparecendo nome comprido na prática. */
 const DOC_SHORT_LABELS = {
-  'Relatório de viagem técnico assinado': 'Relatório de viagem',
+  'Formulário de autorização prévia': 'Autorização prévia',
+  'Relatório de viagem assinado': 'Relatório de viagem',
+  'Relatório de viagem técnico assinado': 'Relatório técnico',
+  'Nota fiscal da agência / confirmação de compra': 'NF da agência',
+  'Certificado de participação em congresso': 'Certificado de participação',
+  'Certificado de participação em evento': 'Certificado de participação',
   'Comprovante de depósito bancário da diária': 'Depósito da diária',
-  'Comprovante de embarque (aérea)': 'Comprovante de embarque',
-  'Nota fiscal / fatura de hospedagem (terrestre)': 'NF / fatura hospedagem',
-  'Certificado de participação em evento': 'Certificado do evento',
-  'Ata de reunião assinada (terrestre)': 'Ata assinada',
-  'Cupom fiscal local (terrestre)': 'Cupom fiscal',
-  'Declaração da empresa visitada (terrestre)': 'Declaração da visita',
-  'Verificação no Extrato CC': 'Verificação extrato CC',
+  'Nota fiscal / fatura de hospedagem (terrestre)': 'NF de hospedagem',
+  'Ata de reunião assinada (terrestre)': 'Ata de reunião',
+  'Declaração da empresa visitada (terrestre)': 'Declaração da empresa',
 };
 function docShortLabel(doc) { return DOC_SHORT_LABELS[doc] || doc; }
 
@@ -8368,7 +8358,6 @@ function va14ShortTitleText(text, max) {
   return t.length > max ? t.slice(0, max - 1).trim() + '…' : t;
 }
 function va14RefImportItem(meta,sheetName,rowIndex,item,fields,cols,extra){const descCols=cols.filter(c=>/DESCRICAO|DESPESA|ATIVIDADE|SERVICO|MATERIAL|JUSTIFICATIVA|DETALHAMENTO|OBJETO|FINALIDADE/i.test(c.label));const description=descCols.map(c=>fields[c.label||c.raw]).filter(Boolean).join(' | ')||Object.values(fields).map(va14RefText).filter(Boolean).slice(0,2).join(' | ')||meta.label;const amountCol=(meta.code==='F'&&cols.find(c=>/^VALOR TOTAL/.test(foldText(c.label))))||va14RefFind(cols,/VALOR|CUSTO|REMUNERACAO|REMUNERAÇÃO/),dateCol=va14RefFind(cols,/DATA DE EMISSAO|DATA DE EMISSÃO|DATA DO COMPROVANTE|DATA DE ENCERRAMENTO/),payeeCol=va14RefFind(cols,/QUEM RECEBEU|FORNECEDOR|BENEFICIARIO|BENEFICIÁRIO|RAZAO SOCIAL|RAZÃO SOCIAL|NOME/),docCol=va14RefFind(cols,/CPF|CNPJ/);const amount=amountCol?excelNumber(fields[amountCol.label||amountCol.raw]):null,warnings=[];if(amount===null&&meta.code!=='D'&&meta.code!=='E')warnings.push('Valor não identificado automaticamente.');const payeeName=payeeCol?va14RefText(fields[payeeCol.label||payeeCol.raw]):'';const shortDescFirst=va14ShortTitleText((descCols[0]&&fields[descCols[0].label||descCols[0].raw])||description.split(' | ')[0],70);const title=(meta.code==='F'&&payeeName)?va14ShortTitleText(payeeName,250):va14ShortTitleText(item+(shortDescFirst?' - '+shortDescFirst:''),90);return {title,sourceKey:'REF|'+meta.code+'|'+item,sourceType:'REF',categoryId:meta.id,categoryLabel:meta.label,expenseType:'',budgetItem:String(item),description,payeeName,payeeDocumentMasked:docCol?va14RefText(fields[docCol.label||docCol.raw]):'',paymentDate:null,documentDate:dateCol?toIsoDateCell(fields[dateCol.label||dateCol.raw]):null,amount,incomeAmount:null,checks:Object.fromEntries((REF_DOCUMENTS_BY_CODE[meta.code] || []).map(doc => [doc, 'PND'])),sourceSheetName:sheetName,sourceRowNumber:rowIndex+1,importWarnings:warnings.join(' '),possibleRemoved:false,canonicalData:{schemaVersion:2,source:'REF',sheet:sheetName,category:meta.label,categoryCode:meta.code,item:String(item),sourceRowNumber:rowIndex+1,fields:{...fields,...(extra||{})}}};}
-parseRefImportDraft=function(workbook){const items=[],warnings=[],sheetInfo=new Map((((workbook.Workbook||{}).Sheets)||[]).map(x=>[x.name,x]));workbook.SheetNames.forEach(sheetName=>{const meta=va14RefMeta(sheetName);if(!meta.code||(sheetInfo.get(sheetName)||{}).Hidden)return;const rows=XLSX.utils.sheet_to_json(workbook.Sheets[sheetName],{header:1,defval:null,raw:true}),h=va14RefHeader(rows,meta.code);if(h<0)return;const header=rows[h]||[];let cols=va14RefColumns(header,meta.code);if(meta.code==='F'){const totalIndex=header.findIndex(v=>/^VALOR TOTAL/.test(foldText(v)));if(totalIndex>=0)cols.push({index:totalIndex,raw:va14RefText(header[totalIndex]),label:'VALOR TOTAL'});}if(!cols.length)return;const itemCol=header.findIndex(v=>foldText(v)==='ITEM');let gaps=0,teamIndex=0;for(let r=h+1;r<rows.length;r++){const row=rows[r]||[],fields=va14RefFields(row,cols);if(!Object.keys(fields).length){if(++gaps>2)break;continue;}gaps=0;if(meta.code==='D'){const name=Object.entries(fields).find(([k])=>/NOME/i.test(k)),cpf=Object.entries(fields).find(([k])=>/CPF/i.test(k));if(!name&&!cpf)continue;teamIndex++;items.push(va14RefImportItem(meta,sheetName,r,String(r+1),fields,cols,{teamIndex,teamLine:r+1,teamName:name?name[1]:'',teamCpf:cpf?cpf[1]:''}));}else{const item=va14RefText(itemCol>=0?row[itemCol]:row[0]);if(!item||/^(ITEM|TOTAL)/i.test(item))continue;items.push(va14RefImportItem(meta,sheetName,r,item,fields,cols));}}});if(!items.length)warnings.push('Nenhuma linha preenchida foi encontrada nas abas de rubricas do REF.');return {groups:items.length?[{key:'REF',label:'Itens preenchidos do REF',items}]:[],warnings};};
 compareImportItems=function(items,sourceType){const all=DATA.categories.flatMap(category=>category.items.map(item=>({category,item}))),id=item=>{const c=item.canonicalData||{};return foldText(c.source)+'|'+foldText(c.categoryCode||va13CategoryCode(item.sourceSheetName||item.categoryLabel||''))+'|'+va13ItemKey(c.item||item.budgetItem||item.sourceItemKey);},old=all.filter(x=>foldText((x.item.canonicalData||{}).source)===foldText(sourceType)),byId=new Map(old.map(x=>[id(x.item),x])),keys=new Set(items.map(id)),rows=items.map(imported=>{const existing=byId.get(id(imported));return existing?{state:importedItemFingerprint(imported)===importedItemFingerprint(existing.item)?'unchanged':'changed',imported,existing}:{state:'new',imported,existing:null};}),removed=old.filter(x=>!keys.has(id(x.item))).map(existing=>({state:'removed',imported:null,existing}));return {rows,removed,counts:{new:rows.filter(x=>x.state==='new').length,changed:rows.filter(x=>x.state==='changed').length,unchanged:rows.filter(x=>x.state==='unchanged').length,removed:removed.length,warnings:items.filter(x=>x.importWarnings).length}};};
 const va14BaseChecklistParser=parseChecklistImportDraft;
 parseChecklistImportDraft=function(workbook){return va14BaseChecklistParser({...workbook,SheetNames:workbook.SheetNames.filter(n=>!/(^|\s)PUNCHLIST(\s|$)/i.test(n))});};
@@ -8405,6 +8394,40 @@ function va14RefMeaningful(value) {
   const text = va14RefText(value);
   return !!text && !['0', 'NA', 'N/A', '-', '#N/A'].includes(foldText(text));
 }
+function va14RefHeaderRows(rows, code) {
+  if (code === 'D') {
+    const idx = va14RefHeader(rows, code);
+    return idx >= 0 ? [idx] : [];
+  }
+  const re = new RegExp('^' + code + '[.]\\d+\\b', 'i');
+  const result = [];
+  rows.forEach((row, idx) => {
+    const cells = row || [];
+    const matches = cells.filter(v => re.test(va14RefText(v))).length;
+    const hasItemCell = cells.some(v => foldText(v) === 'ITEM');
+    if (matches >= 2 || (matches >= 1 && hasItemCell)) result.push(idx);
+  });
+  return result;
+}
+function va14RefRowBlocks(row, code) {
+  const re = new RegExp('^' + code + '[.]\\d+\\b', 'i');
+  const cells = row || [];
+  const itemPositions = [];
+  cells.forEach((v, idx) => { if (foldText(v) === 'ITEM') itemPositions.push(idx); });
+  if (!itemPositions.length) {
+    const cols = va14RefColumns(row, code);
+    return cols.length ? [{ itemCol: -1, cols }] : [];
+  }
+  return itemPositions.map((startCol, i) => {
+    const endCol = i + 1 < itemPositions.length ? itemPositions[i + 1] : cells.length;
+    const cols = [];
+    for (let c = startCol; c < endCol; c++) {
+      const text = va14RefText(cells[c]);
+      if (re.test(text)) cols.push({ index: c, raw: text, label: text.replace(/^[A-Z]\d*[.]\d+\s*[-–:]?\s*/i, '') });
+    }
+    return { itemCol: startCol, cols };
+  }).filter(block => block.cols.length);
+}
 parseRefImportDraft = function(workbook) {
   const items = [], warnings = [];
   const sheetInfo = new Map((((workbook.Workbook || {}).Sheets) || []).map(info => [info.name, info]));
@@ -8412,45 +8435,43 @@ parseRefImportDraft = function(workbook) {
     const meta = va14RefMeta(sheetName);
     if (!meta.code || (sheetInfo.get(sheetName) || {}).Hidden) return;
     const rows = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { header: 1, defval: null, raw: true });
-    const headerIndex = va14RefHeader(rows, meta.code);
-    if (headerIndex < 0) return;
-    const header = rows[headerIndex] || [];
-    const officialCols = va14RefColumns(header, meta.code);
-    if (!officialCols.length) return;
-    const cols = [...officialCols];
-    if (meta.code === 'F') {
-      const totalIndex = header.findIndex(value => /^VALOR TOTAL/.test(foldText(value)));
-      if (totalIndex >= 0) cols.push({ index: totalIndex, raw: va14RefText(header[totalIndex]), label: 'VALOR TOTAL' });
-    }
-    const itemColumn = header.findIndex(value => foldText(value) === 'ITEM');
-    let gap = 0, teamIndex = 0;
-    for (let rowIndex = headerIndex + 1; rowIndex < rows.length; rowIndex++) {
-      const row = rows[rowIndex] || [];
-      if (meta.code === 'D') {
-        const fields = va14RefFields(row, officialCols);
-        const nameEntry = Object.entries(fields).find(([key]) => /NOME/i.test(key));
-        const cpfEntry = Object.entries(fields).find(([key]) => /CPF/i.test(key));
-        const name = nameEntry ? va14RefText(nameEntry[1]) : '';
-        const cpf = cpfEntry ? va14RefText(cpfEntry[1]) : '';
-        if (!name && !cpf) continue;
-        teamIndex++;
-        items.push(va14RefImportItem(meta, sheetName, rowIndex, String(rowIndex + 1), fields, officialCols, {
-          teamIndex, teamLine: rowIndex + 1, teamName: name, teamCpf: cpf,
-        }));
-        continue;
+    const headerRows = va14RefHeaderRows(rows, meta.code);
+    if (!headerRows.length) return;
+    let teamIndex = 0;
+    headerRows.forEach((headerIndex, hi) => {
+      const header = rows[headerIndex] || [];
+      let blocks = va14RefRowBlocks(header, meta.code);
+      if (meta.code === 'F') {
+        const totalIndex = header.findIndex(value => /^VALOR TOTAL/.test(foldText(value)));
+        if (totalIndex >= 0) blocks.forEach(block => { if (!block.cols.some(c => c.index === totalIndex)) block.cols.push({ index: totalIndex, raw: va14RefText(header[totalIndex]), label: 'VALOR TOTAL' }); });
       }
-      const item = va14RefText(itemColumn >= 0 ? row[itemColumn] : row[0]);
-      const hasRealData = officialCols.some(col => va14RefMeaningful(row[col.index]));
-      if (!hasRealData) {
-        gap++;
-        if (gap > 2) break;
-        continue;
-      }
-      gap = 0;
-      if (!item || /^(ITEM|TOTAL)/i.test(item)) continue;
-      const fields = va14RefFields(row, cols);
-      items.push(va14RefImportItem(meta, sheetName, rowIndex, item, fields, cols));
-    }
+      if (!blocks.length) return;
+      const rangeEnd = hi + 1 < headerRows.length ? headerRows[hi + 1] : rows.length;
+      blocks.forEach(block => {
+        for (let rowIndex = headerIndex + 1; rowIndex < rangeEnd; rowIndex++) {
+          const row = rows[rowIndex] || [];
+          if (meta.code === 'D') {
+            const fields = va14RefFields(row, block.cols);
+            const nameEntry = Object.entries(fields).find(([key]) => /NOME/i.test(key));
+            const cpfEntry = Object.entries(fields).find(([key]) => /CPF/i.test(key));
+            const name = nameEntry ? va14RefText(nameEntry[1]) : '';
+            const cpf = cpfEntry ? va14RefText(cpfEntry[1]) : '';
+            if (!name && !cpf) continue;
+            teamIndex++;
+            items.push(va14RefImportItem(meta, sheetName, rowIndex, String(rowIndex + 1), fields, block.cols, {
+              teamIndex, teamLine: rowIndex + 1, teamName: name, teamCpf: cpf,
+            }));
+            continue;
+          }
+          const hasRealData = block.cols.some(col => va14RefMeaningful(row[col.index]));
+          if (!hasRealData) continue;
+          const item = va14RefText(block.itemCol >= 0 ? row[block.itemCol] : row[0]);
+          if (!item || /^(ITEM|TOTAL)/i.test(item)) continue;
+          const fields = va14RefFields(row, block.cols);
+          items.push(va14RefImportItem(meta, sheetName, rowIndex, item, fields, block.cols));
+        }
+      });
+    });
   });
   if (!items.length) warnings.push('Nenhuma linha preenchida foi encontrada nas abas de rubricas do REF.');
   return { groups: items.length ? [{ key: 'REF', label: 'Itens preenchidos do REF', items }] : [], warnings };
@@ -8822,17 +8843,14 @@ function renderTabelaRow(item, cat) {
     const status = item.checks[doc] || 'NA';
     const cls = status === 'OK' ? 'chip-ok' : status === 'NA' ? 'chip-na' : 'chip-pnd';
     const safeDoc = doc.replace(/'/g, "\\'");
-    const icon = status === 'OK' ? '✓' : status === 'NA' ? '–' : '○';
-    return `<span class="doc-chip ${cls}" onclick="cycleCheck('${item.id}','${safeDoc}')" title="${escapeHtml(doc)} — clique pra alternar Pendente / OK / Não aplicável"><span class="doc-chip-icon">${icon}</span><span class="doc-chip-text">${escapeHtml(docShortLabel(doc))}</span><button class="doc-chip-remove" onclick="event.stopPropagation(); hideDocumentForItem('${item.id}','${safeDoc}')" title="Ocultar este documento">&times;</button></span>`;
+    return `<span class="doc-chip ${cls}" onclick="cycleCheck('${item.id}','${safeDoc}')" title="${escapeHtml(doc)} — clique pra alternar Pendente / OK / Não aplicável"><span class="doc-chip-text">${escapeHtml(docShortLabel(doc))}</span><button class="doc-chip-remove" onclick="event.stopPropagation(); hideDocumentForItem('${item.id}','${safeDoc}')" title="Ocultar este documento">&times;</button></span>`;
   }).join('') + (docsOcultos ? `<button class="tabela-doc-oculto-note" onclick="selectItem('${item.id}')" title="Gerenciar documentos ocultos na Área de Análise por item">+${docsOcultos} oculto${docsOcultos > 1 ? 's' : ''}</button>` : '');
   return `<div class="tabela-row${item.possivelRemovido ? ' tabela-row-removido' : ''}" draggable="true" data-item="${item.id}" ondragstart="handleItemDragStart(event,'${item.id}')" ondragend="handleItemDragEnd(event)" ondragover="handleItemDragOver(event)" ondragleave="handleItemDragLeave(event)" ondrop="handleItemDrop(event,'${item.id}')">
     <div class="tabela-cell-item">
-      <div class="tabela-item-head">
-        <span class="item-drag-handle" title="Arrastar pra reordenar">⠿</span>
-        <div class="tabela-item-title">${escapeHtml(item.title)}</div>
-      </div>
-      ${(item.payeeName || item.subtitle) ? `<div class="tabela-item-sub">${escapeHtml(item.payeeName || item.subtitle || '')}</div>` : ''}
-      <div class="tabela-cell-docs">${docsHtml || '<span class="tabela-doc-empty">Sem documento exigido.</span>'}</div>
+      <span class="item-drag-handle" title="Arrastar pra reordenar">⠿</span>
+      <div class="tabela-item-title">${escapeHtml(item.title)}</div>
+      <div class="tabela-item-sub">${escapeHtml(item.payeeName || item.subtitle || '')}</div>
+      <div class="doc-grid">${docsHtml || '<span class="tabela-doc-empty">Sem documento exigido.</span>'}</div>
     </div>
     <div>${editavel
       ? `<div class="editor-mini" contenteditable="true" data-item="${item.id}" data-field="comentarioAnalista" oninput="handleRichCommentInput(this)" data-placeholder="Sem comentário interno.">${richCommentHtml(entry, 'comentarioAnalista')}</div>`
@@ -9314,3 +9332,4 @@ initApp();
 </script>
 </body>
 </html>
+
